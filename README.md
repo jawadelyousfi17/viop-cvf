@@ -3,14 +3,14 @@
 An AI teacher. You give it a topic; it plans a lesson, renders it, and talks you
 through it — visuals and narration timed to each other.
 
-**Two rendering engines, chosen on the topic screen** (or via `?engine=`):
+**Four rendering engines, chosen on the topic screen** (or via `?engine=`):
 
 | Engine | What it does |
 | --- | --- |
 | **Whiteboard** (`?engine=whiteboard`) | Draws live on an infinite tldraw canvas with a visible pen, the way a teacher works at a board. Shapes stay grabbable afterwards |
 | **Canvas** (`?engine=canvas`) | The same lesson language painted straight onto a 2D canvas. No shape library, so layout is resolved *after* measuring the text — see below |
 | **Slides** (`?engine=slides`, default) | Fills twelve designed layouts — journey, timeline, steps, funnel, pillars, mindmap, table, chart, stats, spotlight, gallery, hero |
-| **Manim** (`?engine=manim`) | Animated mathematics, on [manim-ts](https://github.com/ManimCommunity/manim)'s model. For maths and physics, where the motion *is* the explanation |
+| **Manim** (`?engine=manim`) | Animated mathematics, on the `manim-ts` library. For maths and physics, where the motion *is* the explanation |
 
 **The manim engine.** A lesson declares mobjects and the steps that animate them
 (`lib/manim-lesson.ts`), and the player translates that into manim-ts calls.
@@ -33,9 +33,10 @@ remaining overlaps apart before a single stroke is drawn. The trade is that
 nothing on the board is editable afterwards.
 
 They share everything else: streaming generation, word-level narration sync,
-voices, photographs, mid-lesson questions, follow-ups and session memory. The
+voices, mid-lesson questions, follow-ups and session memory (photographs on all
+but manim, which draws rather than illustrates). The
 API routes take an `engine` field and dispatch to that engine's prompt and
-schema; `lib/engines.ts` is the only place the two are enumerated.
+schema; `lib/engines.ts` is the only place they are enumerated.
 
 Try it without any API keys: <http://localhost:3000/?demo=1> plays a hand-written
 lesson so you can see the whole player working.
