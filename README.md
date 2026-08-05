@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# viop
 
-## Getting Started
+An AI teacher that works at a whiteboard. You give it a topic; it plans a lesson,
+draws it onto an infinite tldraw canvas, and talks you through it — narration and
+drawing timed to each other, the way a good teacher explains something at the board.
 
-First, run the development server:
+Try it without any API keys: <http://localhost:3000/?demo=1> plays a hand-written
+lesson so you can see the whole player working.
+
+## Setup
 
 ```bash
+npm install
+cp .env.example .env.local   # add your keys
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | yes | Writes the lesson |
+| `OPENAI_MODEL` | no | Defaults to `gpt-5.6-luna`. Must support structured outputs |
+| `TTS_PROVIDER` | no | `elevenlabs` (default) or `openai` |
+| `ELEVENLABS_API_KEY` | for elevenlabs | Without a usable voice key, lessons play silently with captions |
+| `ELEVENLABS_VOICE_ID` | no | Defaults to EVE |
+| `ELEVENLABS_MODEL_ID` | no | Defaults to `eleven_multilingual_v2` |
+| `OPENAI_TTS_MODEL` | no | Defaults to `gpt-4o-mini-tts` |
+| `OPENAI_TTS_VOICE` | no | Defaults to `sage` |
+| `NEXT_PUBLIC_TLDRAW_LICENSE_KEY` | for production | tldraw runs unlicensed on localhost only |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How it works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**One call, streamed.** `POST /api/lesson` asks OpenAI for the whole lesson in a
+single structured-output call (`lib/prompt.ts`, schema in `lib/lesson.ts`) and streams
+the response. Because the model writes scenes in order, `lib/lesson-stream.ts` pulls
+each scene object out of the half-written JSON the moment its braces balance and
+pushes it to the player as a newline-delimited event.
 
-## Learn More
+The practical effect: **the board goes live in ~8–12s instead of ~34s**, and the rest
+of the lesson is written while scene one plays. Generation runs about 4s per scene
+against roughly 18s of playback, so it stays comfortably ahead. If it ever falls
+behind, playback holds on the current scene ("Writing the next scene…") and resumes
+the instant the next one lands.
 
-To learn more about Next.js, take a look at the following resources:
+**Scene-local coordinates.** Every scene is planned inside the same fixed 1200×800
+box, so the model never has to reason about where previous scenes ended up. The
+player offsets each scene horizontally onto one shared canvas and pans between them
+— which is why the finished lesson reads as one long whiteboard rather than a deck.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Drawing follows the voice, word by word.** Each shape carries an `anchor` — the
+exact phrase from the narration it illustrates. ElevenLabs' `/with-timestamps`
+endpoint returns a start time per character, so `components/narrator.ts` can resolve
+that phrase to a moment in the audio and the shape is drawn as the voice says it.
+Shapes also carry an `at` fraction, used as the fallback when the phrase can't be
+matched, when the provider returns no alignment (OpenAI returns none), or when
+there's no voice key at all. One `requestAnimationFrame` loop reads
+`audio.currentTime` and paints on schedule, so pause, resume and scene-skip all work
+without separate timer bookkeeping.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Real tldraw shapes.** `components/paint.ts` translates the model's board language
+into tldraw shapes: geo, text and note; arrows *bound* to the shapes they connect;
+`curve` and `highlight` as freehand strokes; `line` and `axes` for plots and
+brackets. So a lesson can draw an actual graph — and once it has played you can grab
+anything on the board and move it.
 
-## Deploy on Vercel
+| File | Role |
+| --- | --- |
+| `lib/lesson.ts` | Board language: types, JSON schema, layout constants, repair pass |
+| `lib/lesson-stream.ts` | Pulls whole scenes out of partial JSON as it streams |
+| `lib/prompt.ts` | What the teacher is told about drawing and narrating |
+| `app/api/lesson/route.ts` | Lesson generation, streamed as NDJSON events |
+| `app/api/tts/route.ts` | Voiceover (OpenAI or ElevenLabs), one request per scene |
+| `components/studio.tsx` | Topic screen, playback loop, transport controls |
+| `components/paint.ts` | Board language → tldraw shapes, reveal animation, camera |
+| `components/narrator.ts` | Audio fetch, cache, prefetch, silent fallback |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Known limits
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Time to first scene is dominated by the model's own latency before it emits any
+  tokens (~7–9s), not by the lesson length. Streaming already hides everything after
+  that.
+- Word-level sync needs ElevenLabs. On OpenAI voices, shapes fall back to the `at`
+  fraction, because OpenAI's speech API returns no alignment data.
+- Layout is whatever the model plans. Shapes are clamped to the scene box and a
+  spacing pass opens room for arrow labels, but nothing checks for general overlap
+  after the fact.
