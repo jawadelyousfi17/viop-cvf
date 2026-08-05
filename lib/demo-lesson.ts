@@ -31,6 +31,29 @@ export const DEMO_LESSON: Lesson = {
   summary: 'Memory is slow, so the CPU keeps a small, fast copy of what it just touched.',
   scenes: [
     {
+      id: 'scene-0',
+      heading: 'Why is it slow?',
+      narration:
+        'Start with the question everyone actually has. [curious] Why does a processor that can do billions of things a second still feel like it is waiting? There are four suspects on this board, and only one of them turns out to matter.',
+      shapes: [
+        s({ id: 'q', kind: 'text', text: 'WHY IS IT\nSLOW?', x: 470, y: 330, w: 300, h: 140, size: 'xl', at: 0 }),
+        s({ id: 'r1', kind: 'label', text: 'CLOCK SPEED', x: 120, y: 160, w: 300, h: 60, at: 0.2, anchor: 'four suspects' }),
+        s({ id: 'r2', kind: 'label', text: 'CORE COUNT', x: 820, y: 160, w: 290, h: 60, at: 0.3 }),
+        s({ id: 'r3', kind: 'label', text: 'MEMORY LATENCY', x: 820, y: 590, w: 360, h: 60, color: 'green', at: 0.42, anchor: 'only one of them' }),
+        s({ id: 'r4', kind: 'label', text: 'DISK SPEED', x: 140, y: 590, w: 280, h: 60, at: 0.5 }),
+        s({ id: 'l1', kind: 'line', color: 'black', size: 's', at: 0.22, points: [{ x: 420, y: 215 }, { x: 470, y: 340 }] }),
+        s({ id: 'l2', kind: 'line', color: 'black', size: 's', at: 0.32, points: [{ x: 820, y: 215 }, { x: 760, y: 340 }] }),
+        s({ id: 'l3', kind: 'line', color: 'black', size: 's', at: 0.44, points: [{ x: 770, y: 460 }, { x: 830, y: 600 }] }),
+        s({ id: 'l4', kind: 'line', color: 'black', size: 's', at: 0.52, points: [{ x: 460, y: 460 }, { x: 410, y: 600 }] }),
+        s({ id: 'ring1', kind: 'ring', color: 'green', x: 810, y: 575, w: 380, h: 90, at: 0.62, anchor: 'only one of them' }),
+        s({ id: 'ann1', kind: 'text', text: 'this is the one', x: 830, y: 690, w: 300, h: 50, color: 'green', size: 's', at: 0.68 }),
+        s({ id: 'ann2', kind: 'text', text: 'barely moved in a decade', x: 100, y: 250, w: 320, h: 50, color: 'red', size: 's', at: 0.78, anchor: 'four suspects' }),
+        s({ id: 'ann3', kind: 'text', text: 'not what we are measuring', x: 120, y: 680, w: 330, h: 50, color: 'red', size: 's', at: 0.86 }),
+        s({ id: 'lg1', kind: 'text', text: 'red · doubt', x: 60, y: 740, w: 200, h: 40, color: 'red', size: 's', at: 0.92 }),
+        s({ id: 'lg2', kind: 'text', text: 'green · agree', x: 260, y: 740, w: 220, h: 40, color: 'green', size: 's', at: 0.95 }),
+      ],
+    },
+    {
       id: 'scene-1',
       heading: 'The processor waits',
       narration:

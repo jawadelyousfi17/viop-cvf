@@ -50,7 +50,11 @@ export async function GET(request: Request) {
     engine: 'google_images',
     q: query.slice(0, 200),
     api_key: apiKey,
-    ...(wantsMotion ? { tbs: 'itp:animated' } : {}),
+    // Google's own type filter. Asking for "photograph" in the query is not
+    // enough — for technical topics the top results are still cutaway diagrams
+    // and schematics, which is exactly what the designed slides already do
+    // better. itp:photo restricts to actual photographs.
+    tbs: wantsMotion ? 'itp:animated' : 'itp:photo',
     // Diagrams and photographs read better on a whiteboard than screenshots of
     // text, and safe search keeps a classroom tool classroom-safe.
     safe: 'active',

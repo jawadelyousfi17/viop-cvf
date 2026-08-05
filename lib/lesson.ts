@@ -40,6 +40,8 @@ export function sceneBounds(index: number) {
 
 export const SHAPE_KINDS = [
   'text',
+  /** Bare marker lettering with a dashed rule under it — no box. */
+  'label',
   'box',
   'ellipse',
   'diamond',

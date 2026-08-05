@@ -381,6 +381,8 @@ export class BoardPainter {
       this.paintArrow(sceneIndex, shape, id, offsetY, animate)
     } else if (shape.kind === 'image') {
       this.paintImage(shape, id, offsetY, animate, sceneIndex, scene)
+    } else if (shape.kind === 'label') {
+      this.paintLabel(shape, id, offsetY, animate)
     } else if (shape.kind === 'icon') {
       this.paintIcon(shape, id, offsetY, animate)
     } else if (shape.kind === 'ring') {
@@ -702,6 +704,85 @@ export class BoardPainter {
       path: points,
       stroke: { points: points.map((p) => ({ x: p.x - points[0].x, y: p.y - points[0].y, z: p.z })) },
     })
+  }
+
+  /**
+   * Marker lettering with a dashed rule under it.
+   *
+   * The signature move of a real whiteboard: nobody draws a rectangle around
+   * every word — they write the word and underline it. A box says "this is a
+   * node in a diagram"; an underline says "this is a thing I am writing down",
+   * which is what most of a working board actually is.
+   */
+  private paintLabel(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {
+    const x = shape.x + wobble(shape.id, 'x', HAND.drift)
+    const y = shape.y + offsetY
+    const width = Math.max(80, shape.w)
+
+    this.editor.createShape({
+      id,
+      type: 'text',
+      x,
+      y,
+      rotation: wobble(shape.id, 'r', HAND.tiltText),
+      opacity: animate ? 0 : 1,
+      props: {
+        richText: toRichText(shape.text || ' '),
+        color: shape.color,
+        size: shape.size,
+        font: shape.font,
+        textAlign: 'start',
+        autoSize: false,
+        w: width,
+        scale: 1,
+      },
+    })
+
+    // The rule sits just under the lettering and runs a little short of it,
+    // the way a hand-drawn underline does.
+    const ruleId = createShapeId()
+    const ruleY = y + Math.max(38, shape.h * 0.72)
+    const indices = getIndices(2)
+    this.editor.createShape({
+      id: ruleId,
+      type: 'line',
+      x,
+      y: ruleY,
+      opacity: animate ? 0 : 1,
+      props: {
+        color: shape.color,
+        dash: 'dashed',
+        size: shape.size === 'xl' ? 'm' : 's',
+        spline: 'line',
+        points: {
+          [indices[0]]: { id: indices[0], index: indices[0], x: 0, y: 0 },
+          [indices[1]]: {
+            id: indices[1],
+            index: indices[1],
+            x: width * 0.88 + wobble(shape.id, 'rule', 12),
+            y: wobble(shape.id, 'tilt', 3),
+          },
+        },
+        scale: 1,
+      },
+    })
+
+    this.rects.set(id, { x, y, w: width, h: shape.h })
+
+    if (animate) {
+      this.enqueue({
+        id,
+        type: 'text',
+        path: [
+          { x, y: y + shape.h * 0.4 },
+          { x: x + width, y: y + shape.h * 0.4 },
+          { x, y: ruleY },
+          { x: x + width * 0.88, y: ruleY },
+        ],
+        stroke: null,
+        extra: [{ id: ruleId, type: 'line' }],
+      })
+    }
   }
 
   /**

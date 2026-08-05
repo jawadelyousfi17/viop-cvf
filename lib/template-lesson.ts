@@ -155,7 +155,15 @@ const ITEM_LIMITS: Record<TemplateKind, { min: number; max: number }> = {
  * pictures on one slide, which is what a comparison or a set of specimens
  * actually needs — one hero image per scene is not always enough.
  */
-export const GALLERY_TEMPLATES = new Set<TemplateKind>(['gallery', 'compare', 'pillars'])
+export const GALLERY_TEMPLATES = new Set<TemplateKind>([
+  'gallery',
+  'compare',
+  'pillars',
+  'steps',
+  'timeline',
+  'journey',
+  'funnel',
+])
 /** Templates with one scene-level photograph. */
 export const PHOTO_TEMPLATES = new Set<TemplateKind>(['spotlight', 'hero'])
 /** Templates driven by the `data` slot rather than by items. */
@@ -182,8 +190,9 @@ export function normalizeScene(scene: TemplateScene, sceneIndex: number): Templa
     .filter((item) => item && (typeof item.heading === 'string' || typeof item.body === 'string'))
     .slice(0, limits.max)
     .map((item, i, all) => ({
-      heading: text(item.heading, 48) || `Step ${i + 1}`,
-      body: text(item.body, 90),
+      heading: text(item.heading, 28) || `Step ${i + 1}`,
+      // Hard cap: cards are labels for a picture, not prose.
+      body: text(item.body, 52),
       icon: firstGlyph(item.icon) || '✦',
       anchor: text(item.anchor, 60),
       image: text(item.image, 120),
@@ -202,8 +211,8 @@ export function normalizeScene(scene: TemplateScene, sceneIndex: number): Templa
   return {
     id: scene.id || `scene-${sceneIndex + 1}`,
     template,
-    title: text(scene.title, 60) || 'Untitled',
-    subtitle: text(scene.subtitle, 110),
+    title: text(scene.title, 44) || 'Untitled',
+    subtitle: text(scene.subtitle, 76),
     narration: (scene.narration ?? '').trim(),
     image: PHOTO_TEMPLATES.has(template) ? text(scene.image, 120) : '',
     data: DATA_TEMPLATES.has(template) ? text(scene.data, 900) : '',

@@ -12,7 +12,7 @@ export type { SlideProps } from './primitives'
 /* Journey — the winding milestone road from the reference template.   */
 /* ------------------------------------------------------------------ */
 
-export function JourneySlide({ scene, revealed }: SlideProps) {
+export function JourneySlide({ scene, revealed, itemImages }: SlideProps) {
   const items = scene.items
   const n = Math.max(1, items.length)
 
@@ -87,15 +87,26 @@ export function JourneySlide({ scene, revealed }: SlideProps) {
         <Reveal
           key={i}
           on={revealed > i}
-          className="absolute flex w-[38%] items-start gap-3 rounded-2xl bg-white p-4 shadow-[0_8px_30px_rgba(24,32,63,0.08)]"
+          className="absolute flex w-[34%] items-center gap-3 overflow-hidden rounded-2xl bg-white p-2.5 shadow-[0_8px_30px_rgba(24,32,63,0.08)]"
           style={{
             left: `${(nodes[i].x + 70) / 12}%`,
             top: `${nodes[i].y / 7}%`,
-            marginTop: '-2.2rem',
+            marginTop: '-2.6rem',
           }}
         >
-          <IconChip icon={item.icon} color={ACCENTS[i % ACCENTS.length]} />
-          <div className="min-w-0">
+          {/* The picture is the card. Without it a milestone is two words on a
+              large white rectangle, which is worse than no card at all. */}
+          {item.image ? (
+            <Photo
+              image={itemImages?.[i]}
+              alt={item.image}
+              rounded="rounded-xl"
+              className="aspect-square w-[30%] shrink-0"
+            />
+          ) : (
+            <IconChip icon={item.icon} color={ACCENTS[i % ACCENTS.length]} />
+          )}
+          <div className="min-w-0 pr-1">
             <h3 className="text-[clamp(12px,1.25vw,18px)] font-semibold text-zinc-900">
               {item.heading}
             </h3>

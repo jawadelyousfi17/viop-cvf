@@ -147,7 +147,16 @@ export function Photo({
     <div className={`${position} overflow-hidden bg-zinc-200 ${rounded} ${className}`}>
       {image?.src ? (
         // eslint-disable-next-line @next/next/no-img-element -- proxied, unoptimisable
-        <img src={image.src} alt={alt} className="h-full w-full object-cover" />
+        <img
+          src={image.src}
+          alt=""
+          className="h-full w-full object-cover"
+          // A dead upstream would otherwise render the query as broken-image
+          // alt text across the card, which looks worse than an empty frame.
+          onError={(event) => {
+            event.currentTarget.style.display = 'none'
+          }}
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center p-6 text-center text-xs text-zinc-400">
           {image === null ? alt : 'Fetching photograph…'}

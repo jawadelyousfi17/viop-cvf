@@ -1,12 +1,12 @@
 'use client'
 
-import { ACCENTS, IconChip, Reveal, SlideFrame, SlideHeader, type SlideProps } from './primitives'
+import { ACCENTS, IconChip, Photo, Reveal, SlideFrame, SlideHeader, type SlideProps } from './primitives'
 
 /* ------------------------------------------------------------------ */
 /* Timeline — horizontal chevrons with captions above and below.       */
 /* ------------------------------------------------------------------ */
 
-export function TimelineSlide({ scene, revealed }: SlideProps) {
+export function TimelineSlide({ scene, revealed, itemImages }: SlideProps) {
   const items = scene.items
 
   return (
@@ -23,15 +23,25 @@ export function TimelineSlide({ scene, revealed }: SlideProps) {
                 className="absolute w-[92%] px-1"
                 style={{ [above ? 'bottom' : 'top']: '4.6rem' } as React.CSSProperties}
               >
+                {item.image && (
+                  <Photo
+                    image={itemImages?.[i]}
+                    alt={item.image}
+                    rounded="rounded-xl"
+                    className="mb-2 aspect-[4/3] w-full shadow-[0_6px_20px_rgba(24,32,63,0.10)]"
+                  />
+                )}
                 <span
                   className="inline-block rounded-md px-2 py-0.5 text-[clamp(10px,1.05vw,15px)] font-bold text-zinc-900"
                   style={{ background: `${accent}33` }}
                 >
                   {item.heading}
                 </span>
-                <p className="mt-1.5 text-[clamp(9px,0.92vw,13px)] leading-snug text-zinc-500">
-                  {item.body}
-                </p>
+                {item.body && (
+                  <p className="mt-1.5 text-[clamp(9px,0.92vw,13px)] leading-snug text-zinc-500">
+                    {item.body}
+                  </p>
+                )}
               </Reveal>
 
               {/* Chevron: a circle badge with an arrow head behind it. */}
@@ -59,7 +69,7 @@ export function TimelineSlide({ scene, revealed }: SlideProps) {
 /* Steps — numbered badges in a row, captions beneath.                 */
 /* ------------------------------------------------------------------ */
 
-export function StepsSlide({ scene, revealed }: SlideProps) {
+export function StepsSlide({ scene, revealed, itemImages }: SlideProps) {
   return (
     <SlideFrame scene={scene} className="justify-start">
       <div className="relative flex w-full items-start gap-[2%]">
@@ -73,14 +83,33 @@ export function StepsSlide({ scene, revealed }: SlideProps) {
             delayMs={40}
             className="relative flex flex-1 flex-col items-start"
           >
-            <IconChip icon={item.icon} color={ACCENTS[i % ACCENTS.length]} size={54} radius="rounded-2xl" />
-            <span
-              className="mt-3 text-[clamp(14px,1.6vw,24px)] font-extrabold"
-              style={{ color: ACCENTS[i % ACCENTS.length] }}
-            >
-              {String(i + 1).padStart(2, '0')}
-            </span>
-            <h3 className="mt-1 text-[clamp(11px,1.1vw,16px)] font-semibold text-zinc-900">
+            {item.image ? (
+              <div className="relative w-full">
+                <Photo
+                  image={itemImages?.[i]}
+                  alt={item.image}
+                  className="aspect-[4/3] w-full shadow-[0_8px_26px_rgba(24,32,63,0.10)]"
+                />
+                {/* The badge rides the picture instead of stacking above it. */}
+                <span
+                  className="absolute -bottom-3 left-3 flex size-9 items-center justify-center rounded-xl text-[13px] font-extrabold text-white shadow"
+                  style={{ background: ACCENTS[i % ACCENTS.length] }}
+                >
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+              </div>
+            ) : (
+              <>
+                <IconChip icon={item.icon} color={ACCENTS[i % ACCENTS.length]} size={54} radius="rounded-2xl" />
+                <span
+                  className="mt-3 text-[clamp(14px,1.6vw,24px)] font-extrabold"
+                  style={{ color: ACCENTS[i % ACCENTS.length] }}
+                >
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+              </>
+            )}
+            <h3 className={`text-[clamp(11px,1.15vw,17px)] font-semibold text-zinc-900 ${item.image ? 'mt-6' : 'mt-1'}`}>
               {item.heading}
             </h3>
             {item.body && (
@@ -99,7 +128,7 @@ export function StepsSlide({ scene, revealed }: SlideProps) {
 /* Funnel — narrowing stages.                                          */
 /* ------------------------------------------------------------------ */
 
-export function FunnelSlide({ scene, revealed }: SlideProps) {
+export function FunnelSlide({ scene, revealed, itemImages }: SlideProps) {
   const items = scene.items
   const n = Math.max(1, items.length)
 
@@ -124,9 +153,20 @@ export function FunnelSlide({ scene, revealed }: SlideProps) {
                 </span>
                 <span className="text-[clamp(11px,1.15vw,16px)] font-semibold">{item.heading}</span>
               </div>
-              <p className="flex-1 text-[clamp(9px,0.95vw,13px)] leading-snug text-zinc-500">
-                {item.body}
-              </p>
+              {item.image ? (
+                <Photo
+                  image={itemImages?.[i]}
+                  alt={item.image}
+                  rounded="rounded-lg"
+                  className="aspect-[4/3] w-[22%] shrink-0"
+                />
+              ) : (
+                item.body && (
+                  <p className="flex-1 text-[clamp(9px,0.95vw,13px)] leading-snug text-zinc-500">
+                    {item.body}
+                  </p>
+                )
+              )}
             </Reveal>
           )
         })}
