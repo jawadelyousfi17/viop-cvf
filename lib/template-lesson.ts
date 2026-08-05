@@ -9,12 +9,30 @@
  */
 
 export const TEMPLATES = [
-  /** Winding milestone road — processes, timelines, anything sequential. */
+  /** Winding milestone road — processes with a sense of travel. */
   'journey',
   /** A row of pillar cards — categories, components, options. */
   'pillars',
   /** A large photograph beside captioned points — real objects, places. */
   'spotlight',
+  /** Horizontal chevron timeline with alternating captions — history, eras. */
+  'timeline',
+  /** Numbered badge row — an ordered procedure, 01..06. */
+  'steps',
+  /** Narrowing cone — filtering, attrition, selection. */
+  'funnel',
+  /** Central hub with items radiating both sides — facets of one thing. */
+  'mindmap',
+  /** A grid of photographs with captions — specimens, examples, variety. */
+  'gallery',
+  /** Full-bleed photograph with the title over it — openings, big reveals. */
+  'hero',
+  /** A designed data table — comparisons, specs, lookups. */
+  'table',
+  /** A bar chart drawn to scale — magnitudes worth comparing. */
+  'chart',
+  /** Three or four large figures — the numbers that carry the point. */
+  'stats',
 ] as const
 
 export type TemplateKind = (typeof TEMPLATES)[number]
@@ -30,6 +48,8 @@ export interface TemplateItem {
   anchor: string
   /** Fallback reveal moment, fraction 0-1 of the narration. */
   at: number
+  /** Image-search query for `gallery` items; '' elsewhere. */
+  image: string
 }
 
 export interface TemplateScene {
@@ -40,8 +60,14 @@ export interface TemplateScene {
   /** One supporting line under the title. '' allowed. */
   subtitle: string
   narration: string
-  /** Image-search query for `spotlight`; '' for other templates. */
+  /** Image-search query for `spotlight` and `hero`; '' for other templates. */
   image: string
+  /**
+   * Rows for `table` and `chart`: newlines separate rows, pipes separate
+   * columns. Encoded in one string rather than a nested array so the schema
+   * stays cheap on every scene that doesn't use it.
+   */
+  data: string
   items: TemplateItem[]
 }
 
@@ -54,7 +80,7 @@ export interface TemplateLesson {
 export const SCENE_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'template', 'title', 'subtitle', 'narration', 'image', 'items'],
+  required: ['id', 'template', 'title', 'subtitle', 'narration', 'image', 'data', 'items'],
   properties: {
     id: { type: 'string' },
     template: { type: 'string', enum: [...TEMPLATES] },
@@ -62,18 +88,20 @@ export const SCENE_JSON_SCHEMA = {
     subtitle: { type: 'string' },
     narration: { type: 'string' },
     image: { type: 'string' },
+    data: { type: 'string' },
     items: {
       type: 'array',
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['heading', 'body', 'icon', 'anchor', 'at'],
+        required: ['heading', 'body', 'icon', 'anchor', 'at', 'image'],
         properties: {
           heading: { type: 'string' },
           body: { type: 'string' },
           icon: { type: 'string' },
           anchor: { type: 'string' },
           at: { type: 'number' },
+          image: { type: 'string' },
         },
       },
     },
@@ -108,6 +136,30 @@ const ITEM_LIMITS: Record<TemplateKind, { min: number; max: number }> = {
   journey: { min: 3, max: 5 },
   pillars: { min: 2, max: 4 },
   spotlight: { min: 2, max: 4 },
+  timeline: { min: 3, max: 6 },
+  steps: { min: 3, max: 6 },
+  funnel: { min: 3, max: 5 },
+  mindmap: { min: 4, max: 8 },
+  gallery: { min: 3, max: 6 },
+  hero: { min: 0, max: 3 },
+  table: { min: 0, max: 3 },
+  chart: { min: 0, max: 3 },
+  stats: { min: 2, max: 4 },
+}
+
+/** Templates that carry their own photographs, per item. */
+export const GALLERY_TEMPLATES = new Set<TemplateKind>(['gallery'])
+/** Templates with one scene-level photograph. */
+export const PHOTO_TEMPLATES = new Set<TemplateKind>(['spotlight', 'hero'])
+/** Templates driven by the `data` slot rather than by items. */
+export const DATA_TEMPLATES = new Set<TemplateKind>(['table', 'chart'])
+
+/** Splits the `data` slot: newlines are rows, pipes are columns. */
+export function parseGrid(data: string): string[][] {
+  return data
+    .split('\n')
+    .map((row) => row.split('|').map((cell) => cell.trim()))
+    .filter((row) => row.some(Boolean))
 }
 
 /**
@@ -127,6 +179,7 @@ export function normalizeScene(scene: TemplateScene, sceneIndex: number): Templa
       body: text(item.body, 90),
       icon: firstGlyph(item.icon) || '✦',
       anchor: text(item.anchor, 60),
+      image: text(item.image, 120),
       at: clamp(
         typeof item.at === 'number' && Number.isFinite(item.at) ? item.at : (i + 1) / (all.length + 1),
         0.05,
@@ -145,7 +198,8 @@ export function normalizeScene(scene: TemplateScene, sceneIndex: number): Templa
     title: text(scene.title, 60) || 'Untitled',
     subtitle: text(scene.subtitle, 110),
     narration: (scene.narration ?? '').trim(),
-    image: template === 'spotlight' ? text(scene.image, 120) : '',
+    image: PHOTO_TEMPLATES.has(template) ? text(scene.image, 120) : '',
+    data: DATA_TEMPLATES.has(template) ? text(scene.data, 900) : '',
     items,
   }
 }

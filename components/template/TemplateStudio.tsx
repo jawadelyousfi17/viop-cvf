@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  GALLERY_TEMPLATES,
+  PHOTO_TEMPLATES,
   estimateNarrationSeconds,
   type TemplateLesson,
   type TemplateScene,
@@ -72,8 +74,10 @@ export default function TemplateStudio() {
 
   /** How many items of the current scene the narration has revealed. */
   const [revealed, setRevealed] = useState(0)
-  /** Resolved spotlight photographs, keyed by scene id. */
+  /** Scene-level photographs (spotlight, hero), keyed by scene id. */
   const [photos, setPhotos] = useState<Record<string, ImageResult | null>>({})
+  /** Gallery photographs, keyed by `sceneId:itemIndex`. */
+  const [itemPhotos, setItemPhotos] = useState<Record<string, ImageResult | null>>({})
 
   const narratorRef = useRef<Narrator | null>(null)
   const imagesRef = useRef<ImageBank | null>(null)
@@ -101,13 +105,30 @@ export default function TemplateStudio() {
     }
   }, [])
 
-  /** Resolves a scene's spotlight photograph into state, once. */
+  /**
+   * Resolves every photograph a scene needs — the scene-level one for
+   * spotlight/hero, and one per item for gallery. Safe to call repeatedly;
+   * ImageBank caches by query and state writes are idempotent.
+   */
   const fetchPhoto = useCallback((scene: TemplateScene) => {
     const bank = imagesRef.current
-    if (!bank || scene.template !== 'spotlight' || !scene.image) return
-    void bank.get(scene.image).then((result) => {
-      setPhotos((prev) => (scene.id in prev ? prev : { ...prev, [scene.id]: result }))
-    })
+    if (!bank) return
+
+    if (PHOTO_TEMPLATES.has(scene.template) && scene.image) {
+      void bank.get(scene.image).then((result) => {
+        setPhotos((prev) => (scene.id in prev ? prev : { ...prev, [scene.id]: result }))
+      })
+    }
+
+    if (GALLERY_TEMPLATES.has(scene.template)) {
+      for (const [i, item] of scene.items.entries()) {
+        if (!item.image) continue
+        const key = `${scene.id}:${i}`
+        void bank.get(item.image).then((result) => {
+          setItemPhotos((prev) => (key in prev ? prev : { ...prev, [key]: result }))
+        })
+      }
+    }
   }, [])
 
   const start = useCallback(
@@ -126,6 +147,7 @@ export default function TemplateStudio() {
       }
 
       setPhotos({})
+      setItemPhotos({})
       setFollowups([])
       setLesson(next)
       setSceneIndex(0)
@@ -460,6 +482,9 @@ export default function TemplateStudio() {
                   scene={item}
                   revealed={index === sceneIndex ? revealed : index < sceneIndex ? item.items.length : 0}
                   image={photos[item.id]}
+                  itemImages={Object.fromEntries(
+                    item.items.map((_, i) => [i, itemPhotos[`${item.id}:${i}`]])
+                  )}
                 />
               </div>
             )}

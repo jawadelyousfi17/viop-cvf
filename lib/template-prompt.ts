@@ -4,13 +4,27 @@ You produce a LESSON: 5 to 7 scenes. Each scene has narration (spoken aloud) and
 
 # Templates
 
-Pick the template whose shape matches what this scene teaches — not the same one every time. A lesson that uses one template five times reads as a stuck slideshow.
+Pick the template whose SHAPE matches what the scene teaches. Vary them: a lesson that reuses one template throughout reads as a stuck slideshow. Across a lesson use at least four different templates.
 
-- "journey" — a winding milestone road. For processes, sequences, timelines, cause-and-effect chains, anything with an order. 3 to 5 items; each is one milestone.
-- "pillars" — a row of side-by-side cards. For categories, components, alternatives, properties, trade-offs. 2 to 4 items; each is one pillar.
-- "spotlight" — one large photograph of a real object beside captioned points. For the scene where seeing the actual thing matters: the organism, the machine, the place, the instrument. 2 to 4 items; each is one caption beside the photo.
+Sequences and processes
+- "journey" — a winding milestone road. A process with a sense of travel. 3-5 items.
+- "steps" — numbered badges in a row. A mechanical procedure done the same way every time. 3-6 items.
+- "timeline" — chevrons along a track, captions alternating above and below. History, eras, versions. 3-6 items.
+- "funnel" — narrowing stages. Filtering, attrition, selection, anything where most of what enters does not leave. 3-5 items.
 
-Use "spotlight" at least once per lesson. Its "image" slot is an image-search query for a PHOTOGRAPH OF A REAL OBJECT — name the physical thing and end with "photograph": "railway semaphore signal arm photograph", "detached suburban house photograph". Never charts, diagrams, tables, infographics or anything mostly text — the templates already look designed; a pasted chart ruins them. Other templates leave "image" as "".
+Structure and comparison
+- "pillars" — a row of numbered cards. Categories, components, alternatives. 2-4 items.
+- "mindmap" — a central hub with items radiating both sides. Facets of one thing, with no order between them. 4-8 items.
+
+Data — use these instead of describing numbers in prose
+- "table" — a designed grid. Comparisons, specs, lookups. Put the rows in "data": newlines separate rows, PIPES separate columns, FIRST ROW IS THE HEADER. Example: "Level|Size|Latency\nL1|32 KB|~1 ns\nRAM|16 GB|~100 ns". Give it one item whose anchor times the reveal.
+- "chart" — bars drawn to scale with their values. Any set of magnitudes worth comparing. Put "label|value" per line in "data", value a bare number: "L1|1\nL2|4\nRAM|100". Give it one item whose anchor times the reveal.
+- "stats" — two to four large figures. The numbers that carry the point. Each item's "heading" IS the figure ("95%", "20×", "1.4 kg") and "body" says what it counts.
+
+Photographs — see the images section
+- "spotlight" — one large photograph beside captioned points. 2-4 items.
+- "gallery" — a grid of photographs, ONE PER ITEM, each captioned. Specimens, examples, variety, several real things side by side. 3-6 items, each with its own "image" query.
+- "hero" — a full-bleed photograph with the title over it. Openings and big reveals. 0-3 items, shown as small chips.
 
 # Slots
 
@@ -20,6 +34,7 @@ Use "spotlight" at least once per lesson. Its "image" slot is an image-search qu
   - "heading" — 2 to 5 words.
   - "body" — one line, 12 words at most. A real fact with real numbers where you have them, never filler like "this is important".
   - "icon" — exactly ONE emoji that genuinely depicts the item: 🔒 for encryption, 🌡️ for temperature, 🫀 for the heart. Never decorative filler.
+  - "image" — a photograph query, for "gallery" items only; "" everywhere else.
   - "anchor" — 2 to 5 words copied VERBATIM from this scene's narration, the words being spoken when this item should appear. Copy from your own narration; never invent the phrase.
   - "at" — fallback reveal moment, a fraction 0 to 1 through the narration, increasing across items.
 
@@ -56,7 +71,11 @@ Build on that. Do not re-explain what they have already been shown — refer bac
 export function userPrompt(topic: string, history: TaughtLesson[] = []) {
   return `${historyPreamble(history)}Teach me this topic: ${topic}
 
-Before you finish: check the lesson uses at least two different templates, includes one "spotlight" scene with a real-object photograph query, and that every item's anchor appears verbatim in its scene's narration.`
+Before you finish, check all four:
+1. At least FOUR different templates across the lesson.
+2. At least THREE scenes carrying photographs, including one "gallery" whose items each have their own image query.
+3. At least one data template ("table", "chart" or "stats") wherever the topic has numbers worth comparing.
+4. Every item's anchor appears verbatim in its own scene's narration.`
 }
 
 /**
@@ -69,8 +88,9 @@ Produce one scene as JSON: {"id", "template", "title", "subtitle", "narration", 
 
 - Answer the actual question in the first sentence. No "great question", no recap.
 - 2 to 3 sentences, 30 to 55 words, spoken prose (no markdown or symbols). End by returning to the thread.
-- template: "pillars" usually; "journey" if the answer is a sequence; "spotlight" only if a photograph of a real object answers it (then "image" is the search query, otherwise "").
-- 2 to 4 items, each with heading (2-5 words), body (one line), icon (one fitting emoji), anchor (words copied verbatim from your narration), at (fraction 0-1, increasing).
+- template: "pillars" usually; "steps" or "journey" if the answer is a sequence; "stats" if it is a few numbers; "table" or "chart" if it is data (put rows in "data"); "spotlight" if a photograph of a real object answers it (then "image" is the query).
+- 2 to 4 items, each with heading (2-5 words), body (one line), icon (one fitting emoji), anchor (words copied verbatim from your narration), at (fraction 0-1, increasing), and image ("" unless gallery).
+- Leave "data" as "" unless the template is "table" or "chart".
 - If the question is off-topic or unanswerable, say so plainly in one sentence and hand back.`
 
 export function answerPrompt(question: string, context: { title: string; current: string }) {
