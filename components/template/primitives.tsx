@@ -50,10 +50,13 @@ export function Reveal({
   )
 }
 
-/** Title + subtitle block, centred. Used by most templates. */
-export function SlideHeader({ scene, align = 'center' }: { scene: TemplateScene; align?: 'center' | 'left' }) {
+/**
+ * Title + subtitle. Left-aligned and capped at roughly two thirds width, so it
+ * forms the top bar of an F rather than a centred banner the eye has to find.
+ */
+export function SlideHeader({ scene }: { scene: TemplateScene }) {
   return (
-    <div className={`max-w-3xl ${align === 'center' ? 'text-center' : ''}`}>
+    <div className="max-w-[68%]">
       <h2 className="text-[clamp(22px,2.6vw,38px)] font-bold leading-tight text-zinc-900">
         {scene.title}
       </h2>
@@ -62,6 +65,36 @@ export function SlideHeader({ scene, align = 'center' }: { scene: TemplateScene;
           {scene.subtitle}
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * The frame every content slide sits in.
+ *
+ * Readers scan in an F: along the top, back to the left edge, down and across
+ * again. So each slide puts its title in the same top-left corner and hangs the
+ * body directly beneath it on the same left margin. The consistency is the
+ * point — the eye stops hunting for where a slide begins, which is most of what
+ * makes a deck feel calm rather than busy.
+ */
+export function SlideFrame({
+  scene,
+  children,
+  className = '',
+}: {
+  scene: TemplateScene
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className="flex h-full w-full flex-col px-[6%] py-[5%]">
+      <SlideHeader scene={scene} />
+      {/* Content hangs from the header on the same margin rather than floating
+          mid-slide: in an F the eye returns to the left edge, not the centre. */}
+      <div className={`mt-[4%] flex min-h-0 flex-1 flex-col justify-start ${className}`}>
+        {children}
+      </div>
     </div>
   )
 }

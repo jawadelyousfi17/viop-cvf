@@ -25,6 +25,8 @@ export const TEMPLATES = [
   'mindmap',
   /** A grid of photographs with captions — specimens, examples, variety. */
   'gallery',
+  /** Two photographed things side by side — before and after, this versus that. */
+  'compare',
   /** Full-bleed photograph with the title over it — openings, big reveals. */
   'hero',
   /** A designed data table — comparisons, specs, lookups. */
@@ -141,14 +143,19 @@ const ITEM_LIMITS: Record<TemplateKind, { min: number; max: number }> = {
   funnel: { min: 3, max: 5 },
   mindmap: { min: 4, max: 8 },
   gallery: { min: 3, max: 6 },
+  compare: { min: 2, max: 2 },
   hero: { min: 0, max: 3 },
   table: { min: 0, max: 3 },
   chart: { min: 0, max: 3 },
   stats: { min: 2, max: 4 },
 }
 
-/** Templates that carry their own photographs, per item. */
-export const GALLERY_TEMPLATES = new Set<TemplateKind>(['gallery'])
+/**
+ * Templates whose ITEMS each carry a photograph. Any of these can put several
+ * pictures on one slide, which is what a comparison or a set of specimens
+ * actually needs — one hero image per scene is not always enough.
+ */
+export const GALLERY_TEMPLATES = new Set<TemplateKind>(['gallery', 'compare', 'pillars'])
 /** Templates with one scene-level photograph. */
 export const PHOTO_TEMPLATES = new Set<TemplateKind>(['spotlight', 'hero'])
 /** Templates driven by the `data` slot rather than by items. */

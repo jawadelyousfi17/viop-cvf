@@ -1,7 +1,7 @@
 'use client'
 
 import { parseGrid } from '@/lib/template-lesson'
-import { ACCENTS, Reveal, SlideHeader, type SlideProps } from './primitives'
+import { ACCENTS, Reveal, SlideFrame, type SlideProps } from './primitives'
 
 /* ------------------------------------------------------------------ */
 /* Table — a designed data grid.                                       */
@@ -15,10 +15,8 @@ export function TableSlide({ scene, revealed }: SlideProps) {
   const shown = scene.items.length ? Math.ceil((revealed / scene.items.length) * body.length) : body.length
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center px-[6%]">
-      <SlideHeader scene={scene} />
-
-      <div className="mt-[3%] w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-[0_8px_30px_rgba(24,32,63,0.08)]">
+    <SlideFrame scene={scene}>
+      <div className="w-full max-w-[86%] overflow-hidden rounded-3xl bg-white shadow-[0_8px_30px_rgba(24,32,63,0.08)]">
         <div
           className="grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, header.length)}, minmax(0, 1fr))` }}
@@ -52,7 +50,7 @@ export function TableSlide({ scene, revealed }: SlideProps) {
           )}
         </div>
       </div>
-    </div>
+    </SlideFrame>
   )
 }
 
@@ -71,10 +69,8 @@ export function ChartSlide({ scene, revealed }: SlideProps) {
     : entries.length
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center px-[7%]">
-      <SlideHeader scene={scene} />
-
-      <div className="mt-[4%] flex h-[52%] w-full max-w-4xl items-end justify-center gap-[3%] border-b-2 border-zinc-200 pb-0">
+    <SlideFrame scene={scene}>
+      <div className="flex h-[58%] w-full max-w-[80%] items-end gap-[3%] border-b-2 border-zinc-200">
         {entries.map((entry, i) => {
           const height = (Math.abs(entry.value) / peak) * 100
           const on = i < shown
@@ -103,7 +99,7 @@ export function ChartSlide({ scene, revealed }: SlideProps) {
         })}
       </div>
 
-      <div className="flex w-full max-w-4xl justify-center gap-[3%] pt-3">
+      <div className="flex w-full max-w-[80%] gap-[3%] pt-3">
         {entries.map((entry, i) => (
           <span
             key={i}
@@ -114,7 +110,7 @@ export function ChartSlide({ scene, revealed }: SlideProps) {
           </span>
         ))}
       </div>
-    </div>
+    </SlideFrame>
   )
 }
 
@@ -124,15 +120,13 @@ export function ChartSlide({ scene, revealed }: SlideProps) {
 
 export function StatsSlide({ scene, revealed }: SlideProps) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center px-[7%]">
-      <SlideHeader scene={scene} />
-
-      <div className="mt-[5%] flex w-full items-stretch justify-center gap-[3%]">
+    <SlideFrame scene={scene}>
+      <div className="flex w-full items-stretch gap-[3%]">
         {scene.items.map((item, i) => (
           <Reveal
             key={i}
             on={revealed > i}
-            className="flex flex-1 flex-col items-center rounded-3xl bg-white px-6 py-9 text-center shadow-[0_8px_30px_rgba(24,32,63,0.08)]"
+            className="flex flex-1 flex-col rounded-3xl bg-white px-7 py-9 shadow-[0_8px_30px_rgba(24,32,63,0.08)]"
           >
             <span
               className="text-[clamp(28px,4.4vw,64px)] font-extrabold leading-none"
@@ -148,6 +142,6 @@ export function StatsSlide({ scene, revealed }: SlideProps) {
           </Reveal>
         ))}
       </div>
-    </div>
+    </SlideFrame>
   )
 }

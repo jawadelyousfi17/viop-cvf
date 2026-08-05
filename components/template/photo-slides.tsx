@@ -1,6 +1,6 @@
 'use client'
 
-import { ACCENTS, IconChip, Photo, Reveal, SlideHeader, type SlideProps } from './primitives'
+import { ACCENTS, IconChip, Photo, Reveal, SlideFrame, SlideHeader, type SlideProps } from './primitives'
 
 /* ------------------------------------------------------------------ */
 /* Spotlight — one large photograph beside captioned points.           */
@@ -8,19 +8,13 @@ import { ACCENTS, IconChip, Photo, Reveal, SlideHeader, type SlideProps } from '
 
 export function SpotlightSlide({ scene, revealed, image }: SlideProps) {
   return (
-    <div className="flex h-full w-full items-center gap-[4%] px-[5%]">
-      <Reveal on className="w-[46%] shrink-0">
-        <Photo
-          image={image}
-          alt={scene.image}
-          className="aspect-[4/3] shadow-[0_16px_50px_rgba(24,32,63,0.16)]"
-        />
-      </Reveal>
+    <div className="flex h-full w-full items-center gap-[5%] px-[6%] py-[5%]">
+      {/* Words on the left, photograph on the right: the title sits where the
+          eye already starts, and the picture rewards the sweep across. */}
+      <div className="flex min-w-0 flex-1 flex-col self-start pt-[2%]">
+        <SlideHeader scene={scene} />
 
-      <div className="min-w-0 flex-1">
-        <SlideHeader scene={scene} align="left" />
-
-        <div className="mt-[5%] flex flex-col gap-4">
+        <div className="mt-[6%] flex flex-col gap-4">
           {scene.items.map((item, i) => (
             <Reveal
               key={i}
@@ -42,6 +36,14 @@ export function SpotlightSlide({ scene, revealed, image }: SlideProps) {
           ))}
         </div>
       </div>
+
+      <Reveal on className="w-[44%] shrink-0">
+        <Photo
+          image={image}
+          alt={scene.image}
+          className="aspect-[4/3] shadow-[0_16px_50px_rgba(24,32,63,0.16)]"
+        />
+      </Reveal>
     </div>
   )
 }
@@ -55,11 +57,9 @@ export function GallerySlide({ scene, revealed, itemImages }: SlideProps) {
   const columns = items.length <= 4 ? items.length : 3
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center px-[5%]">
-      <SlideHeader scene={scene} />
-
+    <SlideFrame scene={scene}>
       <div
-        className="mt-[4%] grid w-full gap-[2.5%]"
+        className="grid w-full gap-[2.5%]"
         style={{ gridTemplateColumns: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))` }}
       >
         {items.map((item, i) => (
@@ -91,7 +91,48 @@ export function GallerySlide({ scene, revealed, itemImages }: SlideProps) {
           </Reveal>
         ))}
       </div>
-    </div>
+    </SlideFrame>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Compare — two photographed things, side by side.                    */
+/* ------------------------------------------------------------------ */
+
+export function CompareSlide({ scene, revealed, itemImages }: SlideProps) {
+  return (
+    <SlideFrame scene={scene}>
+      <div className="grid w-full grid-cols-2 gap-[4%]">
+        {scene.items.slice(0, 2).map((item, i) => (
+          <Reveal
+            key={i}
+            on={revealed > i}
+            delayMs={i * 80}
+            className="overflow-hidden rounded-3xl bg-white shadow-[0_10px_36px_rgba(24,32,63,0.09)]"
+          >
+            <Photo
+              image={itemImages?.[i]}
+              alt={item.image || item.heading}
+              rounded="rounded-none"
+              className="aspect-[16/10] w-full"
+            />
+            <div className="flex items-start gap-3 p-5">
+              <IconChip icon={item.icon} color={ACCENTS[i % ACCENTS.length]} size={38} />
+              <div className="min-w-0">
+                <h3 className="text-[clamp(12px,1.25vw,18px)] font-semibold text-zinc-900">
+                  {item.heading}
+                </h3>
+                {item.body && (
+                  <p className="mt-1 text-[clamp(10px,1vw,14px)] leading-snug text-zinc-500">
+                    {item.body}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    </SlideFrame>
   )
 }
 
@@ -112,8 +153,8 @@ export function HeroSlide({ scene, revealed, image }: SlideProps) {
       {/* Scrim: the title has to stay legible over an unknown photograph. */}
       <div className="absolute inset-0 z-[5] bg-gradient-to-r from-black/85 via-black/50 to-black/10" />
 
-      <div className="relative z-10 flex h-full w-full flex-col justify-center px-[7%]">
-        <Reveal on className="max-w-[58%]">
+      <div className="relative z-10 flex h-full w-full flex-col justify-center px-[7%] pb-[6%] pt-[10%]">
+        <Reveal on className="max-w-[56%]">
           <h2 className="text-[clamp(26px,3.6vw,58px)] font-extrabold leading-[1.05] text-white drop-shadow">
             {scene.title}
           </h2>

@@ -25,7 +25,8 @@ Data — use these instead of describing numbers in prose
 
 Photographs — see the images section
 - "spotlight" — one large photograph beside captioned points. 2-4 items.
-- "gallery" — a grid of photographs, ONE PER ITEM, each captioned. Specimens, examples, variety, several real things side by side. 3-6 items, each with its own "image" query.
+- "gallery" — a grid of photographs, ONE PER ITEM, each captioned. Specimens, examples, variety, several real things at once. 3-6 items, each with its own "image" query.
+- "compare" — exactly TWO photographed things side by side, each captioned. Before and after, this versus that, healthy versus diseased, the old design versus the new. Both items need their own "image" query.
 - "hero" — a full-bleed photograph with the title over it. Openings and big reveals. 0-3 items, shown as small chips.
 
 # Slots
@@ -78,7 +79,7 @@ export function userPrompt(topic: string, history: TaughtLesson[] = []) {
 
 Before you finish, check all four:
 1. At least FOUR different templates across the lesson.
-2. At least THREE scenes carrying photographs, including one "gallery" whose items each have their own image query.
+2. At least THREE scenes carrying photographs, including one multi-image scene ("gallery", "compare", or "pillars" with per-card photos) — a lesson where every picture is a lone hero shot is under-illustrated.
 3. At least one data template ("table", "chart" or "stats") wherever the topic has numbers worth comparing.
 4. Every item's anchor appears verbatim in its own scene's narration.`
 }

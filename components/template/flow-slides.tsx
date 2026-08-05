@@ -1,6 +1,6 @@
 'use client'
 
-import { ACCENTS, IconChip, Reveal, SlideHeader, type SlideProps } from './primitives'
+import { ACCENTS, IconChip, Reveal, SlideFrame, SlideHeader, type SlideProps } from './primitives'
 
 /* ------------------------------------------------------------------ */
 /* Timeline — horizontal chevrons with captions above and below.       */
@@ -10,10 +10,8 @@ export function TimelineSlide({ scene, revealed }: SlideProps) {
   const items = scene.items
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center px-[4%]">
-      <SlideHeader scene={scene} />
-
-      <div className="relative mt-[4%] flex w-full items-center justify-center">
+    <SlideFrame scene={scene}>
+      <div className="relative flex w-full items-center">
         {items.map((item, i) => {
           const above = i % 2 === 0
           const accent = ACCENTS[i % ACCENTS.length]
@@ -53,7 +51,7 @@ export function TimelineSlide({ scene, revealed }: SlideProps) {
           )
         })}
       </div>
-    </div>
+    </SlideFrame>
   )
 }
 
@@ -63,19 +61,17 @@ export function TimelineSlide({ scene, revealed }: SlideProps) {
 
 export function StepsSlide({ scene, revealed }: SlideProps) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center px-[5%]">
-      <SlideHeader scene={scene} />
-
-      <div className="relative mt-[6%] flex w-full items-start justify-center gap-[2%]">
-        {/* The rail the badges sit on. */}
-        <span className="absolute left-[6%] right-[6%] top-[2.6rem] h-0.5 bg-zinc-200" />
+    <SlideFrame scene={scene} className="justify-start">
+      <div className="relative flex w-full items-start gap-[2%]">
+        {/* The rail the badges sit on, anchored to the left margin. */}
+        <span className="absolute left-6 right-[8%] top-[1.7rem] h-0.5 bg-zinc-200" />
 
         {scene.items.map((item, i) => (
           <Reveal
             key={i}
             on={revealed > i}
             delayMs={40}
-            className="relative flex flex-1 flex-col items-center text-center"
+            className="relative flex flex-1 flex-col items-start"
           >
             <IconChip icon={item.icon} color={ACCENTS[i % ACCENTS.length]} size={54} radius="rounded-2xl" />
             <span
@@ -95,7 +91,7 @@ export function StepsSlide({ scene, revealed }: SlideProps) {
           </Reveal>
         ))}
       </div>
-    </div>
+    </SlideFrame>
   )
 }
 
@@ -108,9 +104,9 @@ export function FunnelSlide({ scene, revealed }: SlideProps) {
   const n = Math.max(1, items.length)
 
   return (
-    <div className="flex h-full w-full items-center gap-[4%] px-[6%]">
-      <div className="w-[26%] shrink-0">
-        <SlideHeader scene={scene} align="left" />
+    <div className="flex h-full w-full items-center gap-[4%] px-[6%] py-[5%]">
+      <div className="w-[28%] shrink-0 self-start pt-[2%]">
+        <SlideHeader scene={scene} />
       </div>
 
       <div className="flex flex-1 flex-col items-center gap-2">
@@ -167,29 +163,28 @@ export function MindmapSlide({ scene, revealed }: SlideProps) {
   )
 
   return (
-    <div className="flex h-full w-full items-center justify-center gap-[3%] px-[5%]">
-      <div className="flex w-[30%] flex-col gap-3">
-        {left.map((item, i) => (
-          <Card key={i} item={item} index={i} side="l" />
-        ))}
-      </div>
-
-      <div className="flex w-[24%] shrink-0 flex-col items-center text-center">
-        <div className="flex aspect-square w-full max-w-[220px] flex-col items-center justify-center rounded-full border-[6px] border-dashed border-zinc-200 p-6">
-          <h2 className="text-[clamp(15px,1.9vw,28px)] font-bold leading-tight text-zinc-900">
-            {scene.title}
-          </h2>
+    <SlideFrame scene={scene}>
+      <div className="flex w-full items-center justify-between gap-[3%]">
+        <div className="flex w-[31%] flex-col gap-3">
+          {left.map((item, i) => (
+            <Card key={i} item={item} index={i} side="l" />
+          ))}
         </div>
-        {scene.subtitle && (
-          <p className="mt-3 text-[clamp(10px,1vw,14px)] text-zinc-500">{scene.subtitle}</p>
-        )}
-      </div>
 
-      <div className="flex w-[30%] flex-col gap-3">
-        {right.map((item, i) => (
-          <Card key={i} item={item} index={half + i} side="r" />
-        ))}
+        {/* The hub is a join, not a heading — the title already owns the top
+            left, so this only needs to be the thing the cards point at. */}
+        <div className="flex size-[clamp(90px,11vw,150px)] shrink-0 items-center justify-center rounded-full border-[6px] border-dashed border-zinc-200">
+          <span className="emoji text-[clamp(24px,3vw,44px)]" aria-hidden>
+            {scene.items[0]?.icon ?? '✦'}
+          </span>
+        </div>
+
+        <div className="flex w-[31%] flex-col gap-3">
+          {right.map((item, i) => (
+            <Card key={i} item={item} index={half + i} side="r" />
+          ))}
+        </div>
       </div>
-    </div>
+    </SlideFrame>
   )
 }

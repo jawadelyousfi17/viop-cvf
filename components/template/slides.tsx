@@ -1,9 +1,9 @@
 'use client'
 
-import { ACCENTS, IconChip, Reveal, SlideHeader, type SlideProps } from './primitives'
+import { ACCENTS, IconChip, Photo, Reveal, SlideFrame, SlideHeader, type SlideProps } from './primitives'
 import { ChartSlide, StatsSlide, TableSlide } from './data-slides'
 import { FunnelSlide, MindmapSlide, StepsSlide, TimelineSlide } from './flow-slides'
-import { GallerySlide, HeroSlide, SpotlightSlide } from './photo-slides'
+import { CompareSlide, GallerySlide, HeroSlide, SpotlightSlide } from './photo-slides'
 
 export { ACCENTS } from './primitives'
 export type { SlideProps } from './primitives'
@@ -32,8 +32,10 @@ export function JourneySlide({ scene, revealed }: SlideProps) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute left-[3%] top-[52%] w-[27%] -translate-y-1/2">
-        <SlideHeader scene={scene} align="left" />
+      {/* Top-left like every other template, so the eye always starts in the
+          same place regardless of which layout the scene chose. */}
+      <div className="absolute left-[6%] top-[8%] w-[30%]">
+        <SlideHeader scene={scene} />
       </div>
 
       <svg viewBox="0 0 1200 700" className="absolute inset-0 h-full w-full">
@@ -113,19 +115,28 @@ export function JourneySlide({ scene, revealed }: SlideProps) {
 /* Pillars — a row of numbered cards.                                  */
 /* ------------------------------------------------------------------ */
 
-export function PillarsSlide({ scene, revealed }: SlideProps) {
+export function PillarsSlide({ scene, revealed, itemImages }: SlideProps) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center px-[6%]">
-      <SlideHeader scene={scene} />
-
-      <div className="mt-[4%] flex w-full items-stretch justify-center gap-[2.5%]">
+    <SlideFrame scene={scene}>
+      <div className="flex w-full items-stretch gap-[2.5%]">
         {scene.items.map((item, i) => (
           <Reveal
             key={i}
             on={revealed > i}
             delayMs={60}
-            className="flex w-[24%] min-w-40 flex-col items-center rounded-3xl bg-white px-5 py-8 text-center shadow-[0_8px_30px_rgba(24,32,63,0.08)]"
+            className="flex flex-1 flex-col overflow-hidden rounded-3xl bg-white shadow-[0_8px_30px_rgba(24,32,63,0.08)]"
           >
+            {/* A card carries its own photograph when the model gave it one,
+                so a scene is not limited to a single picture. */}
+            {item.image && (
+              <Photo
+                image={itemImages?.[i]}
+                alt={item.image}
+                rounded="rounded-none"
+                className="aspect-[16/10] w-full"
+              />
+            )}
+            <div className="flex flex-1 flex-col px-6 py-7">
             <IconChip
               icon={item.icon}
               color={ACCENTS[i % ACCENTS.length]}
@@ -146,10 +157,11 @@ export function PillarsSlide({ scene, revealed }: SlideProps) {
             >
               {String(i + 1).padStart(2, '0')}
             </span>
+            </div>
           </Reveal>
         ))}
       </div>
-    </div>
+    </SlideFrame>
   )
 }
 
@@ -170,6 +182,8 @@ export function Slide(props: SlideProps) {
       return <MindmapSlide {...props} />
     case 'gallery':
       return <GallerySlide {...props} />
+    case 'compare':
+      return <CompareSlide {...props} />
     case 'hero':
       return <HeroSlide {...props} />
     case 'table':
