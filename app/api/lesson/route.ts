@@ -1,14 +1,35 @@
 import OpenAI from 'openai'
-import { LESSON_JSON_SCHEMA } from '@/lib/template-lesson'
-import { LessonStreamParser, type LessonEvent } from '@/lib/template-stream'
-import { SYSTEM_PROMPT, userPrompt } from '@/lib/template-prompt'
+import { isEngine, type Engine } from '@/lib/engines'
+import { LESSON_JSON_SCHEMA as WHITEBOARD_SCHEMA } from '@/lib/lesson'
+import { LessonStreamParser as WhiteboardParser } from '@/lib/lesson-stream'
+import { SYSTEM_PROMPT as WHITEBOARD_PROMPT, userPrompt as whiteboardUser } from '@/lib/prompt'
+import { LESSON_JSON_SCHEMA as SLIDES_SCHEMA } from '@/lib/template-lesson'
+import { LessonStreamParser as SlidesParser } from '@/lib/template-stream'
+import { SYSTEM_PROMPT as SLIDES_PROMPT, userPrompt as slidesUser } from '@/lib/template-prompt'
 
 export const maxDuration = 300
+
+/** Everything that differs between the two engines, in one place. */
+function engineConfig(engine: Engine) {
+  return engine === 'whiteboard'
+    ? {
+        system: WHITEBOARD_PROMPT,
+        user: whiteboardUser,
+        schema: WHITEBOARD_SCHEMA,
+        parser: () => new WhiteboardParser(),
+      }
+    : {
+        system: SLIDES_PROMPT,
+        user: slidesUser,
+        schema: SLIDES_SCHEMA,
+        parser: () => new SlidesParser(),
+      }
+}
 
 /**
  * Streams a lesson as newline-delimited JSON events. The model writes scenes
  * in order, so the player receives scene one within a few seconds and starts
- * playing it while the rest of the lesson is still being written.
+ * playing it while the rest is still being written.
  */
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -21,8 +42,9 @@ export async function POST(request: Request) {
 
   let topic: unknown
   let history: unknown
+  let engine: unknown
   try {
-    ;({ topic, history } = await request.json())
+    ;({ topic, history, engine } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -37,6 +59,7 @@ export async function POST(request: Request) {
     )
   }
 
+  const config = engineConfig(isEngine(engine) ? engine : 'slides')
   const client = new OpenAI({ apiKey })
   const model = process.env.OPENAI_MODEL ?? 'gpt-5.6-luna'
 
@@ -49,10 +72,10 @@ export async function POST(request: Request) {
       stream: true,
       stream_options: { include_usage: true },
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: config.system },
         {
           role: 'user',
-          content: userPrompt(
+          content: config.user(
             topic.trim(),
             Array.isArray(history)
               ? history
@@ -65,7 +88,7 @@ export async function POST(request: Request) {
       ],
       response_format: {
         type: 'json_schema',
-        json_schema: { name: 'lesson', strict: true, schema: LESSON_JSON_SCHEMA },
+        json_schema: { name: 'lesson', strict: true, schema: config.schema },
       },
     })
   } catch (error) {
@@ -78,10 +101,10 @@ export async function POST(request: Request) {
 
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: LessonEvent) =>
+      const send = (event: unknown) =>
         controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
 
-      const parser = new LessonStreamParser()
+      const parser = config.parser()
 
       try {
         for await (const chunk of completion) {

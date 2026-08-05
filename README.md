@@ -1,8 +1,19 @@
 # viop
 
-An AI teacher that works at a whiteboard. You give it a topic; it plans a lesson,
-draws it onto an infinite tldraw canvas, and talks you through it — narration and
-drawing timed to each other, the way a good teacher explains something at the board.
+An AI teacher. You give it a topic; it plans a lesson, renders it, and talks you
+through it — visuals and narration timed to each other.
+
+**Two rendering engines, chosen on the topic screen** (or via `?engine=`):
+
+| Engine | What it does |
+| --- | --- |
+| **Whiteboard** (`?engine=whiteboard`) | Draws live on an infinite tldraw canvas with a visible pen, the way a teacher works at a board |
+| **Slides** (`?engine=slides`, default) | Fills twelve designed layouts — journey, timeline, steps, funnel, pillars, mindmap, table, chart, stats, spotlight, gallery, hero |
+
+They share everything else: streaming generation, word-level narration sync,
+voices, photographs, mid-lesson questions, follow-ups and session memory. The
+API routes take an `engine` field and dispatch to that engine's prompt and
+schema; `lib/engines.ts` is the only place the two are enumerated.
 
 Try it without any API keys: <http://localhost:3000/?demo=1> plays a hand-written
 lesson so you can see the whole player working.

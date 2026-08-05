@@ -9,6 +9,7 @@ import {
   type TemplateScene,
 } from '@/lib/template-lesson'
 import type { LessonEvent } from '@/lib/template-stream'
+import type { Engine } from '@/lib/engines'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { ImageResult } from '@/app/api/image/route'
 import { ImageBank } from '../images'
@@ -55,7 +56,13 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Les
   }
 }
 
-export default function TemplateStudio() {
+export default function TemplateStudio({
+  engine,
+  chooser,
+}: {
+  engine: Engine
+  chooser: React.ReactNode
+}) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [topic, setTopic] = useState('')
   const [lesson, setLesson] = useState<TemplateLesson | null>(null)
@@ -215,7 +222,7 @@ export default function TemplateStudio() {
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, history }),
+        body: JSON.stringify({ topic: trimmed, history, engine }),
       })
 
       if (!response.ok || !response.body) {
@@ -402,6 +409,7 @@ export default function TemplateStudio() {
           question: text,
           title: current.title,
           current: current.scenes[sceneIndex]?.narration ?? '',
+          engine,
         }),
       })
       const data = await response.json()
@@ -461,6 +469,7 @@ export default function TemplateStudio() {
         busy={phase === 'generating'}
         pendingTitle={pendingTitle}
         error={error}
+        chooser={chooser}
       />
     )
   }
@@ -690,6 +699,7 @@ function TopicScreen({
   busy,
   pendingTitle,
   error,
+  chooser,
 }: {
   topic: string
   setTopic: (value: string) => void
@@ -697,6 +707,7 @@ function TopicScreen({
   busy: boolean
   pendingTitle: string | null
   error: string | null
+  chooser: React.ReactNode
 }) {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
@@ -712,12 +723,14 @@ function TopicScreen({
           it goes.
         </p>
 
+        <div className="mt-8">{chooser}</div>
+
         <form
           onSubmit={(event) => {
             event.preventDefault()
             onSubmit(topic)
           }}
-          className="mt-8"
+          className="mt-6"
         >
           <div className="flex flex-col gap-3 sm:flex-row">
             <input

@@ -5,10 +5,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from 'tldraw'
 import { estimateNarrationSeconds, type Lesson } from '@/lib/lesson'
 import type { LessonEvent } from '@/lib/lesson-stream'
+import type { Engine } from '@/lib/engines'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { BoardPainter } from './paint'
-import { ImageBank } from './images'
-import { Narrator } from './narrator'
+import { ImageBank } from '../images'
+import { Narrator } from '../narrator'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
 // the critical path for the topic screen.
@@ -59,7 +60,13 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Les
   }
 }
 
-export default function Studio() {
+export default function Studio({
+  engine,
+  chooser,
+}: {
+  engine: Engine
+  chooser: React.ReactNode
+}) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [topic, setTopic] = useState('')
   const [lesson, setLesson] = useState<Lesson | null>(null)
@@ -213,7 +220,7 @@ export default function Studio() {
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, history }),
+        body: JSON.stringify({ topic: trimmed, history, engine }),
       })
 
       if (!response.ok || !response.body) {
@@ -464,6 +471,7 @@ export default function Studio() {
           question: text,
           title: current.title,
           current: current.scenes[sceneIndex]?.narration ?? '',
+          engine,
         }),
       })
       const data = await response.json()
@@ -531,6 +539,7 @@ export default function Studio() {
         busy={phase === 'generating'}
         pendingTitle={pendingTitle}
         error={error}
+        chooser={chooser}
       />
     )
   }
@@ -767,6 +776,7 @@ function TopicScreen({
   busy,
   pendingTitle,
   error,
+  chooser,
 }: {
   topic: string
   setTopic: (value: string) => void
@@ -774,6 +784,7 @@ function TopicScreen({
   busy: boolean
   pendingTitle: string | null
   error: string | null
+  chooser: React.ReactNode
 }) {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
@@ -789,12 +800,14 @@ function TopicScreen({
           the way a good teacher does.
         </p>
 
+        <div className="mt-8">{chooser}</div>
+
         <form
           onSubmit={(event) => {
             event.preventDefault()
             onSubmit(topic)
           }}
-          className="mt-8"
+          className="mt-6"
         >
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
