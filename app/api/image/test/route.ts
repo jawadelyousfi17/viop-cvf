@@ -2,6 +2,7 @@ import { signImageUrl } from '@/lib/image-signing'
 import {
   activeProvider,
   googleEngineId,
+  providerChain,
   googleKey,
   isPermissive,
   isStock,
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
   const asHtml = params.get('html') === '1'
 
   const config = {
-    provider: activeProvider(),
+    /** Tried in this order until one answers. */
+    chain: providerChain(),
     pinned: process.env.IMAGE_PROVIDER ?? null,
     // Presence only — never the values.
     googleKey: Boolean(googleKey()),
@@ -46,17 +48,26 @@ export async function GET(request: Request) {
     serpApiKey: Boolean(process.env.SERPAPI_KEY),
   }
 
-  if (!config.provider) {
-    const hint = googleKey()
-      ? 'GOOGLE_CSE_KEY is set but GOOGLE_CSE_ID is missing. Create a Programmable Search Engine at programmablesearchengine.google.com, turn on "Search the entire web" and "Image search", then copy its Search engine ID.'
-      : 'Set GOOGLE_CSE_KEY and GOOGLE_CSE_ID in .env.local.'
-    return respond({ query, config, error: 'No image search configured.', hint }, asHtml, 501)
+  if (!activeProvider()) {
+    return respond(
+      {
+        query,
+        config,
+        error: 'No image search available.',
+        hint: 'IMAGE_PROVIDER pins a provider that is not configured. Clear it to fall back to the keyless sources.',
+      },
+      asHtml,
+      501
+    )
   }
 
   const motion = wantsMotion(query)
   let candidates: Candidate[]
+  let served: string
   try {
-    ;({ candidates } = await searchImages(query, motion))
+    const result = await searchImages(query, motion)
+    candidates = result.candidates
+    served = result.provider
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Search failed.'
     const status = error instanceof ImageSearchError ? error.status : 502
@@ -83,6 +94,8 @@ export async function GET(request: Request) {
       query,
       config,
       motion,
+      // Which one actually answered — not necessarily the first in the chain.
+      served,
       returned: candidates.length,
       usable: results.filter((r) => r.usable).length,
       picked: picked ? { ...picked, proxy: proxyFor(picked.url) } : null,

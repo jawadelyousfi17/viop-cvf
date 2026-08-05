@@ -1,4 +1,24 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+
+/**
+ * Last-resort signing key, for a setup with no API keys at all — the keyless
+ * image providers need signed proxy URLs just as much as the paid ones.
+ *
+ * Generated once per process, which is fine locally and wrong across several
+ * server instances: one would sign a URL another can't verify, and every image
+ * would 403. Production wants IMAGE_PROXY_SECRET set explicitly.
+ */
+let generated: string | null = null
+
+function fallbackSecret() {
+  if (!generated) {
+    generated = randomBytes(32).toString('hex')
+    console.warn(
+      '[image] no key to sign proxy URLs with — using a per-process secret. Set IMAGE_PROXY_SECRET before deploying.'
+    )
+  }
+  return generated
+}
 
 /**
  * The image proxy only serves URLs that our own search route handed out.
@@ -11,13 +31,13 @@ function secret() {
   // Any configured key will do — it only has to be stable and non-public.
   // Falling back through every provider means swapping search backends doesn't
   // silently break signing (and with it every image on the board).
-  const value =
+  return (
     process.env.IMAGE_PROXY_SECRET ??
     process.env.GOOGLE_CSE_KEY ??
     process.env.GOOGLE_API_KEY ??
-    process.env.SERPAPI_KEY
-  if (!value) throw new Error('No secret available for signing image URLs')
-  return value
+    process.env.SERPAPI_KEY ??
+    fallbackSecret()
+  )
 }
 
 export function signImageUrl(url: string) {
