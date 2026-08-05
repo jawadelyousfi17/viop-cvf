@@ -8,7 +8,14 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
  * can't mint a URL we'll fetch.
  */
 function secret() {
-  const value = process.env.IMAGE_PROXY_SECRET ?? process.env.SERPAPI_KEY
+  // Any configured key will do — it only has to be stable and non-public.
+  // Falling back through every provider means swapping search backends doesn't
+  // silently break signing (and with it every image on the board).
+  const value =
+    process.env.IMAGE_PROXY_SECRET ??
+    process.env.GOOGLE_CSE_KEY ??
+    process.env.GOOGLE_API_KEY ??
+    process.env.SERPAPI_KEY
   if (!value) throw new Error('No secret available for signing image URLs')
   return value
 }

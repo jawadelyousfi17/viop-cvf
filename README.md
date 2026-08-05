@@ -45,7 +45,14 @@ npm run dev
 | `ELEVENLABS_MODEL_ID` | no | Defaults to `eleven_multilingual_v2` |
 | `OPENAI_TTS_MODEL` | no | Defaults to `gpt-4o-mini-tts` |
 | `OPENAI_TTS_VOICE` | no | Defaults to `sage` |
+| `GOOGLE_CSE_KEY` + `GOOGLE_CSE_ID` | for images | Google Programmable Search, 100 free queries/day. Preferred |
+| `SERPAPI_KEY` | fallback | Used only when Google isn't configured |
 | `NEXT_PUBLIC_TLDRAW_LICENSE_KEY` | for production | tldraw runs unlicensed on localhost only |
+
+**When pictures stop appearing**, open `/api/image/test?q=apple&html=1`. The board
+draws the same dashed placeholder whether the key is wrong, the quota is spent,
+or the host refused the fetch — the test route names which one it was, and shows
+every candidate the search returned with the verdict on each.
 
 ## How it works
 
