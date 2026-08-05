@@ -14,6 +14,7 @@ function s(shape: Partial<BoardShape> & Pick<BoardShape, 'id' | 'kind' | 'at'>):
     fill: 'none',
     size: 'm',
     dash: 'draw',
+    font: 'draw',
     anchor: '',
     points: [],
     ...shape,

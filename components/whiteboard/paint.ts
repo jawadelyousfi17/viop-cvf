@@ -35,6 +35,11 @@ const GEO_KINDS: Record<string, GeoStyle> = {
   pentagon: 'pentagon',
   octagon: 'octagon',
   trapezoid: 'trapezoid',
+  rhombus: 'rhombus',
+  arrowright: 'arrow-right',
+  arrowleft: 'arrow-left',
+  arrowup: 'arrow-up',
+  arrowdown: 'arrow-down',
 }
 
 /**
@@ -372,7 +377,7 @@ export class BoardPainter {
       return
     }
 
-    if (shape.kind === 'arrow') {
+    if (shape.kind === 'arrow' || shape.kind === 'elbow') {
       this.paintArrow(sceneIndex, shape, id, offsetY, animate)
     } else if (shape.kind === 'image') {
       this.paintImage(shape, id, offsetY, animate, sceneIndex, scene)
@@ -412,7 +417,7 @@ export class BoardPainter {
         richText: toRichText(shape.text || ' '),
         color: shape.color,
         size: shape.size,
-        font: 'draw',
+        font: shape.font,
         textAlign: 'start',
         autoSize: false,
         w: Math.max(60, shape.w),
@@ -447,7 +452,7 @@ export class BoardPainter {
         fill: shape.fill,
         dash: shape.dash,
         size: shape.size,
-        font: 'draw',
+        font: shape.font,
         align: 'middle',
         verticalAlign: 'middle',
         scale: 1,
@@ -478,7 +483,7 @@ export class BoardPainter {
         color: shape.color === 'black' ? 'yellow' : shape.color,
         labelColor: 'black',
         size: shape.size === 'xl' ? 'l' : shape.size,
-        font: 'draw',
+        font: shape.font,
         align: 'middle',
         verticalAlign: 'middle',
         scale: 1,
@@ -567,7 +572,7 @@ export class BoardPainter {
           fill: 'none',
           dash: 'dashed',
           size: 's',
-          font: 'draw',
+          font: shape.font,
           align: 'middle',
           verticalAlign: 'middle',
           scale: 1,
@@ -716,7 +721,7 @@ export class BoardPainter {
         richText: toRichText(shape.text || '•'),
         color: shape.color,
         size: 'xl',
-        font: 'draw',
+        font: shape.font,
         textAlign: 'middle',
         autoSize: false,
         w: Math.max(60, shape.w),
@@ -766,7 +771,7 @@ export class BoardPainter {
           fill: opts.header ? 'semi' : 'none',
           dash: 'draw',
           size: shape.size === 'xl' ? 'l' : shape.size,
-          font: 'draw',
+          font: shape.font,
           align: 'middle',
           verticalAlign: 'middle',
           scale: 1,
@@ -794,7 +799,7 @@ export class BoardPainter {
           richText: toRichText(label),
           color,
           size: 's',
-          font: 'draw',
+          font: shape.font,
           textAlign: 'middle',
           autoSize: false,
           w: cw,
@@ -1092,18 +1097,18 @@ export class BoardPainter {
       y: start.y,
       opacity: animate ? 0 : 1,
       props: {
-        kind: 'arc',
+        kind: shape.kind === 'elbow' ? 'elbow' : 'arc',
         start: { x: 0, y: 0 },
         end: { x: end.x - start.x, y: end.y - start.y },
         // Hand-drawn connectors bow slightly; ruler-straight reads as machine.
-        bend: wobble(shape.id, 'bend', HAND.bend),
+        bend: shape.kind === 'elbow' ? 0 : wobble(shape.id, 'bend', HAND.bend),
         color: shape.color,
         fill: 'none',
         dash: shape.dash,
         size: shape.size === 'xl' ? 'l' : shape.size,
         arrowheadStart: 'none',
         arrowheadEnd: 'arrow',
-        font: 'draw',
+        font: shape.font,
         richText: toRichText(shape.text ?? ''),
         labelPosition: 0.5,
         labelColor: shape.color,

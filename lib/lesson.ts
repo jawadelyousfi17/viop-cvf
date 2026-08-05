@@ -54,8 +54,15 @@ export const SHAPE_KINDS = [
   'pentagon',
   'octagon',
   'trapezoid',
+  'rhombus',
+  'arrowright',
+  'arrowleft',
+  'arrowup',
+  'arrowdown',
   'note',
   'arrow',
+  /** Right-angle routed connector, for grids and orthogonal diagrams. */
+  'elbow',
   'image',
   'icon',
   // Composites: many shapes drawn as one, built from `text`.
@@ -97,9 +104,14 @@ export const COLORS = [
   'light-violet',
 ] as const
 
-export const FILLS = ['none', 'semi', 'solid', 'pattern'] as const
+// tldraw's full fill set. 'fill' is a flat wash, 'lined-fill' a hatched one —
+// both were unused, and they are the cheapest way to make a board read as
+// deliberately styled rather than uniformly outlined.
+export const FILLS = ['none', 'semi', 'solid', 'pattern', 'fill', 'lined-fill'] as const
 export const SIZES = ['s', 'm', 'l', 'xl'] as const
 export const DASHES = ['draw', 'solid', 'dashed', 'dotted'] as const
+/** tldraw's four typefaces. 'mono' is what makes code and values read as code. */
+export const FONTS = ['draw', 'sans', 'serif', 'mono'] as const
 
 export type ShapeKind = (typeof SHAPE_KINDS)[number]
 export type BoardColor = (typeof COLORS)[number]
@@ -122,6 +134,8 @@ export interface BoardShape {
   fill: (typeof FILLS)[number]
   size: (typeof SIZES)[number]
   dash: (typeof DASHES)[number]
+  /** Typeface. 'mono' for code and values, 'serif' for quotations. */
+  font: (typeof FONTS)[number]
   /** When this shape appears, as a fraction (0-1) of the scene's narration. */
   at: number
   /**
@@ -182,6 +196,7 @@ export const SCENE_JSON_SCHEMA = {
                 'fill',
                 'size',
                 'dash',
+                'font',
                 'at',
                 'anchor',
                 'points',
@@ -200,6 +215,7 @@ export const SCENE_JSON_SCHEMA = {
                 fill: { type: 'string', enum: [...FILLS] },
                 size: { type: 'string', enum: [...SIZES] },
                 dash: { type: 'string', enum: [...DASHES] },
+                font: { type: 'string', enum: [...FONTS] },
                 at: { type: 'number' },
                 anchor: { type: 'string' },
                 points: {
@@ -312,6 +328,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
       fill: FILLS.includes(shape.fill) ? shape.fill : 'none',
       size: SIZES.includes(shape.size) ? shape.size : 'm',
       dash: DASHES.includes(shape.dash) ? shape.dash : 'draw',
+      font: FONTS.includes(shape.font) ? shape.font : 'draw',
       at: clamp(num(shape.at, i / Math.max(1, (scene.shapes ?? []).length)), 0, 0.95),
     })
   }

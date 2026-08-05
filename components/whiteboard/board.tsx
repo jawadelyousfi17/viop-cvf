@@ -11,7 +11,15 @@ import 'tldraw/tldraw.css'
 export default function Board({ onEditor }: { onEditor: (editor: Editor) => void }) {
   return (
     <div className="absolute inset-0">
-      <Tldraw hideUi onMount={onEditor} />
+      <Tldraw
+        hideUi
+        onMount={(editor) => {
+          // The grid gives the board a surface. Without it the shapes float on
+          // white and the hand-drawn styling has nothing to sit against.
+          editor.updateInstanceState({ isGridMode: true })
+          onEditor(editor)
+        }}
+      />
     </div>
   )
 }
