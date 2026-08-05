@@ -112,20 +112,26 @@ function endpoints(spec: ManimMobject): [Vec3, Vec3] {
  */
 export function buildScene(scene: ManimScene): BuiltScene {
   const mobjects = new Map<string, Mobject>()
-  const pending = [...scene.mobjects]
+  let pending = [...scene.mobjects]
 
   for (;;) {
-    const stuck = pending.length
-    for (let i = pending.length - 1; i >= 0; i--) {
-      const spec = pending[i]
+    const deferred: ManimMobject[] = []
+    let progressed = false
+
+    for (const spec of pending) {
       const dependencies = [spec.of, ...spec.members].filter(Boolean) as string[]
-      if (dependencies.some((id) => !mobjects.has(id))) continue
+      if (dependencies.some((id) => !mobjects.has(id))) {
+        deferred.push(spec)
+        continue
+      }
 
       const built = buildMobject(spec, mobjects)
       if (built) mobjects.set(spec.id, built)
-      pending.splice(i, 1)
+      progressed = true
     }
-    if (pending.length === stuck) break
+
+    pending = deferred
+    if (!progressed || !pending.length) break
   }
 
   // Anything no step ever touches would otherwise never appear. Drawing it from

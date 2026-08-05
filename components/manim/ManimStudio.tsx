@@ -9,8 +9,10 @@ import type { Engine } from '@/lib/engines'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { ManimBoardHandle } from './ManimBoard'
 import { Narrator } from '../narrator'
+import { RenderBank } from './renders'
 
 const Board = dynamic(() => import('./ManimBoard'), { ssr: false })
+const ManimVideoLayer = dynamic(() => import('./ManimVideo'), { ssr: false })
 
 const SUGGESTIONS = [
   'Why is the derivative of sin the cosine?',
@@ -77,6 +79,10 @@ export default function ManimStudio({
 
   const boardRef = useRef<ManimBoardHandle>(null)
   const [boardReady, setBoardReady] = useState(false)
+  /** The rendered scene now showing, or null while the browser renderer drives. */
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [rendering, setRendering] = useState(false)
+  const rendersRef = useRef<RenderBank | null>(null)
   const narratorRef = useRef<Narrator | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playingRef = useRef(false)
@@ -110,6 +116,9 @@ export default function ManimStudio({
     (next: ManimLesson) => {
       narratorRef.current?.dispose()
       narratorRef.current = new Narrator(voiceId)
+      rendersRef.current ??= new RenderBank()
+      rendersRef.current.clear()
+      setVideoUrl(null)
 
       lessonRef.current = next
       waitingRef.current = false
@@ -248,7 +257,7 @@ export default function ManimStudio({
   useEffect(() => {
     const board = boardRef.current
     const narrator = narratorRef.current
-    if (phase !== 'board' || !board || !narrator) return
+    if (phase !== 'board' || !narrator) return
 
     const scene = lessonRef.current?.scenes[sceneIndex]
     if (!scene) return
@@ -260,10 +269,15 @@ export default function ManimStudio({
     let duration = estimateNarrationSeconds(scene.narration)
     const schedule = new Map(scene.steps.map((step) => [step.id, step.at * duration]))
 
-    board.setScene(scene, schedule)
-    board.setPlaying(playingRef.current)
+    // Start the browser renderer immediately on an estimate. A rendered video
+    // cannot exist before the narration does — its timing is baked in — so
+    // waiting for one would leave the screen black for the whole render. The
+    // video swaps in when it lands, and from scene two on it is already there.
+    setVideoUrl(null)
+    board?.setScene(scene, schedule)
+    board?.setPlaying(playingRef.current)
 
-    void narrator.get(sceneIndex, scene.narration).then((narration) => {
+    void narrator.get(sceneIndex, scene.narration).then(async (narration) => {
       if (cancelled) return
 
       audio = narration.audio
@@ -284,6 +298,32 @@ export default function ManimStudio({
         audio.currentTime = 0
         if (playingRef.current) void audio.play().catch(() => setIsPlaying(false))
       }
+
+      const renders = rendersRef.current
+      if (!renders || !(await renders.canRender()) || cancelled) return
+
+      setRendering(true)
+      const url = await renders.get(sceneIndex, scene, narration)
+      if (cancelled) return
+      setRendering(false)
+
+      if (url) {
+        // The video owns the picture from here; two renderers drawing the same
+        // scene at once would just fight.
+        board?.setPlaying(false)
+        setVideoUrl(url)
+      }
+
+      // Render the next scene while this one plays. Its narration has to exist
+      // first, which is why this waits on the prefetch rather than firing now.
+      if (next && !cancelled) {
+        void narrator
+          .get(sceneIndex + 1, next.narration)
+          .then((ahead) => {
+            if (!cancelled) void renders.get(sceneIndex + 1, next, ahead)
+          })
+          .catch(() => {})
+      }
     })
 
     let elapsed = 0
@@ -298,7 +338,7 @@ export default function ManimStudio({
       if (playingRef.current) elapsed += delta
 
       const seconds = audio ? audio.currentTime : elapsed
-      board.setTime(seconds)
+      board?.setTime(seconds)
 
       const fraction = Math.min(1, seconds / Math.max(0.1, duration))
       const ended = audio ? audio.ended || fraction >= 1 : fraction >= 1
@@ -324,10 +364,14 @@ export default function ManimStudio({
     return () => {
       cancelled = true
       cancelAnimationFrame(frame)
+      setRendering(false)
       audio?.pause()
       if (audioRef.current === audio) audioRef.current = null
     }
   }, [phase, sceneIndex, sceneId, boardReady])
+
+  /** The voice's clock, for the video to follow. */
+  const audioTime = useCallback(() => audioRef.current?.currentTime ?? 0, [])
 
   const goToScene = useCallback((index: number) => {
     if (!lessonRef.current) return
@@ -421,7 +465,19 @@ export default function ManimStudio({
     // Black, because manim renders on black and a light frame around it would
     // look like a mistake.
     <div className="fixed inset-0 bg-black">
+      {/* The board keeps drawing underneath: it is what shows while the first
+          scene renders, and what carries the whole lesson if the server has no
+          manim. The video covers it once one arrives. */}
       <Board ref={boardRef} onReady={onBoardReady} />
+      {videoUrl && (
+        <ManimVideoLayer src={videoUrl} playing={isPlaying} audioTime={audioTime} />
+      )}
+
+      {rendering && (
+        <div className="pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 rounded-full border border-white/15 bg-zinc-900/80 px-3.5 py-1.5 text-xs text-zinc-300 backdrop-blur">
+          Rendering this scene…
+        </div>
+      )}
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-end p-4">
         <button

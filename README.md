@@ -20,9 +20,18 @@ model-authored code in the learner's browser is a door worth not opening.
 Function expressions for plots go through a small parser (`lib/math-expr.ts`)
 for the same reason: `sin(x)` becomes a tree of known operations, never `eval`.
 
+It renders **two ways**. With Manim (Python) installed, `lib/manim-python.ts`
+compiles each scene to a Manim script and `/api/render` renders it to mp4,
+cached by a hash of the script. Without it, the same scene language plays in the
+browser through `manim-ts`. The player asks `/api/render` on startup and picks;
+nothing breaks either way.
+
 Timing is inverted from manim's own model. Normally `await self.play(...)` runs a
-step and moves on; here each step blocks until the narration reaches the phrase
-it illustrates, so the animation is led by the voice.
+step and moves on; here each step is pinned to the narration phrase it
+illustrates. In the browser that means blocking until the voice reaches it; on
+the server it means the waits are *baked into the video* — which is why a scene
+is rendered only after its voiceover exists, and why scene N+1 renders while
+scene N plays.
 
 **Why the canvas engine exists.** With tldraw the box is declared before the
 text is measured, so a label that wraps to three lines silently grows past the

@@ -189,24 +189,99 @@ function evaluate(node: Node, x: number): number {
 }
 
 /**
- * Compiles an expression into a function of x, or returns null if it doesn't
- * parse. Null rather than throwing: a curve the model wrote badly should cost
- * that one curve, not the scene it appears in.
+ * Parses an expression, or returns null if it doesn't. Null rather than
+ * throwing: a curve the model wrote badly should cost that one curve, not the
+ * scene it appears in.
  */
-export function compileExpression(source: string): ((x: number) => number) | null {
+function parseExpression(source: string): Node | null {
   const trimmed = source?.trim()
   if (!trimmed || trimmed.length > 400) return null
 
   // "y = sin(x)" and "f(x) = sin(x)" are both natural things to write.
   const body = trimmed.replace(/^\s*(y|f\s*\(\s*[xt]\s*\))\s*=\s*/i, '')
 
-  let tree: Node
   try {
-    tree = new Parser(body).parse()
+    return new Parser(body).parse()
   } catch (error) {
     console.warn('[math-expr]', source, error instanceof Error ? error.message : error)
     return null
   }
+}
+
+/** Python source for each function, for the server-side Manim renderer. */
+const PYTHON_FUNCTIONS: Record<string, string> = {
+  sin: 'math.sin',
+  cos: 'math.cos',
+  tan: 'math.tan',
+  asin: 'math.asin',
+  acos: 'math.acos',
+  atan: 'math.atan',
+  sinh: 'math.sinh',
+  cosh: 'math.cosh',
+  tanh: 'math.tanh',
+  exp: 'math.exp',
+  ln: 'math.log',
+  log: 'math.log',
+  log10: 'math.log10',
+  log2: 'math.log2',
+  sqrt: 'math.sqrt',
+  cbrt: 'math.cbrt',
+  abs: 'abs',
+  floor: 'math.floor',
+  ceil: 'math.ceil',
+  round: 'round',
+  sign: 'math.copysign',
+  min: 'min',
+  max: 'max',
+  pow: 'pow',
+  atan2: 'math.atan2',
+  hypot: 'math.hypot',
+}
+
+/** Reverse lookup, so a parsed call knows which Python name it maps to. */
+const PYTHON_BY_FN = new Map(
+  Object.entries(FUNCTIONS).map(([name, fn]) => [fn, PYTHON_FUNCTIONS[name] ?? 'abs'])
+)
+
+function toPython(node: Node): string {
+  switch (node.kind) {
+    case 'num':
+      return Number.isFinite(node.value) ? `(${node.value})` : '(0)'
+    case 'var':
+      return 'x'
+    case 'unary':
+      return `(${node.sign === -1 ? '-' : '+'}${toPython(node.arg)})`
+    case 'call': {
+      const name = PYTHON_BY_FN.get(node.fn) ?? 'abs'
+      // sign(x) has no direct Python builtin; copysign(1, x) is the same thing
+      // except at zero, which is close enough for a curve.
+      if (name === 'math.copysign') return `math.copysign(1, ${toPython(node.args[0])})`
+      return `${name}(${node.args.map(toPython).join(', ')})`
+    }
+    case 'binary': {
+      const a = toPython(node.left)
+      const b = toPython(node.right)
+      return `(${a} ${node.op === '^' ? '**' : node.op} ${b})`
+    }
+  }
+}
+
+/**
+ * Renders an expression as a Python lambda body, or null if it doesn't parse.
+ *
+ * Built from the parsed tree rather than by passing the model's string
+ * through — the string is about to be written into a file that the server
+ * executes, so nothing the model wrote may reach it verbatim.
+ */
+export function compileToPython(source: string): string | null {
+  const tree = parseExpression(source)
+  return tree ? toPython(tree) : null
+}
+
+/** Compiles an expression into a function of x, for the browser renderer. */
+export function compileExpression(source: string): ((x: number) => number) | null {
+  const tree = parseExpression(source)
+  if (!tree) return null
 
   return (x: number) => {
     const value = evaluate(tree, x)
