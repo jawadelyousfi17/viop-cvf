@@ -325,6 +325,8 @@ export function normalizeManimScene(scene: ManimScene, sceneIndex: number): Mani
     })
   }
 
+  for (const mobject of mobjects) keepInFrame(mobject)
+
   const byId = new Map(mobjects.map((m) => [m.id, m]))
 
   // A reference to something that doesn't exist can't be built, and a group
@@ -376,6 +378,44 @@ export function normalizeManimScene(scene: ManimScene, sceneIndex: number): Mani
     mobjects,
     steps,
   }
+}
+
+/**
+ * Kinds whose footprint is centre ± size. The rest place themselves from
+ * explicit points, or from another mobject, so there is no box to move.
+ */
+const BOUNDED = new Set<MobjectKind>([
+  'circle',
+  'ellipse',
+  'dot',
+  'square',
+  'rectangle',
+  'triangle',
+  'regularPolygon',
+  'arc',
+  'text',
+  'math',
+  'axes',
+  'numberPlane',
+])
+
+/**
+ * Slides a mobject in until its whole extent is on screen.
+ *
+ * The clamps above bound the centre, which is not the same thing: a circle
+ * centred just inside the edge still has half of it hanging off, and the render
+ * shows it sliced. Anything too big to fit is centred instead, since there is
+ * no position that would help.
+ */
+function keepInFrame(mobject: ManimMobject) {
+  if (!BOUNDED.has(mobject.kind)) return
+
+  const margin = 0.2
+  const limitX = FRAME_W / 2 - mobject.w / 2 - margin
+  const limitY = FRAME_H / 2 - mobject.h / 2 - margin
+
+  mobject.x = limitX <= 0 ? 0 : clamp(mobject.x, -limitX, limitX)
+  mobject.y = limitY <= 0 ? 0 : clamp(mobject.y, -limitY, limitY)
 }
 
 function normalizeRange(raw: number[] | undefined, fallback: [number, number, number]) {

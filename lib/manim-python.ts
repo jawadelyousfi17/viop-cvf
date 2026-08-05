@@ -1,4 +1,4 @@
-import { compileToPython } from './math-expr'
+import { compileExpression, compileToPython } from './math-expr'
 import type { ManimMobject, ManimScene, ManimStep } from './manim-lesson'
 
 /**
@@ -77,7 +77,8 @@ function endpoints(spec: ManimMobject) {
 /** The constructor call for one mobject, or null if it can't be expressed. */
 function construct(
   spec: ManimMobject,
-  names: Map<string, string>
+  names: Map<string, string>,
+  owners: Map<string, ManimMobject>
 ): { expression: string; positioned: boolean } | null {
   const style = styleArgs(spec)
 
@@ -163,11 +164,24 @@ function construct(
         positioned: false,
       }
     case 'plot': {
+      const axesSpec = spec.of ? owners.get(spec.of) : null
       const axes = spec.of ? names.get(spec.of) : null
       const body = compileToPython(spec.text)
-      if (!axes || !body) return null
+      if (!axes || !body || !axesSpec) return null
+
+      // Python raises where JavaScript returns NaN: log of a negative, a
+      // division by zero, an overflow. Manim samples the whole x_range, so one
+      // undefined point anywhere in it kills the render. Find the stretch the
+      // function is actually defined on and plot only that.
+      const domain = usableDomain(spec.text, axesSpec)
+      if (!domain) return null
+
+      const limit = Math.max(4, Math.abs(axesSpec.yRange[1] ?? 4) * 2)
       return {
-        expression: `${axes}.plot(lambda x: ${body}, color=${colorOf(spec)}, stroke_width=4)`,
+        expression:
+          `${axes}.plot(lambda x: _safe(lambda: ${body}, ${num(-limit)}, ${num(limit)}), ` +
+          `x_range=[${num(domain[0])}, ${num(domain[1])}, ${num(domain[2])}], ` +
+          `color=${colorOf(spec)}, stroke_width=4)`,
         positioned: true,
       }
     }
@@ -185,6 +199,55 @@ function construct(
       return { expression: `VGroup(${members.join(', ')})`, positioned: true }
     }
   }
+}
+
+/**
+ * The widest stretch of an axes' x-range where the curve is real and on-scale,
+ * as [start, end, step], or null if there isn't one worth drawing.
+ *
+ * Sampled with the same parser the browser renderer uses, so both engines agree
+ * on where a function exists.
+ */
+function usableDomain(
+  expression: string,
+  axes: ManimMobject
+): [number, number, number] | null {
+  const fn = compileExpression(expression)
+  if (!fn) return null
+
+  const [x0, x1] = axes.xRange
+  if (!(x1 > x0)) return null
+
+  const SAMPLES = 400
+  // Well past the visible range: a curve may legitimately leave the top of the
+  // frame, and clipping that off would be worse than showing it go.
+  const ceiling = Math.max(8, Math.abs(axes.yRange[1] ?? 4) * 8)
+
+  let best: [number, number] | null = null
+  let run: [number, number] | null = null
+
+  for (let i = 0; i <= SAMPLES; i++) {
+    const x = x0 + ((x1 - x0) * i) / SAMPLES
+    const y = fn(x)
+    const ok = Number.isFinite(y) && Math.abs(y) <= ceiling
+
+    if (ok) run = run ? [run[0], x] : [x, x]
+    else {
+      if (run && (!best || run[1] - run[0] > best[1] - best[0])) best = run
+      run = null
+    }
+  }
+  if (run && (!best || run[1] - run[0] > best[1] - best[0])) best = run
+  if (!best) return null
+
+  // Step back from the edges: the last good sample can still sit right on top
+  // of an asymptote, and manim will sample between our points.
+  const margin = (x1 - x0) / SAMPLES
+  const start = best[0] > x0 ? best[0] + margin : best[0]
+  const end = best[1] < x1 ? best[1] - margin : best[1]
+  if (!(end - start > margin * 4)) return null
+
+  return [start, end, (end - start) / 200]
 }
 
 /** The animation calls for one step. */
@@ -271,6 +334,7 @@ export interface RenderPlan {
  */
 export function sceneToPython(scene: ManimScene, plan: RenderPlan): string {
   const names = nameTable(scene)
+  const owners = new Map(scene.mobjects.map((mobject) => [mobject.id, mobject]))
   const body: string[] = []
 
   const built = new Set<string>()
@@ -292,7 +356,7 @@ export function sceneToPython(scene: ManimScene, plan: RenderPlan): string {
         continue
       }
 
-      const result = construct(spec, names)
+      const result = construct(spec, names, owners)
       if (result) {
         const name = names.get(spec.id)!
         body.push(`${name} = ${result.expression}`)
@@ -356,6 +420,22 @@ export function sceneToPython(scene: ManimScene, plan: RenderPlan): string {
 import math
 
 from manim import *
+
+
+def _safe(f, lo, hi):
+    """A plotted value, or something harmless.
+
+    The domain is narrowed before this is ever called, but manim samples
+    between our points and a pole can hide there — and Python raises where
+    the browser renderer would simply return NaN.
+    """
+    try:
+        y = f()
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return 0.0
+    if y != y or y in (float("inf"), float("-inf")):
+        return 0.0
+    return max(lo, min(hi, y))
 
 
 class LessonScene(Scene):

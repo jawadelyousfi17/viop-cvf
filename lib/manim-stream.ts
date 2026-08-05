@@ -19,6 +19,8 @@ export class ManimStreamParser {
   private cursor = -1
   private metaSent = false
   private closed = false
+  /** True once title/summary have been read from the finished document. */
+  private metaResolved = false
 
   count = 0
 
@@ -63,7 +65,31 @@ export class ManimStreamParser {
       this.count++
     }
 
+    // Structured outputs don't guarantee key order, and this model writes the
+    // keys alphabetically — so `scenes` arrives before `title` and `summary`,
+    // and the prefix scan above finds nothing. Once the document is complete,
+    // read them from the whole thing and send a second meta event.
+    if (this.closed && !this.metaResolved) {
+      // Only give up retrying once the document actually parses — the closing
+      // brace can arrive in a later chunk than the closing bracket.
+      const meta = parseWhole(this.buffer)
+      if (meta) {
+        this.metaResolved = true
+        if (meta.title || meta.summary) events.push({ type: 'meta', ...meta })
+      }
+    }
+
     return events
+  }
+}
+
+/** Title and summary from the finished document, wherever they ended up. */
+function parseWhole(buffer: string): { title: string; summary: string } | null {
+  try {
+    const object = JSON.parse(buffer.trim()) as { title?: string; summary?: string }
+    return { title: object.title ?? '', summary: object.summary ?? '' }
+  } catch {
+    return null
   }
 }
 

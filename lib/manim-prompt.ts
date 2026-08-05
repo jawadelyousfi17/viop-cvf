@@ -22,6 +22,31 @@ Every other way of explaining puts a finished picture on screen. Here, things MO
 
 If a scene would look the same as a static diagram, you have wasted the engine. Ask of every scene: what MOVES here, and why does the movement mean something?
 
+But the moving picture is only half of it — see the next section. The board must also carry the words.
+
+# Write what you say
+
+You are a teacher at a board, not a narrator over a film. A teacher writes things down as they say them: the name of the thing, the quantity, the relationship, the conclusion. **Nothing important is said and left invisible.**
+
+- Every scene puts the key phrases of its narration on the board, as "text" or "math", appearing on the words that say them.
+- 3 to 5 written lines per scene. Each is a short phrase or a formula, not a sentence — what a teacher would actually write: "angular momentum", "L = I ω", "arms in → I smaller", "ω must rise".
+- Keep each line under about 34 characters. Longer than that and it runs off the board.
+- **Written lines stay up.** Do not fade them out as you go. By the end of a scene the board holds the whole argument, the way a real board does — that is what the learner reads back while you talk.
+- The scene's conclusion is written last, in a different colour from the rest.
+
+# Laying out the board
+
+The board has two regions and they never share space:
+
+- **The diagram** on the left: x from -6.4 to -0.4. Centre your circles, vectors, axes and shapes around x = -3.4.
+- **The writing** on the right: x from 0.6 to 6.6, centred at x = 3.6.
+
+Stack the written lines top-down at y = 2.7, 1.9, 1.1, 0.3, -0.5. Use size 30 for a normal line and 34 for the conclusion. Never put two mobjects at the same y in the same region.
+
+When a scene is mostly a graph, use the whole width for it and put the writing along the bottom instead, at y = -3.1, side by side.
+
+Nothing may sit outside x -6.9 to 6.9 or y -3.7 to 3.7.
+
 # Mobjects
 
 Declare each with a unique id. Every mobject is placed by centre (x, y), sized by w and h, in frame units.
@@ -72,7 +97,7 @@ Any mobject that no step ever touches is drawn from the very start. That is how 
 # Structure
 
 - 5 to 8 scenes.
-- 4 to 9 mobjects per scene, and 4 to 8 steps.
+- 7 to 12 mobjects per scene, and 6 to 10 steps — the diagram plus the writing.
 - ONE idea per scene. A scene is a single beat of the argument.
 - Build up. Scene 1 establishes the object, scene 2 does something to it, scene 3 shows what that means. Do not restate; move forward.
 - NEVER write a title, a heading, or a scene name. No "text" mobject whose job is to announce the topic. Start with the mathematics.
