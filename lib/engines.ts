@@ -4,19 +4,23 @@
  * agnostic and shared.
  */
 
-export const ENGINES = ['whiteboard', 'slides'] as const
+export const ENGINES = ['whiteboard', 'canvas', 'slides'] as const
 export type Engine = (typeof ENGINES)[number]
 
 export const DEFAULT_ENGINE: Engine = 'slides'
 
 export function isEngine(value: unknown): value is Engine {
-  return value === 'whiteboard' || value === 'slides'
+  return ENGINES.includes(value as Engine)
 }
 
 export const ENGINE_LABELS: Record<Engine, { name: string; hint: string }> = {
   whiteboard: {
     name: 'Whiteboard',
     hint: 'Drawn live on an infinite canvas, like a teacher at a board',
+  },
+  canvas: {
+    name: 'Canvas',
+    hint: 'The same hand-drawn board, painted directly — layout resolved before it is drawn',
   },
   slides: {
     name: 'Slides',

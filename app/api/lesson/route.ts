@@ -11,7 +11,7 @@ export const maxDuration = 300
 
 /** Everything that differs between the two engines, in one place. */
 function engineConfig(engine: Engine) {
-  return engine === 'whiteboard'
+  return engine === 'whiteboard' || engine === 'canvas'
     ? {
         system: WHITEBOARD_PROMPT,
         user: whiteboardUser,

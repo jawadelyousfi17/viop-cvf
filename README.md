@@ -7,8 +7,17 @@ through it — visuals and narration timed to each other.
 
 | Engine | What it does |
 | --- | --- |
-| **Whiteboard** (`?engine=whiteboard`) | Draws live on an infinite tldraw canvas with a visible pen, the way a teacher works at a board |
+| **Whiteboard** (`?engine=whiteboard`) | Draws live on an infinite tldraw canvas with a visible pen, the way a teacher works at a board. Shapes stay grabbable afterwards |
+| **Canvas** (`?engine=canvas`) | The same lesson language painted straight onto a 2D canvas. No shape library, so layout is resolved *after* measuring the text — see below |
 | **Slides** (`?engine=slides`, default) | Fills twelve designed layouts — journey, timeline, steps, funnel, pillars, mindmap, table, chart, stats, spotlight, gallery, hero |
+
+**Why the canvas engine exists.** With tldraw the box is declared before the
+text is measured, so a label that wraps to three lines silently grows past the
+space reserved for it and lands on its neighbour — an audit of two generated
+lessons found 32 such collisions. The canvas renderer measures every label
+first (`lib/canvas-layout.ts`), grows each shape to fit, then pushes any
+remaining overlaps apart before a single stroke is drawn. The trade is that
+nothing on the board is editable afterwards.
 
 They share everything else: streaming generation, word-level narration sync,
 voices, photographs, mid-lesson questions, follow-ups and session memory. The

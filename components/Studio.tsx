@@ -8,6 +8,7 @@ import { EngineChooser } from './EngineChooser'
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
 // the critical path when the slides engine is selected.
 const WhiteboardStudio = dynamic(() => import('./whiteboard/WhiteboardStudio'), { ssr: false })
+const CanvasStudio = dynamic(() => import('./canvas/CanvasStudio'), { ssr: false })
 const TemplateStudio = dynamic(() => import('./template/TemplateStudio'), { ssr: false })
 
 /**
@@ -31,9 +32,11 @@ export default function Studio() {
 
   const chooser = <EngineChooser value={engine} onChange={setEngine} />
 
-  return engine === 'whiteboard' ? (
-    <WhiteboardStudio key="whiteboard" engine={engine} chooser={chooser} />
-  ) : (
-    <TemplateStudio key="slides" engine={engine} chooser={chooser} />
-  )
+  if (engine === 'whiteboard') {
+    return <WhiteboardStudio key="whiteboard" engine={engine} chooser={chooser} />
+  }
+  if (engine === 'canvas') {
+    return <CanvasStudio key="canvas" engine={engine} chooser={chooser} />
+  }
+  return <TemplateStudio key="slides" engine={engine} chooser={chooser} />
 }

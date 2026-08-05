@@ -24,7 +24,7 @@ import {
 export const maxDuration = 120
 
 function engineConfig(engine: Engine) {
-  return engine === 'whiteboard'
+  return engine === 'whiteboard' || engine === 'canvas'
     ? {
         system: WHITEBOARD_PROMPT,
         prompt: whiteboardAnswerPrompt,
