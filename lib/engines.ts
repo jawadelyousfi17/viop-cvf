@@ -1,10 +1,10 @@
 /**
- * The two rendering engines, and the per-engine pieces the shared API routes
+ * The rendering engines, and the per-engine pieces the shared API routes
  * need. Everything else — voice, images, follow-ups, the proxy — is engine
  * agnostic and shared.
  */
 
-export const ENGINES = ['whiteboard', 'canvas', 'slides'] as const
+export const ENGINES = ['whiteboard', 'canvas', 'slides', 'manim'] as const
 export type Engine = (typeof ENGINES)[number]
 
 export const DEFAULT_ENGINE: Engine = 'slides'
@@ -25,5 +25,9 @@ export const ENGINE_LABELS: Record<Engine, { name: string; hint: string }> = {
   slides: {
     name: 'Slides',
     hint: 'Designed layouts filled in as the narration reaches them',
+  },
+  manim: {
+    name: 'Manim',
+    hint: 'Animated mathematics — for maths and physics, where the motion is the explanation',
   },
 }

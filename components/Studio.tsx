@@ -10,6 +10,7 @@ import { EngineChooser } from './EngineChooser'
 const WhiteboardStudio = dynamic(() => import('./whiteboard/WhiteboardStudio'), { ssr: false })
 const CanvasStudio = dynamic(() => import('./canvas/CanvasStudio'), { ssr: false })
 const TemplateStudio = dynamic(() => import('./template/TemplateStudio'), { ssr: false })
+const ManimStudio = dynamic(() => import('./manim/ManimStudio'), { ssr: false })
 
 /**
  * Top-level shell. Owns which engine is in use and renders that engine's
@@ -37,6 +38,9 @@ export default function Studio() {
   }
   if (engine === 'canvas') {
     return <CanvasStudio key="canvas" engine={engine} chooser={chooser} />
+  }
+  if (engine === 'manim') {
+    return <ManimStudio key="manim" engine={engine} chooser={chooser} />
   }
   return <TemplateStudio key="slides" engine={engine} chooser={chooser} />
 }

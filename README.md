@@ -10,6 +10,19 @@ through it — visuals and narration timed to each other.
 | **Whiteboard** (`?engine=whiteboard`) | Draws live on an infinite tldraw canvas with a visible pen, the way a teacher works at a board. Shapes stay grabbable afterwards |
 | **Canvas** (`?engine=canvas`) | The same lesson language painted straight onto a 2D canvas. No shape library, so layout is resolved *after* measuring the text — see below |
 | **Slides** (`?engine=slides`, default) | Fills twelve designed layouts — journey, timeline, steps, funnel, pillars, mindmap, table, chart, stats, spotlight, gallery, hero |
+| **Manim** (`?engine=manim`) | Animated mathematics, on [manim-ts](https://github.com/ManimCommunity/manim)'s model. For maths and physics, where the motion *is* the explanation |
+
+**The manim engine.** A lesson declares mobjects and the steps that animate them
+(`lib/manim-lesson.ts`), and the player translates that into manim-ts calls.
+Declarative rather than code because a manim scene is normally a Python script —
+the model could write that script and we could run it, but executing
+model-authored code in the learner's browser is a door worth not opening.
+Function expressions for plots go through a small parser (`lib/math-expr.ts`)
+for the same reason: `sin(x)` becomes a tree of known operations, never `eval`.
+
+Timing is inverted from manim's own model. Normally `await self.play(...)` runs a
+step and moves on; here each step blocks until the narration reaches the phrase
+it illustrates, so the animation is led by the voice.
 
 **Why the canvas engine exists.** With tldraw the box is declared before the
 text is measured, so a label that wraps to three lines silently grows past the
@@ -39,11 +52,11 @@ npm run dev
 | --- | --- | --- |
 | `OPENAI_API_KEY` | yes | Writes the lesson |
 | `OPENAI_MODEL` | no | Defaults to `gpt-5.6-luna`. Must support structured outputs |
-| `TTS_PROVIDER` | no | `elevenlabs` (default) or `openai` |
+| `TTS_PROVIDER` | no | `elevenlabs` or `openai`. Only ElevenLabs returns the timestamps that sync each shape to its word |
 | `ELEVENLABS_API_KEY` | for elevenlabs | Without a usable voice key, lessons play silently with captions |
 | `ELEVENLABS_VOICE_ID` | no | Defaults to EVE |
 | `ELEVENLABS_MODEL_ID` | no | Defaults to `eleven_multilingual_v2` |
-| `OPENAI_TTS_MODEL` | no | Defaults to `gpt-4o-mini-tts` |
+| `OPENAI_TTS_MODEL` | no | Defaults to `gpt-4o-mini-tts`. `tts-1` is faster and cheaper but not steerable |
 | `OPENAI_TTS_VOICE` | no | Defaults to `sage` |
 | `UNSPLASH_ACCESS_KEY` | no | Tried first. 50 requests/hour on a demo app |
 | `GOOGLE_CSE_KEY` + `GOOGLE_CSE_ID` | no | Google Programmable Search, 100 free queries/day |

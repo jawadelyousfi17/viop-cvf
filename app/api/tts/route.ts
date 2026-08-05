@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { DEFAULT_VOICE_ID, isKnownVoice } from '@/lib/voices'
+import { DEFAULT_VOICE_ID, isKnownVoice, openAIVoiceFor } from '@/lib/voices'
 
 export const maxDuration = 120
 
@@ -85,14 +85,14 @@ export async function POST(request: Request) {
   const input = text.trim().slice(0, MAX_INPUT)
   const provider = resolveProvider()
 
+  // Only ids from the allowlist are honoured either way, so this can't be used
+  // to bill arbitrary voices to the account's key.
   return provider === 'openai'
-    ? speakWithOpenAI(input)
-    : // Only ids from the allowlist are honoured, so this can't be used to
-      // bill arbitrary voices to the account's key.
-      speakWithElevenLabs(input, isKnownVoice(voiceId) ? voiceId : undefined)
+    ? speakWithOpenAI(input, openAIVoiceFor(voiceId))
+    : speakWithElevenLabs(input, isKnownVoice(voiceId) ? voiceId : undefined)
 }
 
-async function speakWithOpenAI(input: string) {
+async function speakWithOpenAI(input: string, voice?: string) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     return Response.json({ error: 'OPENAI_API_KEY is not set.' }, { status: 501 })
@@ -104,7 +104,7 @@ async function speakWithOpenAI(input: string) {
   try {
     const speech = await client.audio.speech.create({
       model,
-      voice: process.env.OPENAI_TTS_VOICE ?? OPENAI_DEFAULT_VOICE,
+      voice: voice ?? process.env.OPENAI_TTS_VOICE ?? OPENAI_DEFAULT_VOICE,
       input,
       response_format: 'mp3',
       // tts-1 and tts-1-hd reject this parameter outright.

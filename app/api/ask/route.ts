@@ -20,29 +20,51 @@ import {
   ANSWER_SYSTEM_PROMPT as SLIDES_PROMPT,
   answerPrompt as slidesAnswerPrompt,
 } from '@/lib/template-prompt'
+import {
+  MANIM_ANSWER_JSON_SCHEMA as MANIM_SCHEMA,
+  isRenderableManimScene,
+  normalizeManimScene,
+  type ManimScene,
+} from '@/lib/manim-lesson'
+import {
+  ANSWER_SYSTEM_PROMPT as MANIM_PROMPT,
+  answerPrompt as manimAnswerPrompt,
+} from '@/lib/manim-prompt'
 
 export const maxDuration = 120
 
 function engineConfig(engine: Engine) {
-  return engine === 'whiteboard' || engine === 'canvas'
-    ? {
-        system: WHITEBOARD_PROMPT,
-        prompt: whiteboardAnswerPrompt,
-        schema: WHITEBOARD_SCHEMA,
-        parse: (raw: unknown) => {
-          const scene = raw as WhiteboardScene
-          return isWhiteboardScene(scene) ? normalizeWhiteboardScene(scene, 0) : null
-        },
-      }
-    : {
-        system: SLIDES_PROMPT,
-        prompt: slidesAnswerPrompt,
-        schema: SLIDES_SCHEMA,
-        parse: (raw: unknown) => {
-          const scene = raw as TemplateScene
-          return isSlidesScene(scene) ? normalizeSlidesScene(scene, 0) : null
-        },
-      }
+  if (engine === 'whiteboard' || engine === 'canvas') {
+    return {
+      system: WHITEBOARD_PROMPT,
+      prompt: whiteboardAnswerPrompt,
+      schema: WHITEBOARD_SCHEMA,
+      parse: (raw: unknown) => {
+        const scene = raw as WhiteboardScene
+        return isWhiteboardScene(scene) ? normalizeWhiteboardScene(scene, 0) : null
+      },
+    }
+  }
+  if (engine === 'manim') {
+    return {
+      system: MANIM_PROMPT,
+      prompt: manimAnswerPrompt,
+      schema: MANIM_SCHEMA,
+      parse: (raw: unknown) => {
+        const scene = raw as ManimScene
+        return isRenderableManimScene(scene) ? normalizeManimScene(scene, 0) : null
+      },
+    }
+  }
+  return {
+    system: SLIDES_PROMPT,
+    prompt: slidesAnswerPrompt,
+    schema: SLIDES_SCHEMA,
+    parse: (raw: unknown) => {
+      const scene = raw as TemplateScene
+      return isSlidesScene(scene) ? normalizeSlidesScene(scene, 0) : null
+    },
+  }
 }
 
 /**

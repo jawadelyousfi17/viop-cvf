@@ -6,24 +6,38 @@ import { SYSTEM_PROMPT as WHITEBOARD_PROMPT, userPrompt as whiteboardUser } from
 import { LESSON_JSON_SCHEMA as SLIDES_SCHEMA } from '@/lib/template-lesson'
 import { LessonStreamParser as SlidesParser } from '@/lib/template-stream'
 import { SYSTEM_PROMPT as SLIDES_PROMPT, userPrompt as slidesUser } from '@/lib/template-prompt'
+import { MANIM_LESSON_JSON_SCHEMA as MANIM_SCHEMA } from '@/lib/manim-lesson'
+import { ManimStreamParser } from '@/lib/manim-stream'
+import { SYSTEM_PROMPT as MANIM_PROMPT, userPrompt as manimUser } from '@/lib/manim-prompt'
 
 export const maxDuration = 300
 
-/** Everything that differs between the two engines, in one place. */
+/** Everything that differs between the engines, in one place. */
 function engineConfig(engine: Engine) {
-  return engine === 'whiteboard' || engine === 'canvas'
-    ? {
-        system: WHITEBOARD_PROMPT,
-        user: whiteboardUser,
-        schema: WHITEBOARD_SCHEMA,
-        parser: () => new WhiteboardParser(),
-      }
-    : {
-        system: SLIDES_PROMPT,
-        user: slidesUser,
-        schema: SLIDES_SCHEMA,
-        parser: () => new SlidesParser(),
-      }
+  // The whiteboard and canvas engines share a board language, so they share a
+  // prompt and a schema; only the renderer differs.
+  if (engine === 'whiteboard' || engine === 'canvas') {
+    return {
+      system: WHITEBOARD_PROMPT,
+      user: whiteboardUser,
+      schema: WHITEBOARD_SCHEMA,
+      parser: () => new WhiteboardParser(),
+    }
+  }
+  if (engine === 'manim') {
+    return {
+      system: MANIM_PROMPT,
+      user: manimUser,
+      schema: MANIM_SCHEMA,
+      parser: () => new ManimStreamParser(),
+    }
+  }
+  return {
+    system: SLIDES_PROMPT,
+    user: slidesUser,
+    schema: SLIDES_SCHEMA,
+    parser: () => new SlidesParser(),
+  }
 }
 
 /**
