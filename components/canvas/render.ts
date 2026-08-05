@@ -199,9 +199,19 @@ function draw(
         ctx.drawImage(image, ix, iy, w, h)
         ctx.restore()
       } else {
+        // No picture — say what was meant to be here rather than leaving an
+        // empty frame. Search can fail for a spent quota, a bad key or a host
+        // that refused the fetch, and all three look identical on the board.
         setDash(ctx, 'dashed')
         ctx.strokeStyle = COLORS.grey
         roughRect(ctx, p.x, p.y, p.w, p.h, seed)
+
+        ctx.save()
+        ctx.setLineDash([])
+        ctx.fillStyle = COLORS.grey
+        ctx.font = fontFor({ ...s, size: 's' })
+        drawText(ctx, s.text, p.x + p.w / 2, p.y + p.h / 2 - 10, p.w - 28)
+        ctx.restore()
       }
       return
     }

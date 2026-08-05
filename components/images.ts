@@ -13,6 +13,12 @@ export class ImageBank {
   private readonly cache = new Map<string, Promise<ImageResult | null>>()
   /** Flips to false after a 501, so we stop asking when no key is configured. */
   private enabled = true
+  /**
+   * Consecutive hard failures. A spent quota fails every lookup in the lesson,
+   * a dozen round trips per scene, so give up after a few in a row — but not on
+   * the first, since one dead host shouldn't cost the rest of the pictures.
+   */
+  private failures = 0
 
   get(query: string): Promise<ImageResult | null> {
     const key = query.trim().toLowerCase()
@@ -40,10 +46,20 @@ export class ImageBank {
         this.enabled = false
         return null
       }
+      // A 404 is just "nothing suitable for this query" — it says nothing
+      // about the next one. Only server-side failures count against us.
+      if (response.status >= 500) {
+        if (++this.failures >= 3) {
+          this.enabled = false
+          console.warn('[images] search keeps failing — see /api/image/test')
+        }
+        return null
+      }
       if (!response.ok) return null
 
       const result = (await response.json()) as ImageResult
       if (!result?.src) return null
+      this.failures = 0
 
       // Decode before handing it to the canvas so the shape doesn't pop in
       // blank and then fill.
