@@ -4,6 +4,7 @@ import {
   googleEngineId,
   providerChain,
   googleKey,
+  unsplashKey,
   isPermissive,
   isStock,
   isUsable,
@@ -43,6 +44,7 @@ export async function GET(request: Request) {
     chain: providerChain(),
     pinned: process.env.IMAGE_PROVIDER ?? null,
     // Presence only — never the values.
+    unsplashKey: Boolean(unsplashKey()),
     googleKey: Boolean(googleKey()),
     googleEngineId: Boolean(googleEngineId()),
     serpApiKey: Boolean(process.env.SERPAPI_KEY),

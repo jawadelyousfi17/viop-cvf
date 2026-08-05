@@ -45,16 +45,21 @@ npm run dev
 | `ELEVENLABS_MODEL_ID` | no | Defaults to `eleven_multilingual_v2` |
 | `OPENAI_TTS_MODEL` | no | Defaults to `gpt-4o-mini-tts` |
 | `OPENAI_TTS_VOICE` | no | Defaults to `sage` |
-| `GOOGLE_CSE_KEY` + `GOOGLE_CSE_ID` | no | Google Programmable Search, 100 free queries/day. Tried first |
-| `SERPAPI_KEY` | no | Tried second |
+| `UNSPLASH_ACCESS_KEY` | no | Tried first. 50 requests/hour on a demo app |
+| `GOOGLE_CSE_KEY` + `GOOGLE_CSE_ID` | no | Google Programmable Search, 100 free queries/day |
+| `SERPAPI_KEY` | no | Tried third |
 | `NEXT_PUBLIC_TLDRAW_LICENSE_KEY` | for production | tldraw runs unlicensed on localhost only |
 
-**Images need no key.** The search tries Google, then SerpApi, then Openverse and
-Wikimedia Commons — and that last pair needs no key, no Cloud project and no
-card, so it always answers. A key buys better everyday-object photographs;
-Commons is often better for science and machinery. When a paid tier runs dry the
-chain falls through to the keyless pair automatically, and remembers, so the
-dead provider isn't asked again that session.
+**Images need no key.** The search tries Unsplash, then Google, then SerpApi,
+then Openverse and Wikimedia Commons — and that last pair needs no key, no
+project and no card, so it always answers. Unsplash leads because its results
+are what a board actually wants: large, deliberate photographs of real objects.
+Commons is the better source for science and machinery. When a tier runs dry the
+chain falls through automatically and remembers, so the dead provider isn't
+asked again that session.
+
+A lesson spends roughly a dozen searches, so an Unsplash demo app covers about
+four lessons an hour before quietly handing over to the keyless pair.
 
 **When pictures stop appearing**, open `/api/image/test?q=apple&html=1`. The board
 draws the same dashed placeholder whether the key is wrong, the quota is spent,

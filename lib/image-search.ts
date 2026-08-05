@@ -3,17 +3,20 @@ import { isFetchableUrl } from './image-signing'
 /**
  * Image search, behind one interface.
  *
- * Three of them, because a lesson spends a dozen searches and the paid tiers are
- * small: SerpApi's free allowance is a few hundred total, Google's is 100 a day.
- * When one runs dry every lookup 502s and the board quietly fills with dashed
- * placeholders, which is indistinguishable from a bad key.
+ * Unsplash leads when configured: it is the one whose results actually look
+ * like what a board wants — a large, deliberate photograph of a real object.
+ *
+ * Behind it are the search engines, and behind those a keyless pair. The tiers
+ * are all small — Unsplash gives 50 requests an hour on a demo app, Google 100
+ * queries a day, SerpApi a few hundred in total — and a single lesson spends a
+ * dozen. When one runs dry every lookup 502s and the board quietly fills with
+ * dashed placeholders, indistinguishable from a bad key.
  *
  * So the chain always ends in `open` — Openverse and Wikimedia Commons, neither
- * of which needs a key, a Cloud project or a card. Images work with no
- * configuration at all, and a key going quiet mid-lesson costs quality rather
- * than the pictures themselves.
+ * of which needs a key, a project or a card. Nothing above it is required, and
+ * a key going quiet mid-lesson costs quality rather than the pictures.
  */
-export type Provider = 'google' | 'serpapi' | 'open'
+export type Provider = 'unsplash' | 'google' | 'serpapi' | 'open'
 
 export interface Candidate {
   /** The full-size image itself. */
@@ -60,11 +63,13 @@ const exhausted = new Set<Provider>()
  */
 export function providerChain(): Provider[] {
   const pinned = process.env.IMAGE_PROVIDER?.trim().toLowerCase()
+  if (pinned === 'unsplash') return unsplashKey() ? ['unsplash'] : []
   if (pinned === 'google') return googleKey() && googleEngineId() ? ['google'] : []
   if (pinned === 'serpapi') return process.env.SERPAPI_KEY ? ['serpapi'] : []
   if (pinned === 'open') return ['open']
 
   const chain: Provider[] = []
+  if (unsplashKey()) chain.push('unsplash')
   if (googleKey() && googleEngineId()) chain.push('google')
   if (process.env.SERPAPI_KEY) chain.push('serpapi')
   chain.push('open')
@@ -117,9 +122,93 @@ export async function searchImages(
 }
 
 function runProvider(provider: Provider, query: string, wantsMotion: boolean) {
+  if (provider === 'unsplash') return searchUnsplash(query, wantsMotion)
   if (provider === 'google') return searchGoogle(query, wantsMotion)
   if (provider === 'serpapi') return searchSerpApi(query, wantsMotion)
   return searchOpen(query, wantsMotion)
+}
+
+export function unsplashKey() {
+  return process.env.UNSPLASH_ACCESS_KEY
+}
+
+/** The width Unsplash's "regular" size actually serves. */
+const DELIVERED_W = 1080
+
+interface UnsplashPhoto {
+  width?: number
+  height?: number
+  urls?: { regular?: string; full?: string; small?: string }
+  user?: { name?: string }
+}
+
+/**
+ * Unsplash. The best of these for what a board actually wants — a large, clean
+ * photograph of a real object, shot on purpose rather than scanned or snapped.
+ *
+ * It has no animated results at all, so a query asking for motion is handed
+ * straight down the chain rather than answered with a still.
+ */
+async function searchUnsplash(query: string, wantsMotion: boolean): Promise<Candidate[]> {
+  if (wantsMotion) return []
+
+  const params = new URLSearchParams({
+    query: query.slice(0, 200),
+    per_page: '20',
+    content_filter: 'high',
+  })
+
+  let response: Response
+  try {
+    response = await fetch(`https://api.unsplash.com/search/photos?${params}`, {
+      headers: {
+        authorization: `Client-ID ${unsplashKey()}`,
+        'accept-version': 'v1',
+      },
+      signal: AbortSignal.timeout(12000),
+    })
+  } catch (error) {
+    console.error('[image] unsplash request failed', error)
+    throw new ImageSearchError('Image search failed.', 502)
+  }
+
+  if (!response.ok) {
+    console.error('[image] unsplash', response.status)
+    // Demo apps get 50 requests an hour, which one long lesson can reach.
+    if (response.status === 403 || response.status === 429) {
+      throw new ImageSearchError('Unsplash rate limit reached for this hour.', 502, true)
+    }
+    if (response.status === 401) {
+      throw new ImageSearchError('Unsplash rejected the access key.', 502, true)
+    }
+    throw new ImageSearchError('Image search failed.', 502)
+  }
+
+  const data = (await response.json()) as { results?: UnsplashPhoto[] }
+
+  return (data.results ?? [])
+    .map((photo) => {
+      // "regular" is ~1080px wide — the right size for a board, and a fraction
+      // of what "full" would cost to fetch and decode.
+      const url = photo.urls?.regular ?? photo.urls?.full
+      if (!url) return null
+
+      // Report what the URL delivers, not what was uploaded. Unsplash gives the
+      // original's dimensions — routinely 6000px wide — and the filtering would
+      // then reject nineteen results in twenty as "too enormous for a board"
+      // when every one of them arrives at 1080.
+      const w = photo.width ?? 0
+      const h = photo.height ?? 0
+      const delivered = url.includes('w=1080') && w > DELIVERED_W
+
+      return {
+        url,
+        width: delivered ? DELIVERED_W : w,
+        height: delivered && w ? Math.round((DELIVERED_W * h) / w) : h,
+        source: photo.user?.name ? `unsplash.com · ${photo.user.name}` : 'unsplash.com',
+      }
+    })
+    .filter((item): item is Candidate => item !== null)
 }
 
 interface GoogleItem {
