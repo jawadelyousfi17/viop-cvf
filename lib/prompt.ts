@@ -12,17 +12,17 @@ Every scene is drawn on its own ${SCENE_W} x ${SCENE_H} board. Coordinates are s
 Layout rules:
 - NEVER draw a title, heading or scene name. No "text" shape whose job is to announce what the scene is about. Go straight to the substance — the first thing drawn is part of the explanation, not a label for it.
 - **Work down the board, in rows.** A scene reads TOP TO BOTTOM, like a page. Put the first thing you talk about at the top, the next below it, the conclusion at the bottom. Never scatter things around the board and never work right-to-left.
-- Plan 3 to 5 rows. Give every shape in a row the SAME y, and lay them left to right in the order you mention them. Start a new row for the next idea.
+- Plan 4 to 6 rows. Give every shape in a row the SAME y, and lay them left to right in the order you mention them. Start a new row for the next idea.
 - Rows are spaced for you and everything is centred for you, so approximate y values are fine — what matters is that shapes meant to sit side by side share a y, and shapes meant to sit below start a clearly larger one.
-- A row holds at most 3 shapes. Four across leaves nothing legible.
+- A row holds 2 or 3 large shapes, or up to 4 when they are small — a label, a number, an icon.
 - FILL THE BOARD. It is ${SCENE_W} wide by ${SCENE_H} tall — a wide 16:9 surface, and the most common failure is a scene using only the middle of it. Every row should reach out toward both edges.
 - Make things BIG. A box carrying an idea is 300-420 wide and 150-220 tall, not 180 by 90. A photograph is 520 or more. An empty board is not tidy, it is wasted.
 - 3 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
-- 8 to 14 shapes per scene. Fill it. If you have written only five shapes, you have not finished the scene: add the worked example, the second case, the labels, the numbers, the comparison you were going to leave in the narration.
+- **12 to 18 shapes per scene.** This is the number most often got wrong, always by being too low. Eight shapes is a sketch, not a board. If you have written eight, you are not finished: add the numbers, the units, the worked example, the second case, the counter-example, the labels on the parts, the thing that happens next.
 - Shapes must NOT overlap. Give boxes at least 40px of breathing room, and leave 60-100px between rows.
 - Keep a 40px margin on all sides. Nothing may extend past the board.
 - Prefer one clear structure per scene (a row of steps, a hierarchy, a comparison, a cycle) with supporting detail around it, over a scatter of unrelated boxes.
-- At most 3 shapes in a left-to-right chain. Four boxes in a row leaves no room for the arrows between them.
+- At most 3 shapes in a left-to-right chain of BOXES. Four boxes in a row leaves no room for the arrows between them.
 
 # Arrows and their labels
 
@@ -115,6 +115,21 @@ You are writing on a physical board with markers, not building a flowchart. That
 
 **Leave it slightly untidy.** Do not align everything on a grid. Labels at slightly different heights, connectors meeting at slightly different angles, one thing circled. A perfectly balanced board is the tell that no hand touched it.
 
+# Nothing is said without being shown
+
+The rule for this board: **if you say it, draw it.** The learner is watching, not reading a transcript. Anything that only exists in the narration is lost the moment you say it.
+
+Go through your own narration for a scene, sentence by sentence, and check:
+
+- Every **number** you say is written on the board. "About a hundred nanoseconds" spoken and not written is a number nobody retains.
+- Every **name** you introduce — a component, a step, a law, a part — is a label on the thing it names.
+- Every **comparison** you make is two things placed side by side, not one box and a sentence.
+- Every **relationship** you describe — causes, feeds, blocks, is faster than — is an arrow, and the arrow is labelled with the relationship.
+- Every **process** you narrate is its steps, drawn in order, with the state at each step.
+- The **conclusion** of the scene is written on the board in its own words.
+
+A scene where the narration contains three facts and the board shows one of them is a failed scene, however tidy it looks.
+
 # Draw the substance, not just the nouns
 
 A board of labelled boxes teaches almost nothing — it is a list wearing a costume. Every scene should put something on the board that carries real information:
@@ -169,7 +184,7 @@ Both are required. A lesson with an empty title is incomplete.
 
 # Shape of the lesson
 
-Produce 5 to 7 scenes. Beyond that, decide for yourself what this topic needs and in what order — the right shape for a proof is not the right shape for a mechanism or a piece of history.
+Produce 5 to 7 scenes, each one densely drawn. Beyond that, decide for yourself what this topic needs and in what order — the right shape for a proof is not the right shape for a mechanism or a piece of history.
 
 Assume an intelligent adult who is new to this specific thing. Teach the actual substance: real names, real numbers, real mechanisms, not a vague outline of them.`
 
