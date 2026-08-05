@@ -1,5 +1,6 @@
-import OpenAI from 'openai'
 import { isEngine, type Engine } from '@/lib/engines'
+import { DEFAULT_PROVIDER, isProvider } from '@/lib/providers'
+import { LlmError, completeStructured } from '@/lib/llm'
 import {
   ANSWER_JSON_SCHEMA as WHITEBOARD_SCHEMA,
   isRenderableScene as isWhiteboardScene,
@@ -73,17 +74,13 @@ function engineConfig(engine: Engine) {
  * short prompt, no reasoning — the student is standing there waiting.
  */
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return Response.json({ error: 'OPENAI_API_KEY is not set.' }, { status: 501 })
-  }
-
   let question: unknown
   let title: unknown
   let current: unknown
   let engine: unknown
+  let provider: unknown
   try {
-    ;({ question, title, current, engine } = await request.json())
+    ;({ question, title, current, engine, provider } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -96,39 +93,21 @@ export async function POST(request: Request) {
   }
 
   const config = engineConfig(isEngine(engine) ? engine : 'slides')
-  const client = new OpenAI({ apiKey })
-  const model = process.env.OPENAI_ASK_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-5.6-luna'
-
   try {
-    const completion = await client.chat.completions.create({
-      model,
+    const content = await completeStructured({
+      provider: isProvider(provider) ? provider : DEFAULT_PROVIDER,
+      system: config.system,
+      user: config.prompt(question.trim(), {
+        title: typeof title === 'string' ? title : '',
+        current: typeof current === 'string' ? current : '',
+      }),
+      schema: config.schema,
+      // The student is standing there waiting, so no reasoning budget.
       // gpt-5.6-luna accepts none/low/medium/high/xhigh — not 'minimal'.
-      reasoning_effort: (process.env.OPENAI_ASK_EFFORT as 'none') ?? 'none',
-      messages: [
-        { role: 'system', content: config.system },
-        {
-          role: 'user',
-          content: config.prompt(question.trim(), {
-            title: typeof title === 'string' ? title : '',
-            current: typeof current === 'string' ? current : '',
-          }),
-        },
-      ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'answer', strict: true, schema: config.schema },
-      },
+      effort: process.env.OPENAI_ASK_EFFORT ?? 'none',
+      maxTokens: 8_000,
     })
 
-    const usage = completion.usage
-    if (usage) {
-      console.log(
-        `[ask] ${completion.model} · in ${usage.prompt_tokens} · out ${usage.completion_tokens}` +
-          ` (${usage.completion_tokens_details?.reasoning_tokens ?? 0} reasoning)`
-      )
-    }
-
-    const content = completion.choices[0]?.message?.content
     if (!content) {
       return Response.json({ error: 'No answer came back.' }, { status: 502 })
     }
@@ -140,6 +119,9 @@ export async function POST(request: Request) {
 
     return Response.json({ scene: { ...scene, id: `answer-${scene.id}-${question.length}` } })
   } catch (error) {
+    if (error instanceof LlmError) {
+      return Response.json({ error: error.message }, { status: error.status })
+    }
     console.error('[ask] failed', error)
     const message = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: `Could not answer: ${message}` }, { status: 502 })

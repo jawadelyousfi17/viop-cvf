@@ -1,5 +1,6 @@
-import OpenAI from 'openai'
 import { isEngine, type Engine } from '@/lib/engines'
+import { DEFAULT_PROVIDER, isProvider } from '@/lib/providers'
+import { LlmError, streamStructured } from '@/lib/llm'
 import { LESSON_JSON_SCHEMA as WHITEBOARD_SCHEMA } from '@/lib/lesson'
 import { LessonStreamParser as WhiteboardParser } from '@/lib/lesson-stream'
 import { SYSTEM_PROMPT as WHITEBOARD_PROMPT, userPrompt as whiteboardUser } from '@/lib/prompt'
@@ -46,19 +47,12 @@ function engineConfig(engine: Engine) {
  * playing it while the rest is still being written.
  */
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return Response.json(
-      { error: 'OPENAI_API_KEY is not set. Add it to .env.local and restart the dev server.' },
-      { status: 501 }
-    )
-  }
-
   let topic: unknown
   let history: unknown
   let engine: unknown
+  let provider: unknown
   try {
-    ;({ topic, history, engine } = await request.json())
+    ;({ topic, history, engine, provider } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -74,39 +68,34 @@ export async function POST(request: Request) {
   }
 
   const config = engineConfig(isEngine(engine) ? engine : 'slides')
-  const client = new OpenAI({ apiKey })
-  const model = process.env.OPENAI_MODEL ?? 'gpt-5.6-luna'
 
-  let completion
+  const userPrompt = config.user(
+    topic.trim(),
+    Array.isArray(history)
+      ? history
+          .filter((h) => h && typeof h.title === 'string')
+          .slice(-6)
+          .map((h) => ({ title: String(h.title), summary: String(h.summary ?? '') }))
+      : []
+  )
+
+  // Started before the response stream opens, so a missing key or a rejected
+  // request is still an error page rather than an empty lesson.
+  let completion: AsyncGenerator<string>
   try {
-    // Chat Completions, not Responses: gpt-5.6-luna has a reported bug where
-    // structured outputs on the Responses API leak stray tokens into strings.
-    completion = await client.chat.completions.create({
-      model,
-      stream: true,
-      stream_options: { include_usage: true },
-      messages: [
-        { role: 'system', content: config.system },
-        {
-          role: 'user',
-          content: config.user(
-            topic.trim(),
-            Array.isArray(history)
-              ? history
-                  .filter((h) => h && typeof h.title === 'string')
-                  .slice(-6)
-                  .map((h) => ({ title: String(h.title), summary: String(h.summary ?? '') }))
-              : []
-          ),
-        },
-      ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'lesson', strict: true, schema: config.schema },
-      },
+    completion = streamStructured({
+      provider: isProvider(provider) ? provider : DEFAULT_PROVIDER,
+      system: config.system,
+      user: userPrompt,
+      schema: config.schema,
     })
+    const first = await completion.next()
+    if (!first.done) completion = prepend(first.value, completion)
   } catch (error) {
     console.error('[lesson] request rejected', error)
+    if (error instanceof LlmError) {
+      return Response.json({ error: error.message }, { status: error.status })
+    }
     const message = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: `Could not generate the lesson: ${message}` }, { status: 502 })
   }
@@ -121,17 +110,8 @@ export async function POST(request: Request) {
       const parser = config.parser()
 
       try {
-        for await (const chunk of completion) {
-          const delta = chunk.choices[0]?.delta?.content
+        for await (const delta of completion) {
           if (delta) for (const event of parser.push(delta)) send(event)
-
-          if (chunk.usage) {
-            const reasoning = chunk.usage.completion_tokens_details?.reasoning_tokens ?? 0
-            console.log(
-              `[lesson] ${model} · in ${chunk.usage.prompt_tokens} · out ${chunk.usage.completion_tokens}` +
-                ` (${reasoning} reasoning) · total ${chunk.usage.total_tokens}`
-            )
-          }
         }
 
         if (parser.count === 0) {
@@ -156,4 +136,10 @@ export async function POST(request: Request) {
       'x-accel-buffering': 'no',
     },
   })
+}
+
+/** Puts an already-pulled chunk back at the front of a stream. */
+async function* prepend(first: string, rest: AsyncGenerator<string>): AsyncGenerator<string> {
+  yield first
+  yield* rest
 }

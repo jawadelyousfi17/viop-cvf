@@ -10,6 +10,7 @@ import {
 } from '@/lib/template-lesson'
 import type { LessonEvent } from '@/lib/template-stream'
 import type { Engine } from '@/lib/engines'
+import type { Provider } from '@/lib/providers'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { ImageResult } from '@/app/api/image/route'
 import { ImageBank } from '../images'
@@ -58,9 +59,11 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Les
 
 export default function TemplateStudio({
   engine,
+  provider,
   chooser,
 }: {
   engine: Engine
+  provider: Provider
   chooser: React.ReactNode
 }) {
   const [phase, setPhase] = useState<Phase>('idle')
@@ -222,7 +225,7 @@ export default function TemplateStudio({
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, history, engine }),
+        body: JSON.stringify({ topic: trimmed, history, engine, provider }),
       })
 
       if (!response.ok || !response.body) {
@@ -410,6 +413,7 @@ export default function TemplateStudio({
           title: current.title,
           current: current.scenes[sceneIndex]?.narration ?? '',
           engine,
+          provider,
         }),
       })
       const data = await response.json()

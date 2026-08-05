@@ -15,7 +15,8 @@ import {
 // Not re-exported from `tldraw` despite what its docs show, so imported from
 // the schema package directly (pinned to the same version).
 import { b64Vecs } from '@tldraw/tlschema'
-import { SCENE_GAP, SCENE_H, SCENE_W, type BoardShape } from '@/lib/lesson'
+import { BOARD_FONT, SCENE_GAP, SCENE_H, SCENE_W, type BoardShape } from '@/lib/lesson'
+import { CHART_KINDS, chartKey } from '@/lib/chart'
 
 type GeoStyle = TLGeoShape['props']['geo']
 
@@ -191,7 +192,9 @@ function textPath(x: number, y: number, w: number, h: number, lines: number): Ve
 }
 
 /** Kinds built from many tldraw shapes rather than one. */
-const COMPOSITE_KINDS = new Set(['table', 'array', 'stack', 'bars'])
+const COMPOSITE_KINDS = new Set(['table', 'array', 'stack'])
+
+const isChart = (kind: BoardShape['kind']) => (CHART_KINDS as readonly string[]).includes(kind)
 
 /** Kinds whose outline is a circle rather than a box. */
 const ROUND_GEOS = new Set(['ellipse', 'oval', 'cloud', 'heart', 'octagon'])
@@ -298,9 +301,17 @@ export class BoardPainter {
     // motion that reads as human is the pan between scenes, not fidgeting
     // during one.
     const w = SCENE_W
-    const h = SCENE_H
     const x = 0
     const y = 0
+
+    // The box, unless the packed content is taller than it. Scenes are laid
+    // out as rows and a dense one can run past the bottom; framing the fixed
+    // box would then simply cut the last row off. Scenes are 620 apart, so a
+    // taller frame still cannot reach its neighbour.
+    const content = shapes?.length
+      ? Math.max(...shapes.map((shape) => shape.y + (shape.kind === 'note' ? 200 : shape.h)))
+      : 0
+    const h = Math.max(SCENE_H, Math.min(SCENE_H + SCENE_GAP - 120, content + 40))
 
     const usable = Math.max(200, screen.h - CHROME_TOP - CHROME_BOTTOM)
     const padTop = (h * CHROME_TOP) / usable
@@ -385,11 +396,13 @@ export class BoardPainter {
       this.paintLabel(shape, id, offsetY, animate)
     } else if (shape.kind === 'icon') {
       this.paintIcon(shape, id, offsetY, animate)
+    } else if (isChart(shape.kind)) {
+      this.paintImage(shape, id, offsetY, animate, sceneIndex, scene)
     } else if (shape.kind === 'ring') {
       this.paintRing(shape, id, offsetY, animate)
     } else if (shape.kind === 'curve' || shape.kind === 'highlight') {
       this.paintStroke(shape, id, offsetY, animate)
-    } else if (shape.kind === 'line' || shape.kind === 'axes') {
+    } else if (shape.kind === 'line') {
       this.paintLine(shape, id, offsetY, animate)
     } else if (shape.kind === 'note') {
       this.paintNote(shape, id, offsetY, animate)
@@ -419,7 +432,7 @@ export class BoardPainter {
         richText: toRichText(shape.text || ' '),
         color: shape.color,
         size: shape.size,
-        font: shape.font,
+        font: BOARD_FONT,
         textAlign: 'start',
         autoSize: false,
         w: Math.max(60, shape.w),
@@ -454,7 +467,7 @@ export class BoardPainter {
         fill: shape.fill,
         dash: shape.dash,
         size: shape.size,
-        font: shape.font,
+        font: BOARD_FONT,
         align: 'middle',
         verticalAlign: 'middle',
         scale: 1,
@@ -485,7 +498,7 @@ export class BoardPainter {
         color: shape.color === 'black' ? 'yellow' : shape.color,
         labelColor: 'black',
         size: shape.size === 'xl' ? 'l' : shape.size,
-        font: shape.font,
+        font: BOARD_FONT,
         align: 'middle',
         verticalAlign: 'middle',
         scale: 1,
@@ -554,7 +567,11 @@ export class BoardPainter {
     siblings: BoardShape[] = []
   ) {
     const x = shape.x + wobble(shape.id, 'x', HAND.drift)
-    const found = this.images.get(shape.text.trim().toLowerCase())
+    // A chart has no search query, so it is filed under a synthetic one.
+    const query = isChart(shape.kind)
+      ? chartKey(sceneIndex, shape.id)
+      : shape.text.trim().toLowerCase()
+    const found = this.images.get(query)
 
     if (!found) {
       this.editor.createShape({
@@ -574,7 +591,7 @@ export class BoardPainter {
           fill: 'none',
           dash: 'dashed',
           size: 's',
-          font: shape.font,
+          font: BOARD_FONT,
           align: 'middle',
           verticalAlign: 'middle',
           scale: 1,
@@ -584,7 +601,6 @@ export class BoardPainter {
       this.reveal(id, 'geo', boxPath(x, shape.y + offsetY, shape.w, shape.h), animate)
 
       // Remember it so the picture can take its place when the lookup lands.
-      const query = shape.text.trim().toLowerCase()
       if (query) {
         this.placeholders.set(query, {
           id,
@@ -730,7 +746,7 @@ export class BoardPainter {
         richText: toRichText(shape.text || ' '),
         color: shape.color,
         size: shape.size,
-        font: shape.font,
+        font: BOARD_FONT,
         textAlign: 'start',
         autoSize: false,
         w: width,
@@ -802,7 +818,7 @@ export class BoardPainter {
         richText: toRichText(shape.text || '•'),
         color: shape.color,
         size: 'xl',
-        font: shape.font,
+        font: BOARD_FONT,
         textAlign: 'middle',
         autoSize: false,
         w: Math.max(60, shape.w),
@@ -852,7 +868,7 @@ export class BoardPainter {
           fill: opts.header ? 'semi' : 'none',
           dash: 'draw',
           size: shape.size === 'xl' ? 'l' : shape.size,
-          font: shape.font,
+          font: BOARD_FONT,
           align: 'middle',
           verticalAlign: 'middle',
           scale: 1,
@@ -880,7 +896,7 @@ export class BoardPainter {
           richText: toRichText(label),
           color,
           size: 's',
-          font: shape.font,
+          font: BOARD_FONT,
           textAlign: 'middle',
           autoSize: false,
           w: cw,
@@ -891,25 +907,7 @@ export class BoardPainter {
       return textId
     }
 
-    if (shape.kind === 'bars') {
-      // Each line is "label|value". The bars are drawn to scale, so the shape
-      // of the data is visible rather than merely stated.
-      const entries = rows
-        .map((row) => ({ label: row[0] ?? '', value: Number(row[1]) }))
-        .filter((entry) => Number.isFinite(entry.value))
-      const peak = Math.max(1, ...entries.map((entry) => Math.abs(entry.value)))
-      const plotH = shape.h - 60
-      const slot = shape.w / Math.max(1, entries.length)
-      const barW = slot * 0.62
-
-      for (const [i, entry] of entries.entries()) {
-        const height = Math.max(6, (Math.abs(entry.value) / peak) * plotH)
-        const bx = x + i * slot + (slot - barW) / 2
-        cell(bx, y + plotH - height, barW, height, '', { accent: true })
-        caption(x + i * slot, y + plotH + 6, slot, entry.label)
-        caption(x + i * slot, y + plotH - height - 26, slot, String(entry.value), shape.color)
-      }
-    } else if (shape.kind === 'array') {
+    if (shape.kind === 'array') {
       // One row of touching cells with their indices underneath — the indices
       // are usually the thing being taught.
       const cells = rows[0] ?? []
@@ -1089,19 +1087,9 @@ export class BoardPainter {
     step()
   }
 
-  /** Straight multi-point lines: brackets, dividers, underlines — and axes. */
+  /** Straight multi-point lines: brackets, dividers, underlines. */
   private paintLine(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {
-    // `axes` is derived from the bounding box rather than given as points: an L
-    // from the top of the y axis, down to the origin, out along the x axis.
-    // Models reliably get that order wrong when asked for it as a polyline.
-    const source =
-      shape.kind === 'axes'
-        ? [
-            { x: shape.x, y: shape.y },
-            { x: shape.x, y: shape.y + shape.h },
-            { x: shape.x + shape.w, y: shape.y + shape.h },
-          ]
-        : shape.points
+    const source = shape.points
 
     const origin = { x: source[0].x, y: source[0].y + offsetY }
     const indices = getIndices(source.length)
@@ -1189,7 +1177,7 @@ export class BoardPainter {
         size: shape.size === 'xl' ? 'l' : shape.size,
         arrowheadStart: 'none',
         arrowheadEnd: 'arrow',
-        font: shape.font,
+        font: BOARD_FONT,
         richText: toRichText(shape.text ?? ''),
         labelPosition: 0.5,
         labelColor: shape.color,

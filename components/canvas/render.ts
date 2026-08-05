@@ -289,20 +289,6 @@ function draw(
       return
     }
 
-    case 'axes': {
-      roughPath(
-        ctx,
-        [
-          { x: p.x, y: p.y },
-          { x: p.x, y: p.y + p.h },
-          { x: p.x + p.w, y: p.y + p.h },
-        ],
-        seed,
-        1
-      )
-      return
-    }
-
     default: {
       // Every geo kind: an outline plus its centred label.
       const round = ['ellipse', 'oval', 'cloud', 'heart', 'octagon'].includes(s.kind)
@@ -315,23 +301,6 @@ function draw(
 
       if (round) roughEllipse(ctx, p.x + p.w / 2, p.y + p.h / 2, p.w / 2, p.h / 2, seed)
       else roughRect(ctx, p.x, p.y, p.w, p.h, seed)
-
-      if (s.kind === 'xbox') {
-        roughLine(ctx, { x: p.x, y: p.y }, { x: p.x + p.w, y: p.y + p.h }, `${seed}x1`, 1)
-        roughLine(ctx, { x: p.x + p.w, y: p.y }, { x: p.x, y: p.y + p.h }, `${seed}x2`, 1)
-      }
-      if (s.kind === 'check') {
-        roughPath(
-          ctx,
-          [
-            { x: p.x + p.w * 0.22, y: p.y + p.h * 0.52 },
-            { x: p.x + p.w * 0.42, y: p.y + p.h * 0.74 },
-            { x: p.x + p.w * 0.8, y: p.y + p.h * 0.26 },
-          ],
-          `${seed}ck`,
-          1
-        )
-      }
 
       if (p.lines.length) {
         ctx.save()

@@ -6,6 +6,7 @@ import { estimateNarrationSeconds } from '@/lib/lesson'
 import type { ManimLesson } from '@/lib/manim-lesson'
 import type { ManimLessonEvent } from '@/lib/manim-stream'
 import type { Engine } from '@/lib/engines'
+import type { Provider } from '@/lib/providers'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { ManimBoardHandle } from './ManimBoard'
 import { Narrator } from '../narrator'
@@ -56,9 +57,11 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Man
 
 export default function ManimStudio({
   engine,
+  provider,
   chooser,
 }: {
   engine: Engine
+  provider: Provider
   chooser: React.ReactNode
 }) {
   const [phase, setPhase] = useState<Phase>('idle')
@@ -178,7 +181,7 @@ export default function ManimStudio({
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, history, engine }),
+        body: JSON.stringify({ topic: trimmed, history, engine, provider }),
       })
 
       if (!response.ok || !response.body) {
@@ -398,6 +401,7 @@ export default function ManimStudio({
           title: current.title,
           current: current.scenes[sceneIndex]?.narration ?? '',
           engine,
+          provider,
         }),
       })
       const data = await response.json()

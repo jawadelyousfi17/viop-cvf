@@ -11,7 +11,13 @@ Every scene is drawn on its own ${SCENE_W} x ${SCENE_H} board. Coordinates are s
 
 Layout rules:
 - NEVER draw a title, heading or scene name. No "text" shape whose job is to announce what the scene is about. Go straight to the substance — the first thing drawn is part of the explanation, not a label for it.
-- USE THE WHOLE BOARD. Spread the work across the full ${SCENE_W} by ${SCENE_H}: content in the top band, the middle and the bottom band, and out to both sides. A scene occupying one corner with empty space around it is a wasted board, and it is the most common mistake.
+- **Work down the board, in rows.** A scene reads TOP TO BOTTOM, like a page. Put the first thing you talk about at the top, the next below it, the conclusion at the bottom. Never scatter things around the board and never work right-to-left.
+- Plan 3 to 5 rows. Give every shape in a row the SAME y, and lay them left to right in the order you mention them. Start a new row for the next idea.
+- Rows are spaced for you and everything is centred for you, so approximate y values are fine — what matters is that shapes meant to sit side by side share a y, and shapes meant to sit below start a clearly larger one.
+- A row holds at most 3 shapes. Four across leaves nothing legible.
+- FILL THE BOARD. It is ${SCENE_W} wide by ${SCENE_H} tall — a wide 16:9 surface, and the most common failure is a scene using only the middle of it. Every row should reach out toward both edges.
+- Make things BIG. A box carrying an idea is 300-420 wide and 150-220 tall, not 180 by 90. A photograph is 520 or more. An empty board is not tidy, it is wasted.
+- 3 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
 - 8 to 14 shapes per scene. Fill it. If you have written only five shapes, you have not finished the scene: add the worked example, the second case, the labels, the numbers, the comparison you were going to leave in the narration.
 - Shapes must NOT overlap. Give boxes at least 40px of breathing room, and leave 60-100px between rows.
 - Keep a 40px margin on all sides. Nothing may extend past the board.
@@ -30,7 +36,7 @@ An arrow's label is drawn INSIDE the gap between the two shapes it connects. If 
 
 - "label" — lettering with a dashed rule under it, no box. YOUR DEFAULT for naming anything. Set w to the text's natural width and h to 50-70.
 - "text" — plain lettering with no rule. For values, formulas, longer notes and red/green annotations. Never a scene title. Set w to the text's natural width (roughly 12px per character at size m, 16px at l, 21px at xl) and h to 40-70.
-- "box", "ellipse", "diamond", "triangle", "hexagon", "star", "cloud", "oval", "rhombus", "pentagon", "octagon", "trapezoid", "heart", "xbox", "check" — a container with an optional label in "text". Use "box" for concepts and steps, "diamond" or "rhombus" for decisions, "ellipse"/"cloud" for inputs, outputs and fuzzy things, "xbox" for the wrong way and "check" for the right one.
+- "box", "ellipse", "diamond", "triangle", "hexagon", "star", "cloud", "oval", "rhombus", "pentagon", "octagon", "trapezoid", "heart" — a container with an optional label in "text". Use "box" for concepts and steps, "diamond" or "rhombus" for decisions, "ellipse"/"cloud" for inputs, outputs and fuzzy things. For right-versus-wrong use colour: green for the one that works, red for the one that doesn't.
 - "arrowright", "arrowleft", "arrowup", "arrowdown" — a solid block arrow you can put a label inside. Good for a direction of flow that deserves its own shape rather than a thin connector.
 - "note" — a sticky note for an aside, a caveat, or a worked example. Notes are square-ish; use w=h=200.
 - "arrow" — a connector that curves gently. Set "from" and "to" to the ids of the shapes it links and it attaches itself to them. For a free-floating arrow set from/to to null and use x/y as the start and w/h as the offset to the end (w/h may be negative).
@@ -44,15 +50,14 @@ These four build a real structure out of many cells instead of one box with text
 - "table" — a grid. First line is the header row. Use it for comparisons, lookup tables, specs, before-and-after. Example text: "Operation|Average|Worst\\nLookup|O(1)|O(n)\\nInsert|O(1)|O(n)".
 - "array" — ONE line of pipe-separated values, drawn as touching cells with their indices written underneath. This is how you teach arrays, buffers, strings, memory, tape. Example text: "42|17|8|99|3". The indices are drawn for you; never write them yourself.
 - "stack" — one line per layer, drawn as layers resting on each other. Use it for a network stack, a call stack, strata, a hierarchy of abstraction. Top line is drawn as the top layer. Example text: "Application\\nTransport\\nNetwork\\nLink".
-- "bars" — one line per bar, "label|value", drawn to scale as a bar chart with the values written on. Use it whenever you quote several numbers that ought to be compared. Example text: "L1|1\\nL2|4\\nRAM|100".
+- "barchart", "linechart", "piechart" — a real chart, drawn properly and dropped onto the board as one picture. Put the numbers in "data" as a list of {"label", "value"} — NOT in "text" — and put the chart's caption in "text". Use a bar chart to compare quantities, a line chart for something changing across a sequence, a pie chart for shares of a whole. Give it a generous box: w 520 or more, h 380 or more. Use one whenever you quote several numbers that deserve comparing; it is far better than saying them.
 
 Reach for these first. A comparison written as prose in a box, or an array drawn as a single rectangle labelled "array", is a wasted board.
 
-- "axes" — an L-shaped pair of plot axes, drawn from x/y/w/h like a box: the y axis runs down the left edge and the x axis along the bottom edge. Give it the full plotting area, e.g. x=200 y=200 w=700 h=400, and the origin is then at (200, 600). Label the axes with two small "text" shapes.
 
 These three are drawn from "points" — a list of absolute scene coordinates. x/y/w/h are ignored for them. Give at least 2 points.
 
-- "curve" — a freehand stroke. This is how you PLOT things: a decay curve, exponential growth, a sine wave, a distribution, a trajectory. Sample the function yourself at 8 to 20 points and list them left to right. Remember y grows DOWNWARD, so a rising quantity has decreasing y. Keep every point inside the "axes" rectangle you drew.
+- "curve" — a freehand stroke, for a gesture: an underline, a sweep, a bracket, a squiggle joining two things. NOT for plotting data — use "linechart" for that.
 - "line" — straight segments through its points, in the order given. Use it for a straight reference line across a plot, brackets, dividers, timelines, and underlines.
 - "highlight" — a translucent marker stroke, usually a short horizontal swipe across something you just said matters. Use "yellow" or "green", size "l", and two points at the same y.
 - "laser" — a pointer sweep that fades away, leaving nothing behind. This is a gesture, not a drawing: it is what you do with your hand while you talk.
@@ -85,7 +90,7 @@ NEVER search for any of these — they are the board's job, not the camera's:
 - schematics, block diagrams, flowcharts, labelled cutaway diagrams
 - anything whose content is mostly text or arrows
 
-If you want a chart, draw it with "axes" and "curve". If you want a comparison, draw a "table". If you want a flow, draw boxes and arrows. Those look better hand-drawn on your own board and they are legible; a stock chart pasted in is small, unreadable and off-topic.
+If you want a chart, use "barchart", "linechart" or "piechart". If you want a comparison, draw a "table". If you want a flow, draw boxes and arrows. Those are legible; a stock chart pasted in from a search is small, unreadable and off-topic.
 
 Make them BIG: w between 500 and 750, h between 340 and 500. A postage stamp in the corner is not worth fetching. Give it real space in the layout and build the rest of the scene around it.
 
@@ -115,7 +120,7 @@ You are writing on a physical board with markers, not building a flowchart. That
 A board of labelled boxes teaches almost nothing — it is a list wearing a costume. Every scene should put something on the board that carries real information:
 
 - **Numbers.** "~100 ns", "32 KB", "0.5 s", "×1000". A box saying "Memory" is a label; a box saying "Main memory · 16 GB · ~100 ns" is a fact.
-- **A plot**, whenever the topic contains a relationship — a rate, a growth, a tradeoff, a distribution, anything that rises or falls. Draw "axes", label them with small "text", and draw the shape with "curve". This is often the single most valuable thing on the board.
+- **A chart**, whenever the topic contains a relationship or a set of numbers worth comparing — a rate, a growth, a tradeoff, a breakdown. Use "linechart" for something changing, "barchart" for comparing, "piechart" for shares. Put the numbers in "data". This is often the single most valuable thing on the board.
 - **A worked example** with actual values carried through the steps, not a generic diagram.
 - **A formula or expression** as a "text" shape: "z = Wx + b", "t = distance / speed".
 - **A comparison**, laid out as two labelled columns of small text so the difference is visible at a glance.
@@ -130,14 +135,13 @@ Across a lesson, vary the structure. If every scene is three boxes and two arrow
 - "fill": "none", "semi", "solid", "pattern", "fill", "lined-fill". Vary them. "none" for most boxes; "semi" to make a group read as one; "pattern" or "lined-fill" for a hatched region — something excluded, unavailable, or under construction; "solid"/"fill" sparingly for the one shape that matters most.
 - "size": "xl" for the scene heading, "l" for sub-headings, "m" for labels, "s" for footnotes.
 - "dash": "draw" is the hand-drawn default and should still be the most common. But USE THE OTHERS DELIBERATELY: "dashed" for hypotheticals, boundaries and things that do not exist yet; "dotted" for a weak or optional relationship, a guide line, or something inferred rather than observed; "solid" for something rigid and engineered — a wire, a pipe, a rail, a hardware boundary.
-- "font": "draw" for ordinary labels, "mono" for CODE, identifiers, addresses, hex, units and numeric values, "serif" for a quotation or a named law, "sans" for a clean modern caption. A memory address or a snippet in "draw" reads as handwriting; in "mono" it reads as data.
 
 # Timing
 
 Every shape needs both:
 
 - "at" — roughly when it appears, as a fraction of the narration: 0 is the first word, 1 the last. The heading goes at 0. Spread the rest across 0.1-0.9. Never dump every shape at 0, and never leave the board empty for the second half. An arrow appears no earlier than the shapes it connects.
-- "anchor" — the exact words from THIS scene's narration that the shape illustrates, copied character for character. Two to five words, and they must appear verbatim in the narration string. When the voice reaches those words, the shape is drawn. Use "" only for the heading and for pure scaffolding like axes.
+- "anchor" — the exact words from THIS scene's narration that the shape illustrates, copied character for character. Two to five words, and they must appear verbatim in the narration string. When the voice reaches those words, the shape is drawn. Use "" only for pure scaffolding — a divider, a bracket, a background frame.
 
 The anchor is what makes the drawing land on the beat. If the narration says "and only the rest pay the long trip to memory", the anchor for the miss box is "the long trip to memory" — not "miss" and not a paraphrase. Copy from your own narration; do not invent the phrase.
 
@@ -155,6 +159,13 @@ The only real constraints come from the medium, not from style:
 # Delivery
 
 ${AUDIO_TAG_GUIDE}
+
+# The lesson as a whole
+
+- "title" — 2 to 6 words naming what this is about. "How a cache stays fast", not "Let's explore caching". It is shown while the first scene is still being written, so it has to stand on its own.
+- "summary" — one sentence on what the learner comes away understanding. It is what a later lesson in the same session is told you already covered, so give the substance, not the topic.
+
+Both are required. A lesson with an empty title is incomplete.
 
 # Shape of the lesson
 
@@ -210,7 +221,7 @@ export function userPrompt(topic: string, history: TaughtLesson[] = []) {
   // on roughly a third of topics.
   return `${historyPreamble(history)}Teach me this topic at the whiteboard: ${topic}
 
-Before you finish: check EVERY scene contains at least one "image" shape with a real image-search query in its text. Any scene without one is incomplete — go back and add it.`
+Before you finish, two checks. Every scene must contain at least one "image" shape with a real image-search query in its text. And the lesson itself must have a "title" and a "summary" — not empty strings. A lesson missing either is incomplete.`
 }
 
 /**
@@ -236,8 +247,8 @@ Draw on a fresh ${SCENE_W} x ${SCENE_H} board. Coordinates are scene-local, x/y 
 
 - 3 to 6 shapes. Fewer than the lesson uses — this is a quick sketch, not a set piece.
 - Open with a "text" shape at roughly x=60 y=50, size "l", whose text is the scene "heading".
-- Then the minimum that answers the question: a couple of labelled "box" or "ellipse" shapes, an "arrow" between them, a "text" with a real number or formula. Use "curve" plus "axes" if the answer is a relationship. Use "highlight" or "ring" to mark the thing that resolves it.
-- Kinds: text, box, ellipse, diamond, triangle, hexagon, star, cloud, oval, xbox, check, heart, pentagon, octagon, trapezoid, note, arrow, image, axes, ring, curve, line, highlight, laser.
+- Then the minimum that answers the question: a couple of labelled "box" or "ellipse" shapes, an "arrow" between them, a "text" with a real number or formula. Use a "linechart" if the answer is a relationship. Use "highlight" or "ring" to mark the thing that resolves it.
+- Kinds: text, label, box, ellipse, diamond, triangle, hexagon, star, cloud, oval, heart, pentagon, octagon, trapezoid, note, arrow, elbow, image, icon, table, array, stack, barchart, linechart, piechart, ring, curve, line, highlight, laser.
 - "curve", "line", "highlight" and "laser" take "points" (absolute scene coordinates, at least 2); every other kind uses x/y/w/h and leaves "points" empty.
 - A labelled arrow needs 220px of clear space between the shapes it joins; labels are 3 words at most.
 - Every shape needs "at" (0-1 through the narration) and "anchor" (words copied verbatim from your narration). The heading is at 0 with an empty anchor.

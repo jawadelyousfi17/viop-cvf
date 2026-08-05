@@ -13,7 +13,6 @@ const CONNECTORS = new Set([
   'highlight',
   'laser',
   'ring',
-  'axes',
 ])
 
 export interface Placed {
@@ -30,16 +29,11 @@ export interface Placed {
 
 const FONT_PX: Record<BoardShape['size'], number> = { s: 15, m: 19, l: 26, xl: 36 }
 
+/** One hand for the whole board — see BOARD_FONT. */
+const FAMILY = "'Comic Sans MS', 'Segoe Print', 'Bradley Hand', cursive"
+
 export function fontFor(shape: BoardShape, scale = 1) {
-  const family =
-    shape.font === 'mono'
-      ? 'ui-monospace, monospace'
-      : shape.font === 'serif'
-        ? 'Georgia, serif'
-        : shape.font === 'sans'
-          ? 'ui-sans-serif, system-ui, sans-serif'
-          : "'Comic Sans MS', 'Segoe Print', cursive"
-  return `${FONT_PX[shape.size] * scale}px ${family}`
+  return `${FONT_PX[shape.size] * scale}px ${FAMILY}`
 }
 
 /**

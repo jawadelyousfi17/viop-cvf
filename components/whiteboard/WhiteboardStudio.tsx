@@ -6,9 +6,12 @@ import type { Editor } from 'tldraw'
 import { estimateNarrationSeconds, type Lesson } from '@/lib/lesson'
 import type { LessonEvent } from '@/lib/lesson-stream'
 import type { Engine } from '@/lib/engines'
+import type { Provider } from '@/lib/providers'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { BoardPainter } from './paint'
 import { ImageBank } from '../images'
+import { CHART_KINDS, chartKey } from '@/lib/chart'
+import { renderChart } from '../charts'
 import { Narrator } from '../narrator'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
@@ -62,9 +65,11 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Les
 
 export default function Studio({
   engine,
+  provider,
   chooser,
 }: {
   engine: Engine
+  provider: Provider
   chooser: React.ReactNode
 }) {
   const [phase, setPhase] = useState<Phase>('idle')
@@ -220,7 +225,7 @@ export default function Studio({
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, history, engine }),
+        body: JSON.stringify({ topic: trimmed, history, engine, provider }),
       })
 
       if (!response.ok || !response.body) {
@@ -332,6 +337,15 @@ export default function Studio({
           if (!cancelled && found) painter.addImage(shape.text, found)
         })
       }
+    }
+
+    // Charts are rasterised server-side and arrive the same way a photograph
+    // does: a dashed frame first, the picture when it lands.
+    for (const shape of scene.shapes) {
+      if (!(CHART_KINDS as readonly string[]).includes(shape.kind) || !shape.data.length) continue
+      void renderChart(shape).then((found) => {
+        if (!cancelled && found) painter.addImage(chartKey(sceneIndex, shape.id), found)
+      })
     }
 
     // Anything due at the very first word is drawn before the audio resolves,
@@ -472,6 +486,7 @@ export default function Studio({
           title: current.title,
           current: current.scenes[sceneIndex]?.narration ?? '',
           engine,
+          provider,
         }),
       })
       const data = await response.json()

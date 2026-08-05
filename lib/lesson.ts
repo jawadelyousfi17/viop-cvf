@@ -8,7 +8,9 @@
  * whiteboard that keeps growing rather than a slideshow.
  */
 
-export const SCENE_W = 1200
+// 16:9, so the board fills a screen instead of leaving columns of nothing down
+// either side. Height stays 800; the width is what grew.
+export const SCENE_W = 1422
 export const SCENE_H = 800
 /**
  * Vertical space between scenes on the shared canvas.
@@ -50,8 +52,6 @@ export const SHAPE_KINDS = [
   'star',
   'cloud',
   'oval',
-  'xbox',
-  'check',
   'heart',
   'pentagon',
   'octagon',
@@ -71,9 +71,13 @@ export const SHAPE_KINDS = [
   'table',
   'array',
   'stack',
-  'bars',
+  // Charts are rendered server-side into one flat image — see lib/chart.ts.
+  // Drawn from tldraw shapes they need the model to place every bar and label
+  // itself, which is how a value ends up sitting on top of its own bar.
+  'barchart',
+  'linechart',
+  'piechart',
   // Box-based gestures, drawn from x/y/w/h.
-  'axes',
   'ring',
   // Point-based. Geometry comes from `points`, not x/y/w/h.
   'curve',
@@ -112,8 +116,11 @@ export const COLORS = [
 export const FILLS = ['none', 'semi', 'solid', 'pattern', 'fill', 'lined-fill'] as const
 export const SIZES = ['s', 'm', 'l', 'xl'] as const
 export const DASHES = ['draw', 'solid', 'dashed', 'dotted'] as const
-/** tldraw's four typefaces. 'mono' is what makes code and values read as code. */
-export const FONTS = ['draw', 'sans', 'serif', 'mono'] as const
+/**
+ * One typeface, everywhere. A board written in four hands doesn't read as one
+ * person's board — and the choice was never carrying meaning, only noise.
+ */
+export const BOARD_FONT = 'draw' as const
 
 export type ShapeKind = (typeof SHAPE_KINDS)[number]
 export type BoardColor = (typeof COLORS)[number]
@@ -136,8 +143,6 @@ export interface BoardShape {
   fill: (typeof FILLS)[number]
   size: (typeof SIZES)[number]
   dash: (typeof DASHES)[number]
-  /** Typeface. 'mono' for code and values, 'serif' for quotations. */
-  font: (typeof FONTS)[number]
   /** When this shape appears, as a fraction (0-1) of the scene's narration. */
   at: number
   /**
@@ -151,6 +156,8 @@ export interface BoardShape {
    * Empty for every other kind, which uses x/y/w/h instead.
    */
   points: { x: number; y: number }[]
+  /** Chart data. Only read by the chart kinds; empty for everything else. */
+  data: { label: string; value: number }[]
 }
 
 export interface Scene {
@@ -198,10 +205,10 @@ export const SCENE_JSON_SCHEMA = {
                 'fill',
                 'size',
                 'dash',
-                'font',
                 'at',
                 'anchor',
                 'points',
+                'data',
               ],
               properties: {
                 id: { type: 'string' },
@@ -217,7 +224,6 @@ export const SCENE_JSON_SCHEMA = {
                 fill: { type: 'string', enum: [...FILLS] },
                 size: { type: 'string', enum: [...SIZES] },
                 dash: { type: 'string', enum: [...DASHES] },
-                font: { type: 'string', enum: [...FONTS] },
                 at: { type: 'number' },
                 anchor: { type: 'string' },
                 points: {
@@ -227,6 +233,15 @@ export const SCENE_JSON_SCHEMA = {
                     additionalProperties: false,
                     required: ['x', 'y'],
                     properties: { x: { type: 'number' }, y: { type: 'number' } },
+                  },
+                },
+                data: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['label', 'value'],
+                    properties: { label: { type: 'string' }, value: { type: 'number' } },
                   },
                 },
               },
@@ -287,6 +302,11 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
         y: clamp(p.y, 0, SCENE_H),
       }))
 
+    const data = (Array.isArray(shape.data) ? shape.data : [])
+      .filter((d) => d && Number.isFinite(d.value))
+      .slice(0, 12)
+      .map((d) => ({ label: String(d.label ?? '').slice(0, 24), value: num(d.value, 0) }))
+
     // A point-based kind with too few points can't be drawn; fall back to text
     // so the label at least survives.
     const usable = POINT_KINDS.has(kind) && points.length >= 2
@@ -318,6 +338,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
       id,
       kind: POINT_KINDS.has(kind) && !usable ? 'text' : kind,
       points: usable ? points : [],
+      data,
       text: typeof shape.text === 'string' ? shape.text : '',
       anchor: typeof shape.anchor === 'string' ? shape.anchor.trim().slice(0, 60) : '',
       x,
@@ -330,7 +351,6 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
       fill: FILLS.includes(shape.fill) ? shape.fill : 'none',
       size: SIZES.includes(shape.size) ? shape.size : 'm',
       dash: DASHES.includes(shape.dash) ? shape.dash : 'draw',
-      font: FONTS.includes(shape.font) ? shape.font : 'draw',
       at: clamp(num(shape.at, i / Math.max(1, (scene.shapes ?? []).length)), 0, 0.95),
     })
   }
@@ -355,12 +375,163 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
     id: scene.id || `scene-${sceneIndex + 1}`,
     heading: scene.heading || '',
     narration: (scene.narration ?? '').trim(),
-    shapes: centreContent(spaceForArrowLabels(shapes)).sort((a, b) => a.at - b.at),
+    shapes: centreContent(flowTopToBottom(spaceForArrowLabels(shapes))).sort(
+      (a, b) => a.at - b.at
+    ),
   }
 }
 
 /** Approximate width of a character in tldraw's "draw" font, per size preset. */
 const CHAR_WIDTH: Record<BoardShape['size'], number> = { s: 9, m: 12, l: 16, xl: 21 }
+/** Line height for the same presets, for guessing how far text will grow. */
+const LINE_HEIGHT: Record<BoardShape['size'], number> = { s: 22, m: 28, l: 38, xl: 52 }
+
+/** Connectors and freehand strokes: they follow other shapes, so never packed. */
+const FLOATING = new Set<ShapeKind>(['arrow', 'elbow', 'curve', 'line', 'highlight', 'laser'])
+
+const MARGIN = 48
+const GAP_X = 56
+const GAP_Y = 56
+const MIN_GAP_Y = 28
+/** How far rows may be pushed apart to fill a tall board before it reads as sparse. */
+const MAX_GAP_Y = 130
+
+/**
+ * The height a shape will actually occupy once its label has wrapped.
+ *
+ * tldraw measures text itself and grows the shape to fit, *after* we have
+ * chosen where everything goes — which is how a three-line label ends up
+ * sitting on the photograph beneath it. Guessing the grown height here and
+ * packing against that is what stops it.
+ */
+function occupiedHeight(shape: BoardShape) {
+  if (shape.kind === 'note') return 200
+  if (!shape.text) return shape.h
+
+  const padding = shape.kind === 'text' || shape.kind === 'label' ? 8 : 36
+  const usable = Math.max(40, shape.w - padding)
+  const lines = shape.text
+    .split('\n')
+    .reduce((total, line) => total + Math.max(1, Math.ceil(labelWidth(line, shape.size) / usable)), 0)
+
+  const needed = lines * LINE_HEIGHT[shape.size] + padding
+  return Math.max(shape.h, needed)
+}
+
+function occupiedWidth(shape: BoardShape) {
+  return shape.kind === 'note' ? 200 : shape.w
+}
+
+/**
+ * Lays a scene out as rows, stacked top to bottom.
+ *
+ * The model plans coordinates freely, and the result reads as a scatter: things
+ * overlap, and there is no order to follow. This keeps the model's grouping —
+ * whatever it put side by side stays side by side — but turns it into bands
+ * that stack downward, with real gaps, so a scene reads the way a page does.
+ *
+ * Connectors are left alone: tldraw binds them to the shapes they join, so
+ * they re-route themselves once those have moved.
+ */
+function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
+  const blocks = shapes.filter((shape) => !FLOATING.has(shape.kind))
+  if (!blocks.length) return shapes
+
+  const available = SCENE_W - MARGIN * 2
+
+  // Band by vertical overlap: anything that starts before the current band ends
+  // was meant to sit beside what's already in it.
+  const ordered = [...blocks].sort((a, b) => a.y - b.y || a.x - b.x)
+  const bands: BoardShape[][] = []
+  let band: BoardShape[] = []
+  let bandEnds = -Infinity
+
+  for (const shape of ordered) {
+    if (band.length && shape.y >= bandEnds - 24) {
+      bands.push(band)
+      band = []
+      bandEnds = -Infinity
+    }
+    band.push(shape)
+    bandEnds = Math.max(bandEnds, shape.y + occupiedHeight(shape) * 0.55)
+  }
+  if (band.length) bands.push(band)
+
+  // A band too wide for the board wraps rather than being squeezed.
+  const rows: BoardShape[][] = []
+  for (const source of bands) {
+    const byX = [...source].sort((a, b) => a.x - b.x)
+    let row: BoardShape[] = []
+    let width = 0
+
+    for (const shape of byX) {
+      const next = occupiedWidth(shape)
+      if (row.length && width + GAP_X + next > available) {
+        rows.push(row)
+        row = []
+        width = 0
+      }
+      width += (row.length ? GAP_X : 0) + next
+      row.push(shape)
+    }
+    if (row.length) rows.push(row)
+  }
+
+  const heights = rows.map((row) => Math.max(...row.map(occupiedHeight)))
+  const content = heights.reduce((sum, height) => sum + height, 0)
+
+  // Squeeze the gaps before shrinking anything: whitespace is the cheapest
+  // thing to give up.
+  const room = SCENE_H - MARGIN * 2
+  let gap = GAP_Y
+  if (content + gap * (rows.length - 1) > room && rows.length > 1) {
+    gap = Math.max(MIN_GAP_Y, (room - content) / (rows.length - 1))
+  }
+
+  // Spread whatever is left over into the gaps rather than banking it as a
+  // margin. A board with its content bunched in the middle reads as mostly
+  // empty, which is the most common complaint about a generated scene.
+  const slack = room - content - gap * (rows.length - 1)
+  if (slack > 0 && rows.length > 1) {
+    gap += Math.min(slack / (rows.length - 1), MAX_GAP_Y - gap)
+  }
+
+  const used = content + gap * (rows.length - 1)
+  let y = MARGIN + Math.max(0, (room - used) / 2)
+
+  for (const [index, row] of rows.entries()) {
+    const height = heights[index]
+    const natural =
+      row.reduce((sum, shape) => sum + occupiedWidth(shape), 0) + GAP_X * (row.length - 1)
+
+    // A row that nearly spans the board is stretched to span it properly;
+    // a genuinely narrow row stays centred rather than being pulled apart.
+    const stretch = row.length > 1 && natural > available * 0.55
+    const spacing = stretch
+      ? GAP_X + (available - natural) / (row.length - 1)
+      : GAP_X
+    const width = stretch
+      ? available
+      : natural
+
+    let x = MARGIN + Math.max(0, (available - width) / 2)
+    for (const shape of row) {
+      // Point-based shapes carry their geometry in `points`, so move those too.
+      const dx = x - shape.x
+      const dy = y + (height - occupiedHeight(shape)) / 2 - shape.y
+      shape.x += dx
+      shape.y += dy
+      for (const point of shape.points) {
+        point.x += dx
+        point.y += dy
+      }
+      x += occupiedWidth(shape) + spacing
+    }
+    y += height + gap
+  }
+
+  return shapes
+}
 
 function labelWidth(text: string, size: BoardShape['size']) {
   return text.length * CHAR_WIDTH[size]

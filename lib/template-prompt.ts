@@ -64,6 +64,13 @@ Which slot the query goes in:
 
 If a slide reads like a paragraph broken into boxes, it is wrong. Cut every word the narration already carries.
 
+# The lesson as a whole
+
+- "title" — 2 to 6 words naming what this is about. "How a cache stays fast", not "Let's explore caching". It is shown while the first scene is still being written, so it has to stand on its own.
+- "summary" — one sentence on what the learner comes away understanding. It is what a later lesson in the same session is told you already covered, so give the substance, not the topic.
+
+Both are required. A lesson with an empty title is incomplete.
+
 # Narration
 
 This is where the teaching happens, so this is where the words go. Just explain it — talk the way you would if someone asked you in person. Your own words, your own way in, whatever order makes sense for this topic. No template of speech, no "in this lesson".

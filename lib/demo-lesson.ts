@@ -14,9 +14,9 @@ function s(shape: Partial<BoardShape> & Pick<BoardShape, 'id' | 'kind' | 'at'>):
     fill: 'none',
     size: 'm',
     dash: 'draw',
-    font: 'draw',
     anchor: '',
     points: [],
+    data: [],
     ...shape,
   }
 }
@@ -88,7 +88,7 @@ export const DEMO_LESSON: Lesson = {
         'A cache only helps if you keep finding what you need in it. Plot average access time against hit rate and the curve is brutally steep. At ninety percent you are still paying ten nanoseconds on average. At ninety-nine percent you are paying two.',
       shapes: [
         s({ id: 'h3', kind: 'text', text: 'Hit rate is what matters', x: 60, y: 50, w: 700, h: 70, size: 'xl', at: 0 }),
-        s({ id: 'axis', kind: 'axes', color: 'grey', x: 200, y: 200, w: 700, h: 400, at: 0.15 }),
+        s({ id: 'axis', kind: 'linechart', text: 'avg ns by hit rate', color: 'blue', x: 200, y: 200, w: 700, h: 400, at: 0.15, data: [{ label: '50%', value: 51 }, { label: '80%', value: 21 }, { label: '90%', value: 11 }, { label: '99%', value: 2 }] }),
         s({ id: 'ylab', kind: 'text', text: 'avg ns', x: 90, y: 180, w: 120, h: 40, size: 's', color: 'grey', at: 0.15 }),
         s({ id: 'xlab', kind: 'text', text: 'hit rate', x: 800, y: 620, w: 140, h: 40, size: 's', color: 'grey', at: 0.15 }),
         s({
@@ -113,7 +113,7 @@ export const DEMO_LESSON: Lesson = {
         s({ id: 'temporal', kind: 'ellipse', text: 'Temporal locality\nyou will want it again', x: 110, y: 250, w: 400, h: 220, color: 'violet', fill: 'semi', at: 0.25, anchor: 'same data again' }),
         s({ id: 'spatial', kind: 'ellipse', text: 'Spatial locality\nyou will want its neighbour', x: 640, y: 250, w: 420, h: 220, color: 'orange', fill: 'semi', at: 0.55, anchor: 'neighbouring data' }),
         s({ id: 'arr', kind: 'array', text: '42|17|8|99|3|61', x: 200, y: 540, w: 660, h: 110, color: 'orange', at: 0.75, anchor: 'neighbouring data' }),
-        s({ id: 'bars', kind: 'bars', text: 'L1|1\nL2|4\nL3|12\nRAM|100', x: 940, y: 500, w: 300, h: 200, color: 'blue', at: 0.9 }),
+        s({ id: 'bars', kind: 'barchart', text: 'cycles to reach', x: 940, y: 500, w: 300, h: 200, color: 'blue', at: 0.9, data: [{ label: 'L1', value: 1 }, { label: 'L2', value: 4 }, { label: 'L3', value: 12 }, { label: 'RAM', value: 100 }] }),
       ],
     },
     {
