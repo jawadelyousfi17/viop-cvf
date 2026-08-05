@@ -1,15 +1,18 @@
 import OpenAI from 'openai'
-import { ANSWER_JSON_SCHEMA, isRenderableScene, normalizeScene, type Scene } from '@/lib/lesson'
-import { ANSWER_SYSTEM_PROMPT, answerPrompt } from '@/lib/prompt'
+import {
+  SCENE_JSON_SCHEMA,
+  isRenderableScene,
+  normalizeScene,
+  type TemplateScene,
+} from '@/lib/template-lesson'
+import { ANSWER_SYSTEM_PROMPT, answerPrompt } from '@/lib/template-prompt'
 
 export const maxDuration = 120
 
 /**
- * Answers a question asked mid-lesson with a single drawn scene.
- *
- * Optimised for latency rather than depth: a short system prompt, minimal
- * reasoning effort and a small scene. The student is standing there waiting,
- * so a good answer in five seconds beats a better one in twenty.
+ * Answers a question asked mid-lesson with a single slide. Optimised for
+ * latency: short prompt, no reasoning, small scene — the student is standing
+ * there waiting.
  */
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -39,8 +42,6 @@ export async function POST(request: Request) {
   try {
     const completion = await client.chat.completions.create({
       model,
-      // The whole point of this route is speed. Deep reasoning on a two
-      // sentence aside is latency the student pays for and never sees.
       // gpt-5.6-luna accepts none/low/medium/high/xhigh — not 'minimal'.
       reasoning_effort: (process.env.OPENAI_ASK_EFFORT as 'none') ?? 'none',
       messages: [
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       ],
       response_format: {
         type: 'json_schema',
-        json_schema: { name: 'answer', strict: true, schema: ANSWER_JSON_SCHEMA },
+        json_schema: { name: 'answer', strict: true, schema: SCENE_JSON_SCHEMA },
       },
     })
 
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'No answer came back.' }, { status: 502 })
     }
 
-    const raw = JSON.parse(content) as Scene
+    const raw = JSON.parse(content) as TemplateScene
     if (!isRenderableScene(raw)) {
       return Response.json({ error: 'The answer had no narration.' }, { status: 502 })
     }

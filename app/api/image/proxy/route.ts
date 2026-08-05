@@ -31,7 +31,12 @@ export async function GET(request: Request) {
       headers: {
         // Some CDNs serve a placeholder unless these look like a browser.
         accept: 'image/avif,image/webp,image/png,image/jpeg,image/svg+xml,*/*;q=0.8',
-        'user-agent': 'Mozilla/5.0 (compatible; viop/1.0)',
+        'user-agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        // Referer from the image's own origin: most hotlink protection checks
+        // only that the referer matches, and otherwise returns a block page
+        // with an image content-type that looks valid to everything downstream.
+        referer: new URL(url).origin + '/',
       },
       redirect: 'follow',
       signal: AbortSignal.timeout(15000),

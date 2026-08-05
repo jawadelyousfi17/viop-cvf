@@ -1,5 +1,5 @@
-import Studio from '@/components/studio'
+import TemplateStudio from '@/components/template/TemplateStudio'
 
 export default function Home() {
-  return <Studio />
+  return <TemplateStudio />
 }

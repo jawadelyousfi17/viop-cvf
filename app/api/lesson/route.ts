@@ -1,14 +1,14 @@
 import OpenAI from 'openai'
-import { LESSON_JSON_SCHEMA } from '@/lib/lesson'
-import { LessonStreamParser, type LessonEvent } from '@/lib/lesson-stream'
-import { SYSTEM_PROMPT, userPrompt } from '@/lib/prompt'
+import { LESSON_JSON_SCHEMA } from '@/lib/template-lesson'
+import { LessonStreamParser, type LessonEvent } from '@/lib/template-stream'
+import { SYSTEM_PROMPT, userPrompt } from '@/lib/template-prompt'
 
 export const maxDuration = 300
 
 /**
- * Streams a lesson as newline-delimited JSON events. The model writes scenes in
- * order, so the player receives scene one within a few seconds and starts
- * drawing it while the rest of the lesson is still being written.
+ * Streams a lesson as newline-delimited JSON events. The model writes scenes
+ * in order, so the player receives scene one within a few seconds and starts
+ * playing it while the rest of the lesson is still being written.
  */
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -43,8 +43,7 @@ export async function POST(request: Request) {
   let completion
   try {
     // Chat Completions, not Responses: gpt-5.6-luna has a reported bug where
-    // structured outputs on the Responses API leak stray tokens into string
-    // values. The same request through this endpoint comes back clean.
+    // structured outputs on the Responses API leak stray tokens into strings.
     completion = await client.chat.completions.create({
       model,
       stream: true,
@@ -70,8 +69,6 @@ export async function POST(request: Request) {
       },
     })
   } catch (error) {
-    // Auth, rate limit and billing failures surface here, before any bytes are
-    // streamed, so they can still be reported with a real status code.
     console.error('[lesson] request rejected', error)
     const message = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: `Could not generate the lesson: ${message}` }, { status: 502 })
@@ -108,7 +105,6 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error('[lesson] stream failed', error)
         const message = error instanceof Error ? error.message : 'Unknown error'
-        // Scenes already delivered stay playable; the player just stops waiting.
         send({ type: 'error', message })
       } finally {
         controller.close()
@@ -120,7 +116,6 @@ export async function POST(request: Request) {
     headers: {
       'content-type': 'application/x-ndjson; charset=utf-8',
       'cache-control': 'no-store',
-      // Stops proxies buffering the response and defeating the whole point.
       'x-accel-buffering': 'no',
     },
   })

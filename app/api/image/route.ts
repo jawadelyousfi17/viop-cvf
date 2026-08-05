@@ -75,7 +75,22 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Image search failed.' }, { status: 502 })
   }
 
-  const picked = results.find((item) => {
+  // Watermarking stock sites ruin a slide; prefer anything else that passes.
+  const isStock = (item: SerpImage) =>
+    /alamy|shutterstock|dreamstime|istock|getty|123rf|depositphotos|bigstock/i.test(
+      `${item.source ?? ''} ${item.original ?? ''}`
+    )
+
+  // Hosts that reliably serve images to third parties. Others frequently
+  // return a "no permission to access this content" page instead — which has
+  // an image content-type, so nothing downstream can tell it apart from the
+  // real thing. Ranking these first is the cheapest defence.
+  const isPermissive = (item: SerpImage) =>
+    /wikimedia|wikipedia|nasa\.gov|\.gov\b|\.edu\b|unsplash|pexels|pixabay|flickr|githubusercontent|nih\.gov|noaa\.gov|esa\.int/i.test(
+      item.original ?? ''
+    )
+
+  const usable = (item: SerpImage) => {
     const url = item.original
     if (!url || !isFetchableUrl(url)) return false
 
@@ -86,7 +101,12 @@ export async function GET(request: Request) {
     // Extreme aspect ratios are usually banners or sprite sheets.
     const ratio = w / h
     return ratio > 0.3 && ratio < 3.4
-  })
+  }
+
+  const picked =
+    results.find((item) => usable(item) && !isStock(item) && isPermissive(item)) ??
+    results.find((item) => usable(item) && !isStock(item)) ??
+    results.find(usable)
 
   if (!picked?.original) {
     return Response.json({ error: 'No usable image found.' }, { status: 404 })
