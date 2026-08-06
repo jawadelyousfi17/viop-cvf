@@ -112,6 +112,18 @@ export interface ChalkResult {
   errors: ChalkError[]
 }
 
+export interface ChalkOptions {
+  /**
+   * The narration for each scene, when it is already known.
+   *
+   * Drawing a written script used to mean asking the model to copy that script
+   * back to us — thirty per cent of everything it wrote, and the only reason
+   * the narration could come back altered at all. Supplied here instead, a
+   * scene's words are right by construction and cost nothing to produce.
+   */
+  narration?: string[]
+}
+
 interface Pending {
   shape: BoardShape
   row: number
@@ -208,7 +220,7 @@ function blank(id: string, kind: ShapeKind): BoardShape {
  * skipped rather than failing the document. A model that gets one line wrong
  * should lose one shape, not the lesson.
  */
-export function compileChalk(source: string): ChalkResult {
+export function compileChalk(source: string, options: ChalkOptions = {}): ChalkResult {
   const errors: ChalkError[] = []
   const scenes: Scene[] = []
 
@@ -224,7 +236,11 @@ export function compileChalk(source: string): ChalkResult {
 
   const flush = () => {
     if (!started) return
-    scenes.push(finishScene(scenes.length, narration.join(' ').trim(), pending, flow.join('\n')))
+    // Whatever the model wrote wins; otherwise the script's own words, which
+    // is the usual case and the cheap one.
+    const written = narration.join(' ').trim()
+    const supplied = options.narration?.[scenes.length]?.trim() ?? ''
+    scenes.push(finishScene(scenes.length, written || supplied, pending, flow.join('\n')))
     narration = []
     pending = []
     flow = []
@@ -270,7 +286,9 @@ export function compileChalk(source: string): ChalkResult {
 
     if (head === 'say') {
       started = true
-      narration.push(rest.trim())
+      // `say ^` means "the words I was given for this scene". Writing them out
+      // again would only be a chance to get them wrong.
+      if (rest.trim() !== '^') narration.push(rest.trim())
       continue
     }
 
@@ -373,6 +391,58 @@ export function compileChalk(source: string): ChalkResult {
   }
 }
 
+/**
+ * Works out when each shape appears.
+ *
+ * A shape that named its words is placed where those words fall in the
+ * narration — which is a far better guess than its position in the list, and
+ * is what the voice will do to it anyway once there is alignment to read.
+ *
+ * Everything else is spread between its anchored neighbours rather than across
+ * the whole scene. That is what makes an anchor optional: a shape written
+ * between two anchored ones lands between them, so only every second or third
+ * line needs to name its phrase, and the rest are free.
+ */
+function timeShapes(shapes: BoardShape[], narration: string) {
+  const haystack = narration.toLowerCase()
+  const length = Math.max(1, haystack.length)
+
+  // Where each anchored shape falls, as a fraction of the narration.
+  const known = new Map<number, number>()
+  for (const [i, shape] of shapes.entries()) {
+    if (!shape.anchor) continue
+    const at = haystack.indexOf(shape.anchor.trim().toLowerCase())
+    if (at !== -1) known.set(i, Math.min(0.95, at / length))
+  }
+
+  if (!known.size) {
+    for (const [i, shape] of shapes.entries()) {
+      shape.at = shapes.length > 1 ? Math.min(0.95, i / shapes.length) : 0
+    }
+    return
+  }
+
+  const marks = [...known.keys()].sort((a, b) => a - b)
+  for (const [i, shape] of shapes.entries()) {
+    const exact = known.get(i)
+    if (exact !== undefined) {
+      shape.at = exact
+      continue
+    }
+
+    // The nearest anchored shape on each side, and how far between them this
+    // one sits.
+    const after = marks.find((mark) => mark > i)
+    const before = [...marks].reverse().find((mark) => mark < i)
+
+    const from = before === undefined ? 0 : known.get(before)!
+    const to = after === undefined ? 0.95 : known.get(after)!
+    const span = (after ?? shapes.length) - (before ?? -1)
+    const step = i - (before ?? -1)
+    shape.at = Math.min(0.95, from + ((to - from) * step) / Math.max(1, span))
+  }
+}
+
 /** `-> from to : label | anchor` */
 function parseArrow(rest: string, index: number): BoardShape | null {
   let body = rest
@@ -441,10 +511,7 @@ function finishScene(index: number, narration: string, pending: Pending[], flow:
     }
   }
 
-  const drawn = pending.filter((item) => item.shape.kind !== 'ring' || item.shape.w > 0)
-  for (const [i, item] of drawn.entries()) {
-    item.shape.at = Math.min(0.95, drawn.length > 1 ? i / drawn.length : 0)
-  }
+  timeShapes(pending.map((item) => item.shape), narration)
 
   return {
     id: `scene-${index + 1}`,

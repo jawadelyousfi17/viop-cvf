@@ -30,6 +30,7 @@ Four line types, decided by the first token:
 | `: text` | the lesson's summary |
 | `---` | start a new scene |
 | `say text` | narration. Repeat the line; the parts are joined with a space. |
+| `say ^` | use the narration this scene was given, without retyping it |
 | `flow` | a Mermaid flowchart follows, indented, ending at a blank line |
 | `-> a b : label \| anchor` | an arrow from `#a` to `#b` |
 | *(blank line)* | end the current row |
@@ -99,9 +100,19 @@ language, and no way to write one.
 `| words` names the phrase in **this scene's** narration that the shape
 illustrates. When the voice reaches those words, the shape is drawn.
 
-Copy it from your own `say` line, two to five words. Matching is
-case-insensitive. A shape with no anchor is spread evenly through the scene
-instead, which is a worse guess than the one you could have made.
+Copy it from the narration, two to five words. Matching is case-insensitive.
+
+**Anchors are optional.** A shape without one is placed *between its anchored
+neighbours*, so a line written between two anchored lines already lands in the
+right place. Anchor the first shape of a row and the one carrying its point;
+leave the rest bare.
+
+## Narration you already have
+
+When a script is being drawn, the narration is attached to each scene before
+the model sees it, and there is no reason to write it out again — so scenes
+carry no `say` lines at all. It was thirty per cent of everything Chalk
+produced, and the only route by which a script could come back altered.
 
 ## Separators never eat your text
 
@@ -153,10 +164,12 @@ from character counts.
 
 | | Chalk | the same lesson as JSON | |
 | --- | --- | --- | --- |
-| DNS lesson from a topic, 97 shapes | 1,377 | 7,454 | 5.4× |
-| The 15-scene DNS script, 238 shapes | 4,356 | 19,247 | 4.4× |
+| The 15-scene DNS script, 198 shapes | 2,244 | 17,961 | **8.0×** |
 
-On the script run: 15 of 15 scenes, all 15 narrations byte-identical to the
-source, 269 of 270 anchors resolving, no syntax errors, in 30 seconds against
-80 for the JSON path — and 18 shapes a scene against 14.3, because the budget
-goes on shapes instead of syntax.
+On that run: 15 of 15 scenes, every narration byte-identical to the source
+because it was never retyped, 206 of 208 anchors resolving, no compile errors.
+**The first scene arrives after 3.5 seconds**; the whole lesson takes 24,
+against 80 for the JSON path.
+
+It started at 4.4×. Dropping the copied narration and letting anchors be
+optional took it to 8×.

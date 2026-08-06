@@ -21,7 +21,7 @@ export const CHALK_SYSTEM = `You draw boards. You write them in Chalk, a small l
 
 Everything after the kind is optional:
 - \`@blue\` colours it. One of: blue green red violet yellow orange grey.
-- \`| words\` at the END of the line is the ANCHOR — see below. This is the most important thing on the line.
+- \`| words\` at the END of the line is the ANCHOR — see below.
 - \`#name\` right after the kind gives it a name, so an arrow can point at it: \`box #cpu CORE\`
 - \` / \` inside text is a line break: \`box CORE / 0.3 ns\`
 - \`= a 1, b 2\` is chart data. Only \`bar\`, \`plot\` and \`pie\` read it, so any other
@@ -46,11 +46,11 @@ bar plot pie                       charts. Put the numbers in \`= label value, .
 ring                               circles whatever was written on the line before it
 hl                                 highlights whatever was written on the line before it
 
-# Anchors are the whole trick
+# Anchors
 
-\`| words\` names the exact phrase in THIS scene's narration that the shape illustrates. When the voice reaches those words, the shape is drawn. Copy the phrase from your own \`say\` line, two to five words, exactly as written.
+\`| words\` names the exact phrase in THIS scene's narration that the shape illustrates. When the voice reaches those words, the shape is drawn. Two to five words, copied exactly.
 
-A shape with no anchor is placed by guesswork. Anchor nearly everything.
+**Anchor about half your lines, not all of them.** A shape with no anchor is placed between its anchored neighbours, so a line written between two anchored ones already lands in the right place. Anchor the first shape of each row and the one carrying the row's point; leave the rest bare. An anchor on every single line is wasted effort — those shapes were going to land there anyway.
 
 # Rows
 
@@ -103,9 +103,9 @@ export function chalkScriptPrompt(blocks: string[]) {
 
 **Exactly ${blocks.length} scenes**, one per block, in order.
 
-**Each block becomes that scene's \`say\` lines, word for word.** Do not rewrite, shorten or re-punctuate it — your anchors have to appear inside it, so any edit breaks the timing of the shapes you drew. Wrap it across several \`say\` lines if it is long; they are joined with a space.
+**Do not write any \`say\` lines.** The narration below is already attached to each scene — writing it out again would only be a chance to get it wrong. Start each scene with \`---\` and go straight to the shapes.
 
-Everything else is yours.
+Read each block, work out what it is actually claiming, and draw that. Your anchors are phrases from the block, copied exactly.
 
 ${scenes}`
 }
