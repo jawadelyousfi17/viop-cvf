@@ -81,10 +81,17 @@ export function checkScene(raw: Scene, index: number): SceneReport {
   // Anchors. The single thing most worth checking: an anchor that isn't in the
   // narration silently falls back to the `at` fraction, and the shape lands
   // near its moment instead of on it.
+  // Matched the way the player matches. Its resolver lowercases both sides
+  // before searching the alignment, so an anchor that differs only in case
+  // lands on its word exactly as intended — and a check stricter than the
+  // runtime reports failures that do not exist.
+  const haystack = narration.toLowerCase()
+  const found = (phrase: string) => haystack.includes(phrase.trim().toLowerCase())
+
   const withAnchor = (raw.shapes ?? []).filter((shape) => shape?.anchor?.trim())
   let matched = 0
   for (const shape of withAnchor) {
-    if (narration.includes(shape.anchor)) matched++
+    if (found(shape.anchor)) matched++
     else {
       issues.push({
         severity: 'error',
@@ -95,7 +102,7 @@ export function checkScene(raw: Scene, index: number): SceneReport {
   }
   for (const entry of raw.diagram?.timing ?? []) {
     if (!entry?.anchor?.trim()) continue
-    if (narration.includes(entry.anchor)) matched++
+    if (found(entry.anchor)) matched++
     else {
       issues.push({
         severity: 'error',

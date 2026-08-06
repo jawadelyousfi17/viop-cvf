@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { cacheKey, readSpeech, writeSpeech } from '@/lib/tts-cache'
 import {
   DEFAULT_FISH_VOICE,
   DEFAULT_VOICE_ID,
@@ -99,9 +100,48 @@ export async function POST(request: Request) {
 
   // Only ids from the allowlist are honoured, whichever provider runs, so this
   // can't be used to bill arbitrary voices to the account's key.
-  if (provider === 'openai') return speakWithOpenAI(input, openAIVoiceFor(voiceId))
-  if (provider === 'fish') return speakWithFish(input, fishVoiceFor(voiceId))
-  return speakWithElevenLabs(input, isKnownVoice(voiceId) ? voiceId : undefined)
+  const voice =
+    (provider === 'openai'
+      ? openAIVoiceFor(voiceId)
+      : provider === 'fish'
+        ? fishVoiceFor(voiceId)
+        : isKnownVoice(voiceId)
+          ? voiceId
+          : undefined) ?? 'default'
+
+  const model =
+    provider === 'openai'
+      ? (process.env.OPENAI_TTS_MODEL ?? OPENAI_DEFAULT_MODEL)
+      : provider === 'fish'
+        ? (process.env.FISH_MODEL ?? FISH_DEFAULT_MODEL)
+        : (process.env.ELEVENLABS_MODEL_ID ?? ELEVENLABS_DEFAULT_MODEL)
+
+  // Nothing about a recording changes between runs, and testing a board means
+  // playing the same script over and over. Pay for it once.
+  const key = cacheKey({ text: input, provider, voice, model })
+  const cached = await readSpeech(key)
+  if (cached) {
+    return Response.json(cached satisfies SpeechResponse, {
+      headers: { 'cache-control': 'no-store', 'x-tts-cache': 'hit' },
+    })
+  }
+
+  const response =
+    provider === 'openai'
+      ? await speakWithOpenAI(input, openAIVoiceFor(voiceId))
+      : provider === 'fish'
+        ? await speakWithFish(input, fishVoiceFor(voiceId))
+        : await speakWithElevenLabs(input, isKnownVoice(voiceId) ? voiceId : undefined)
+
+  if (response.ok) {
+    // Read from a clone: the original body still has to reach the player.
+    const body = (await response.clone().json()) as SpeechResponse
+    if (body.audio) await writeSpeech(key, body)
+  }
+
+  const headers = new Headers(response.headers)
+  headers.set('x-tts-cache', 'miss')
+  return new Response(response.body, { status: response.status, headers })
 }
 
 async function speakWithOpenAI(input: string, voice?: string) {
