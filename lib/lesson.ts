@@ -512,7 +512,7 @@ function expandDiagram(scene: Scene, sceneIndex: number): BoardShape[] {
       to,
       color: 'black',
       fill: 'none',
-      size: 'm',
+      size: graph.scale < 0.85 ? 's' : 'm',
       dash: edge.dashed ? 'dashed' : 'draw',
       at: destination?.at ?? 0.5,
       anchor: destination?.anchor ?? '',

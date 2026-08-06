@@ -38,9 +38,9 @@ flowchart TD
 \`\`\`
 
 - Node shapes: \`[box]\` for a thing or a step, \`{diamond}\` for a decision, \`([rounded])\` for a start or an end, \`((round))\` for a store or a pool, \`{{hexagon}}\` for a transform.
-- Edges: \`-->\` normal, \`-.->\` for something conditional or weak. Label them with \`|three words|\` — the label is where the real information is, so use it.
+- Edges: \`-->\` normal, \`-.->\` for something conditional or weak. Label them with \`|three words|\` — the label is where the real information is, so use it. **Three words and eighteen characters is the hard limit**: "asks where next", "on a miss", "returns a referral". A longer label forces the whole diagram to shrink to make room for it, and everything in it becomes harder to read.
 - \`flowchart TD\` for top-down, \`flowchart LR\` for a left-to-right chain. A long chain is turned sideways automatically if it won't fit, so pick whichever reads better.
-- 3 to 7 nodes. More than that and it stops being a diagram and starts being a map.
+- **3 to 5 nodes.** Six or more will not fit a board at a readable size — it gets shrunk until nobody can read it. A longer chain is two scenes, not one crowded diagram.
 - Keep node labels under 30 characters.
 
 **Timing.** For each node, add an entry to "diagram.timing" giving its id, the phrase from the narration that introduces it, and roughly when in the scene that falls. The node is drawn as you say those words, exactly like a shape's "anchor". Every node should have one.

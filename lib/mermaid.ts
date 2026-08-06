@@ -114,10 +114,24 @@ function indexOutsideBrackets(text: string, needle: string) {
   return -1
 }
 
-const NODE_W = 300
-const NODE_H = 130
+// Compact by default. A diagram earns its size from how many nodes it has,
+// and oversized nodes are what force a chain to be shrunk to fit.
+const NODE_W = 260
+const NODE_H = 110
 /** Roughly what a character costs at the board's default label size. */
 const CHAR_W = 13
+
+/**
+ * The room an edge label needs. dagre reserves whatever we declare here — and
+ * declaring nothing is how a five-word label ends up wrapped into a two-
+ * character column sitting on top of the node it points at.
+ */
+function edgeLabelSize(label: string) {
+  if (!label) return { width: 1, height: 1 }
+  const width = Math.min(320, Math.max(120, label.length * CHAR_W + 30))
+  const lines = Math.ceil((label.length * CHAR_W) / (width - 20))
+  return { width, height: Math.max(40, lines * 34) }
+}
 
 function sizeFor(label: string): { w: number; h: number } {
   const longest = Math.max(...label.split('\n').map((line) => line.length), 1)
@@ -132,7 +146,7 @@ function sizeFor(label: string): { w: number; h: number } {
  */
 export function parseMermaid(
   source: string,
-  fit: { maxW: number; maxH: number } = { maxW: 1326, maxH: 430 }
+  fit: { maxW: number; maxH: number } = { maxW: 1326, maxH: 720 }
 ): MermaidGraph | null {
   if (!source?.trim()) return null
 
@@ -246,7 +260,7 @@ function layout(
     rankdir,
     // Generous, because these gaps are where the edge labels go.
     nodesep: 70,
-    ranksep: label(edges) ? 130 : 100,
+    ranksep: 90,
     marginx: 0,
     marginy: 0,
   })
@@ -258,7 +272,10 @@ function layout(
     graph.setNode(id, { width: size.w, height: size.h })
   }
   for (const edge of edges) {
-    if (nodes.has(edge.from) && nodes.has(edge.to)) graph.setEdge(edge.from, edge.to)
+    if (!nodes.has(edge.from) || !nodes.has(edge.to)) continue
+    // labelpos 'c' puts the reserved box on the edge itself, which is where
+    // tldraw draws a bound arrow's label.
+    graph.setEdge(edge.from, edge.to, { ...edgeLabelSize(edge.label), labelpos: 'c' })
   }
 
   dagre.layout(graph)
@@ -294,6 +311,3 @@ function layout(
   }
 }
 
-function label(edges: MermaidEdge[]) {
-  return edges.some((edge) => edge.label)
-}
