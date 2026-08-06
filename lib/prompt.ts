@@ -11,6 +11,7 @@ Every scene is drawn on its own ${SCENE_W} x ${SCENE_H} board. Coordinates are s
 
 Layout rules:
 - NEVER draw a title, heading or scene name. No "text" shape whose job is to announce what the scene is about. Go straight to the substance — the first thing drawn is part of the explanation, not a label for it.
+- A Mermaid "diagram" is placed as ONE block in this flow — you do not give it a row or a position, and it never collides with anything. See the diagram section below.
 - **Work down the board, in rows.** A scene reads TOP TO BOTTOM, like a page. Put the first thing you talk about at the top, the next below it, the conclusion at the bottom. Never scatter things around the board and never work right-to-left.
 - Plan 4 to 6 rows. Give every shape in a row the SAME y, and lay them left to right in the order you mention them. Start a new row for the next idea.
 - Rows are spaced for you and everything is centred for you, so approximate y values are fine — what matters is that shapes meant to sit side by side share a y, and shapes meant to sit below start a clearly larger one.
@@ -18,11 +19,35 @@ Layout rules:
 - FILL THE BOARD. It is ${SCENE_W} wide by ${SCENE_H} tall — a wide 16:9 surface, and the most common failure is a scene using only the middle of it. Every row should reach out toward both edges.
 - Make things BIG. A box carrying an idea is 300-420 wide and 150-220 tall, not 180 by 90. A photograph is 520 or more. An empty board is not tidy, it is wasted.
 - 3 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
-- **12 to 18 shapes per scene.** This is the number most often got wrong, always by being too low. Eight shapes is a sketch, not a board. If you have written eight, you are not finished: add the numbers, the units, the worked example, the second case, the counter-example, the labels on the parts, the thing that happens next.
+- **12 to 18 shapes per scene, counting the diagram's nodes.** A scene with a six-node diagram has six of its budget spent, so it wants another six to twelve shapes around it — not another eighteen. This is the number most often got wrong, usually by being too low, but a scene with a diagram overshoots instead. Eight shapes is a sketch, not a board. If you have written eight, you are not finished: add the numbers, the units, the worked example, the second case, the counter-example, the labels on the parts, the thing that happens next.
 - Shapes must NOT overlap. Give boxes at least 40px of breathing room, and leave 60-100px between rows.
 - Keep a 40px margin on all sides. Nothing may extend past the board.
 - Prefer one clear structure per scene (a row of steps, a hierarchy, a comparison, a cycle) with supporting detail around it, over a scatter of unrelated boxes.
 - At most 3 shapes in a left-to-right chain of BOXES. Four boxes in a row leaves no room for the arrows between them.
+
+# Diagrams: write Mermaid, not coordinates
+
+When part of a scene is a **flow, a decision, a pipeline, a hierarchy or a cycle** — anything where the point is what connects to what — do not place the boxes yourself. Write it as a Mermaid flowchart in the scene's "diagram" field and it will be parsed, laid out by a real graph layout engine and drawn on the board for you, arrows and all.
+
+\`\`\`
+flowchart TD
+  CPU[CPU core] -->|needs a value| L1{In L1 cache?}
+  L1 -->|hit, 1 cycle| FAST([Return it])
+  L1 -->|miss| L2[L2 cache]
+  L2 -.->|still a miss| RAM((Main memory))
+\`\`\`
+
+- Node shapes: \`[box]\` for a thing or a step, \`{diamond}\` for a decision, \`([rounded])\` for a start or an end, \`((round))\` for a store or a pool, \`{{hexagon}}\` for a transform.
+- Edges: \`-->\` normal, \`-.->\` for something conditional or weak. Label them with \`|three words|\` — the label is where the real information is, so use it.
+- \`flowchart TD\` for top-down, \`flowchart LR\` for a left-to-right chain. A long chain is turned sideways automatically if it won't fit, so pick whichever reads better.
+- 3 to 7 nodes. More than that and it stops being a diagram and starts being a map.
+- Keep node labels under 30 characters.
+
+**Timing.** For each node, add an entry to "diagram.timing" giving its id, the phrase from the narration that introduces it, and roughly when in the scene that falls. The node is drawn as you say those words, exactly like a shape's "anchor". Every node should have one.
+
+**What still goes in "shapes".** The diagram is only the connected part. Everything around it — the photograph, the chart, the underlined heading label, the numbers, the red annotation, the sticky note, the worked example — stays in "shapes" as before, and is laid out around the diagram. A scene that is *only* a flowchart is a poor scene; the diagram is one element among several.
+
+Leave "diagram.source" as an empty string when the scene has no connected structure. Most scenes will have one; some genuinely do not.
 
 # Arrows and their labels
 
@@ -236,7 +261,13 @@ export function userPrompt(topic: string, history: TaughtLesson[] = []) {
   // on roughly a third of topics.
   return `${historyPreamble(history)}Teach me this topic at the whiteboard: ${topic}
 
-Before you finish, two checks. Every scene must contain at least one "image" shape with a real image-search query in its text. And the lesson itself must have a "title" and a "summary" — not empty strings. A lesson missing either is incomplete.`
+Before you finish, three checks.
+
+1. **Five to seven scenes.** One or two scenes is not a lesson, it is an introduction. Keep going until the topic is actually taught.
+2. Every scene contains at least one "image" shape with a real image-search query in its text.
+3. The lesson has a "title" and a "summary" — not empty strings.
+
+A lesson failing any of the three is incomplete.`
 }
 
 /**

@@ -33,6 +33,7 @@ export const DEMO_LESSON: Lesson = {
     {
       id: 'scene-0',
       heading: 'Why is it slow?',
+      diagram: { source: '', timing: [] },
       narration:
         'Start with the question everyone actually has. [curious] Why does a processor that can do billions of things a second still feel like it is waiting? There are four suspects on this board, and only one of them turns out to matter.',
       shapes: [
@@ -56,6 +57,7 @@ export const DEMO_LESSON: Lesson = {
     {
       id: 'scene-1',
       heading: 'The processor waits',
+      diagram: { source: '', timing: [] },
       narration:
         'Your processor can do a few billion things per second. Main memory answers in about a hundred nanoseconds. In the time one answer comes back, the processor could have done three hundred more things. So most of the time, it is simply waiting.',
       shapes: [
@@ -69,6 +71,7 @@ export const DEMO_LESSON: Lesson = {
     {
       id: 'scene-2',
       heading: 'Put a small fast copy nearby',
+      diagram: { source: '', timing: [] },
       narration:
         'The fix is to keep a small, very fast copy of memory right next to the core. That is the cache. It is tiny, but it sits so close that an answer comes back in about one nanosecond instead of a hundred.',
       shapes: [
@@ -84,6 +87,7 @@ export const DEMO_LESSON: Lesson = {
     {
       id: 'scene-3',
       heading: 'Hit rate is what matters',
+      diagram: { source: '', timing: [] },
       narration:
         'A cache only helps if you keep finding what you need in it. Plot average access time against hit rate and the curve is brutally steep. At ninety percent you are still paying ten nanoseconds on average. At ninety-nine percent you are paying two.',
       shapes: [
@@ -106,6 +110,7 @@ export const DEMO_LESSON: Lesson = {
     {
       id: 'scene-4',
       heading: 'Why it works',
+      diagram: { source: '', timing: [] },
       narration:
         'A cache would be useless if your next request were random. It works because real programs are predictable: they touch the same data again soon, and they touch neighbouring data next. Those two habits have names.',
       shapes: [
@@ -119,6 +124,7 @@ export const DEMO_LESSON: Lesson = {
     {
       id: 'scene-5',
       heading: 'Ninety-five percent is enough',
+      diagram: { source: '', timing: [] },
       narration:
         'Put it together. Ninety-five times out of a hundred the data is already in the cache, and only the rest pay the long trip to memory. That single ratio is why a small, cheap piece of fast memory buys you most of the speed of a huge one.',
       shapes: [

@@ -1,3 +1,5 @@
+import { parseMermaid, type NodeShape } from './mermaid'
+
 /**
  * The "board language" the model writes lessons in.
  *
@@ -22,7 +24,7 @@ export const SCENE_H = 800
  * next scene out of shot while leaving room for the connector drawn between
  * them.
  */
-export const SCENE_GAP = 620
+export const SCENE_GAP = 760
 
 /**
  * How far past SCENE_W the spacing pass may push content when it needs to open
@@ -158,6 +160,13 @@ export interface BoardShape {
   points: { x: number; y: number }[]
   /** Chart data. Only read by the chart kinds; empty for everything else. */
   data: { label: string; value: number }[]
+  /**
+   * Shapes sharing a group move as one rigid block through the layout pass.
+   * Set internally when a Mermaid diagram is expanded — dagre has already
+   * arranged those nodes relative to each other, and re-flowing them into rows
+   * would throw that arrangement away. Never written by the model.
+   */
+  group?: string
 }
 
 export interface Scene {
@@ -165,6 +174,18 @@ export interface Scene {
   heading: string
   narration: string
   shapes: BoardShape[]
+  /**
+   * A Mermaid flowchart for the graph-shaped part of the scene, expanded into
+   * shapes during normalization. Empty when the scene has no such structure.
+   */
+  diagram: SceneDiagram
+}
+
+export interface SceneDiagram {
+  /** Mermaid flowchart source. Empty string for none. */
+  source: string
+  /** When each node is drawn, keyed by its Mermaid id. */
+  timing: { node: string; anchor: string; at: number }[]
 }
 
 export interface Lesson {
@@ -181,11 +202,32 @@ export interface Lesson {
 export const SCENE_JSON_SCHEMA = {
         type: 'object',
         additionalProperties: false,
-        required: ['id', 'heading', 'narration', 'shapes'],
+        required: ['id', 'heading', 'narration', 'shapes', 'diagram'],
         properties: {
           id: { type: 'string' },
           heading: { type: 'string' },
           narration: { type: 'string' },
+          diagram: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['source', 'timing'],
+            properties: {
+              source: { type: 'string' },
+              timing: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['node', 'anchor', 'at'],
+                  properties: {
+                    node: { type: 'string' },
+                    anchor: { type: 'string' },
+                    at: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
           shapes: {
             type: 'array',
             items: {
@@ -371,14 +413,116 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
     }
   }
 
+  // The arrow-label spacer runs on the model's own shapes only. dagre already
+  // reserved room between ranks for the diagram's edge labels, and pushing
+  // those nodes apart afterwards just dismantles the layout — which showed up
+  // as a diagram block wider than the board it was fitted to.
+  const spaced = spaceForArrowLabels(shapes)
+  const withDiagram = [...spaced, ...expandDiagram(scene, sceneIndex)]
+
   return {
     id: scene.id || `scene-${sceneIndex + 1}`,
     heading: scene.heading || '',
     narration: (scene.narration ?? '').trim(),
-    shapes: centreContent(flowTopToBottom(spaceForArrowLabels(shapes))).sort(
+    diagram: { source: '', timing: [] },
+    shapes: centreContent(flowTopToBottom(withDiagram)).sort(
       (a, b) => a.at - b.at
     ),
   }
+}
+
+
+/** Mermaid node shapes map straight onto board kinds. */
+const NODE_KINDS: Record<NodeShape, ShapeKind> = {
+  box: 'box',
+  oval: 'oval',
+  ellipse: 'ellipse',
+  diamond: 'diamond',
+  hexagon: 'hexagon',
+  arrowright: 'arrowright',
+}
+
+/**
+ * Turns a scene's Mermaid diagram into board shapes.
+ *
+ * The nodes come out already arranged by dagre, tagged with a shared group so
+ * the row layout moves them as one piece rather than dealing them back out
+ * into rows. Arrows bind to the nodes by id, so tldraw re-routes them wherever
+ * the block ends up.
+ */
+function expandDiagram(scene: Scene, sceneIndex: number): BoardShape[] {
+  const graph = parseMermaid(scene.diagram?.source ?? '')
+  if (!graph) return []
+
+  const timing = new Map(
+    (scene.diagram?.timing ?? [])
+      .filter((entry) => entry && typeof entry.node === 'string')
+      .map((entry) => [entry.node, entry])
+  )
+
+  const group = `d${sceneIndex}`
+  const prefix = `${group}_`
+  const shapes: BoardShape[] = []
+
+  // Nodes first, in the order they appear down the graph, so the reveal reads
+  // the way the diagram does when nothing says otherwise.
+  const ordered = [...graph.nodes].sort((a, b) => a.y - b.y || a.x - b.x)
+
+  for (const [i, node] of ordered.entries()) {
+    const when = timing.get(node.id)
+    shapes.push({
+      id: prefix + node.id,
+      kind: NODE_KINDS[node.shape] ?? 'box',
+      text: node.label,
+      x: node.x,
+      y: node.y,
+      w: node.w,
+      h: node.h,
+      from: null,
+      to: null,
+      color: 'black',
+      fill: 'none',
+      size: graph.scale < 0.85 ? 's' : 'm',
+      dash: 'draw',
+      at: clamp(num(when?.at, (i + 1) / (ordered.length + 2)), 0, 0.95),
+      anchor: typeof when?.anchor === 'string' ? when.anchor.trim().slice(0, 60) : '',
+      points: [],
+      data: [],
+      group,
+    })
+  }
+
+  const ids = new Set(shapes.map((shape) => shape.id))
+  for (const [i, edge] of graph.edges.entries()) {
+    const from = prefix + edge.from
+    const to = prefix + edge.to
+    if (!ids.has(from) || !ids.has(to)) continue
+
+    // An edge belongs to the moment its destination appears.
+    const destination = shapes.find((shape) => shape.id === to)
+    shapes.push({
+      id: `${prefix}e${i}`,
+      kind: 'arrow',
+      text: edge.label,
+      x: 0,
+      y: 0,
+      w: 0,
+      h: 0,
+      from,
+      to,
+      color: 'black',
+      fill: 'none',
+      size: 'm',
+      dash: edge.dashed ? 'dashed' : 'draw',
+      at: destination?.at ?? 0.5,
+      anchor: destination?.anchor ?? '',
+      points: [],
+      data: [],
+      group,
+    })
+  }
+
+  return shapes
 }
 
 /** Approximate width of a character in tldraw's "draw" font, per size preset. */
@@ -434,50 +578,95 @@ function occupiedWidth(shape: BoardShape) {
  * they re-route themselves once those have moved.
  */
 function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
-  const blocks = shapes.filter((shape) => !FLOATING.has(shape.kind))
-  if (!blocks.length) return shapes
+  const loose = shapes.filter((shape) => !FLOATING.has(shape.kind) && !shape.group)
+
+  // A diagram is already arranged by dagre; it enters the flow as one item.
+  const groups = new Map<string, BoardShape[]>()
+  for (const shape of shapes) {
+    if (!shape.group) continue
+    const list = groups.get(shape.group) ?? []
+    list.push(shape)
+    groups.set(shape.group, list)
+  }
+
+  const units: Unit[] = loose.map((shape) => ({ shapes: [shape], lead: shape }))
+  for (const members of groups.values()) {
+    const solid = members.filter((shape) => !FLOATING.has(shape.kind))
+    if (!solid.length) continue
+    units.push({ shapes: members, lead: solid[0], bounds: boundsOf(solid) })
+  }
+  if (!units.length) return shapes
 
   const available = SCENE_W - MARGIN * 2
 
   // Band by vertical overlap: anything that starts before the current band ends
   // was meant to sit beside what's already in it.
-  const ordered = [...blocks].sort((a, b) => a.y - b.y || a.x - b.x)
-  const bands: BoardShape[][] = []
-  let band: BoardShape[] = []
+  const ordered = [...units].sort((a, b) => unitY(a) - unitY(b) || unitX(a) - unitX(b))
+  const bands: Unit[][] = []
+  let band: Unit[] = []
   let bandEnds = -Infinity
 
-  for (const shape of ordered) {
-    if (band.length && shape.y >= bandEnds - 24) {
+  for (const unit of ordered) {
+    if (band.length && unitY(unit) >= bandEnds - 24) {
       bands.push(band)
       band = []
       bandEnds = -Infinity
     }
-    band.push(shape)
-    bandEnds = Math.max(bandEnds, shape.y + occupiedHeight(shape) * 0.55)
+    band.push(unit)
+    bandEnds = Math.max(bandEnds, unitY(unit) + unitH(unit) * 0.55)
   }
   if (band.length) bands.push(band)
 
   // A band too wide for the board wraps rather than being squeezed.
-  const rows: BoardShape[][] = []
+  const rows: Unit[][] = []
   for (const source of bands) {
-    const byX = [...source].sort((a, b) => a.x - b.x)
-    let row: BoardShape[] = []
+    const byX = [...source].sort((a, b) => unitX(a) - unitX(b))
+    let row: Unit[] = []
     let width = 0
 
-    for (const shape of byX) {
-      const next = occupiedWidth(shape)
-      if (row.length && width + GAP_X + next > available) {
+    for (const unit of byX) {
+      const next = unitW(unit)
+      // A diagram is laid out to fill the width it is given, so it always gets
+      // a row to itself — sharing one would push whatever it sits beside off
+      // the board.
+      const alone = Boolean(unit.bounds)
+      if (row.length && (alone || width + GAP_X + next > available)) {
         rows.push(row)
         row = []
         width = 0
       }
-      width += (row.length ? GAP_X : 0) + next
-      row.push(shape)
+      row.push(unit)
+      width += (row.length > 1 ? GAP_X : 0) + next
+      if (alone) {
+        rows.push(row)
+        row = []
+        width = 0
+      }
     }
     if (row.length) rows.push(row)
   }
 
-  const heights = rows.map((row) => Math.max(...row.map(occupiedHeight)))
+  // Bands come from the y values the model wrote, and it tends to write more
+  // of them than the board needs — six rows of two, where three rows of four
+  // would fit and be half as tall. Height is what costs zoom, so merge any two
+  // adjacent rows that would still fit across.
+  for (let i = 0; i < rows.length - 1; ) {
+    const a = rows[i]
+    const b = rows[i + 1]
+    const together = [...a, ...b]
+    const width =
+      together.reduce((sum, unit) => sum + unitW(unit), 0) + GAP_X * (together.length - 1)
+
+    // A diagram keeps its own row, and four across is the legibility floor.
+    const rigid = together.some((unit) => unit.bounds)
+    if (!rigid && together.length <= 4 && width <= available) {
+      rows.splice(i, 2, together)
+    } else {
+      i++
+    }
+  }
+
+  const heights = rows.map((row) => Math.max(...row.map(unitH)))
   const content = heights.reduce((sum, height) => sum + height, 0)
 
   // Squeeze the gaps before shrinking anything: whitespace is the cheapest
@@ -501,8 +690,7 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
 
   for (const [index, row] of rows.entries()) {
     const height = heights[index]
-    const natural =
-      row.reduce((sum, shape) => sum + occupiedWidth(shape), 0) + GAP_X * (row.length - 1)
+    const natural = row.reduce((sum, unit) => sum + unitW(unit), 0) + GAP_X * (row.length - 1)
 
     // A row that nearly spans the board is stretched to span it properly;
     // a genuinely narrow row stays centred rather than being pulled apart.
@@ -515,23 +703,55 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
       : natural
 
     let x = MARGIN + Math.max(0, (available - width) / 2)
-    for (const shape of row) {
-      // Point-based shapes carry their geometry in `points`, so move those too.
-      const dx = x - shape.x
-      const dy = y + (height - occupiedHeight(shape)) / 2 - shape.y
-      shape.x += dx
-      shape.y += dy
-      for (const point of shape.points) {
-        point.x += dx
-        point.y += dy
+    for (const unit of row) {
+      // Every shape in a unit shifts by the same amount, which is what keeps a
+      // diagram's internal arrangement intact.
+      const dx = x - unitX(unit)
+      const dy = y + (height - unitH(unit)) / 2 - unitY(unit)
+
+      for (const shape of unit.shapes) {
+        shape.x += dx
+        shape.y += dy
+        // Point-based shapes carry their geometry in `points`, so move those too.
+        for (const point of shape.points) {
+          point.x += dx
+          point.y += dy
+        }
       }
-      x += occupiedWidth(shape) + spacing
+      x += unitW(unit) + spacing
     }
     y += height + gap
   }
 
   return shapes
 }
+
+/**
+ * One thing the row layout places: a single shape, or a whole diagram that has
+ * to move as a piece.
+ */
+interface Unit {
+  shapes: BoardShape[]
+  /** The shape whose position stands for the unit when it isn't a group. */
+  lead: BoardShape
+  bounds?: { x: number; y: number; w: number; h: number }
+}
+
+function boundsOf(shapes: BoardShape[]) {
+  const x = Math.min(...shapes.map((shape) => shape.x))
+  const y = Math.min(...shapes.map((shape) => shape.y))
+  return {
+    x,
+    y,
+    w: Math.max(...shapes.map((shape) => shape.x + occupiedWidth(shape))) - x,
+    h: Math.max(...shapes.map((shape) => shape.y + occupiedHeight(shape))) - y,
+  }
+}
+
+const unitX = (unit: Unit) => unit.bounds?.x ?? unit.lead.x
+const unitY = (unit: Unit) => unit.bounds?.y ?? unit.lead.y
+const unitW = (unit: Unit) => unit.bounds?.w ?? occupiedWidth(unit.lead)
+const unitH = (unit: Unit) => unit.bounds?.h ?? occupiedHeight(unit.lead)
 
 function labelWidth(text: string, size: BoardShape['size']) {
   return text.length * CHAR_WIDTH[size]

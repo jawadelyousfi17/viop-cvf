@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
+    "@dagrejs/dagre": "^3.1.0",
     "@tldraw/tlschema": "^5.2.5",
     "manim-ts": "file:../manim-ts",
     "next": "16.3.0",

@@ -311,7 +311,7 @@ export class BoardPainter {
     const content = shapes?.length
       ? Math.max(...shapes.map((shape) => shape.y + (shape.kind === 'note' ? 200 : shape.h)))
       : 0
-    const h = Math.max(SCENE_H, Math.min(SCENE_H + SCENE_GAP - 120, content + 40))
+    const h = Math.max(SCENE_H, Math.min(SCENE_H + SCENE_GAP - 80, content + 40))
 
     const usable = Math.max(200, screen.h - CHROME_TOP - CHROME_BOTTOM)
     const padTop = (h * CHROME_TOP) / usable
