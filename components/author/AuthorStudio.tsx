@@ -337,18 +337,18 @@ export default function AuthorStudio() {
     }
   }, [head, duration, index])
 
-  // Transport shortcuts, kept off anything tldraw itself uses so its own
-  // shortcuts still work while drawing.
+  // Only shift+arrow, which tldraw leaves alone. Every other transport control
+  // is a button: this canvas belongs to the drawing tools, and a shortcut that
+  // works everywhere except while you happen to be mid-stroke is worse than no
+  // shortcut at all.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       if (target && /INPUT|TEXTAREA/.test(target.tagName)) return
 
-      if (event.code === 'Space') {
-        event.preventDefault()
-        if (playing) stop()
-        else play()
-      } else if (event.key === 'ArrowLeft' && event.shiftKey) {
+      // Space is deliberately not bound: tldraw pans the canvas while it is
+      // held, and taking it away breaks moving around a board you are drawing.
+      if (event.key === 'ArrowLeft' && event.shiftKey) {
         event.preventDefault()
         seek(headRef.current - 1)
       } else if (event.key === 'ArrowRight' && event.shiftKey) {
@@ -358,7 +358,7 @@ export default function AuthorStudio() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [playing, seek])
+  }, [seek])
 
   /** Retimes the selected shape to the playhead. */
   function stampSelected() {
@@ -473,7 +473,7 @@ export default function AuthorStudio() {
           <button
             onClick={() => (playing ? stop() : play())}
             className="rounded-lg bg-white px-4 py-1.5 font-medium text-zinc-900 transition hover:bg-zinc-200"
-            title="Play / pause (space)"
+            title="Play / pause"
           >
             {playing ? 'Pause' : 'Play'}
           </button>
