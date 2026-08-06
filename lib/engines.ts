@@ -4,7 +4,7 @@
  * agnostic and shared.
  */
 
-export const ENGINES = ['whiteboard', 'canvas', 'slides', 'manim'] as const
+export const ENGINES = ['whiteboard', 'canvas', 'slides', 'manim', 'it'] as const
 export type Engine = (typeof ENGINES)[number]
 
 export const DEFAULT_ENGINE: Engine = 'slides'
@@ -29,5 +29,9 @@ export const ENGINE_LABELS: Record<Engine, { name: string; hint: string }> = {
   manim: {
     name: 'Manim',
     hint: 'Animated mathematics — for maths and physics, where the motion is the explanation',
+  },
+  it: {
+    name: 'IT explain',
+    hint: 'Precise diagrams on black, built up piece by piece — for how computers actually work',
   },
 }

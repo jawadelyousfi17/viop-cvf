@@ -13,6 +13,7 @@ const WhiteboardStudio = dynamic(() => import('./whiteboard/WhiteboardStudio'), 
 const CanvasStudio = dynamic(() => import('./canvas/CanvasStudio'), { ssr: false })
 const TemplateStudio = dynamic(() => import('./template/TemplateStudio'), { ssr: false })
 const ManimStudio = dynamic(() => import('./manim/ManimStudio'), { ssr: false })
+const ITStudio = dynamic(() => import('./it/ITStudio'), { ssr: false })
 
 /**
  * Top-level shell. Owns which engine is in use and renders that engine's
@@ -55,6 +56,9 @@ export default function Studio() {
   }
   if (engine === 'manim') {
     return <ManimStudio key="manim" engine={engine} provider={provider} chooser={chooser} />
+  }
+  if (engine === 'it') {
+    return <ITStudio key="it" engine={engine} provider={provider} chooser={chooser} />
   }
   return <TemplateStudio key="slides" engine={engine} provider={provider} chooser={chooser} />
 }

@@ -7,6 +7,9 @@ import { SYSTEM_PROMPT as WHITEBOARD_PROMPT, userPrompt as whiteboardUser } from
 import { LESSON_JSON_SCHEMA as SLIDES_SCHEMA } from '@/lib/template-lesson'
 import { LessonStreamParser as SlidesParser } from '@/lib/template-stream'
 import { SYSTEM_PROMPT as SLIDES_PROMPT, userPrompt as slidesUser } from '@/lib/template-prompt'
+import { IT_LESSON_JSON_SCHEMA as IT_SCHEMA } from '@/lib/it-lesson'
+import { ITStreamParser } from '@/lib/it-stream'
+import { SYSTEM_PROMPT as IT_PROMPT, userPrompt as itUser } from '@/lib/it-prompt'
 import { MANIM_LESSON_JSON_SCHEMA as MANIM_SCHEMA } from '@/lib/manim-lesson'
 import { ManimStreamParser } from '@/lib/manim-stream'
 import { SYSTEM_PROMPT as MANIM_PROMPT, userPrompt as manimUser } from '@/lib/manim-prompt'
@@ -23,6 +26,14 @@ function engineConfig(engine: Engine) {
       user: whiteboardUser,
       schema: WHITEBOARD_SCHEMA,
       parser: () => new WhiteboardParser(),
+    }
+  }
+  if (engine === 'it') {
+    return {
+      system: IT_PROMPT,
+      user: itUser,
+      schema: IT_SCHEMA,
+      parser: () => new ITStreamParser(),
     }
   }
   if (engine === 'manim') {
