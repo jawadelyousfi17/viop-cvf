@@ -226,13 +226,18 @@ export function toDemoModule(lesson: Lesson): string {
       const shapes = scene.shapes
         .map((shape) => `        ${JSON.stringify(stripDefaults(shape))},`)
         .join('\n')
+      // Always emitted: `diagram` is required on Scene, so leaving it out when
+      // a scene has no flowchart produces a module that will not compile.
       const diagram = scene.diagram?.source
         ? `      diagram: ${JSON.stringify(scene.diagram, null, 2).replace(/\n/g, '\n      ')},\n`
-        : ''
+        : `      diagram: { source: '', timing: [] },\n`
+      // Without this a hand-drawn scene is re-flowed by the automatic layout
+      // on its way to the board, and every position it was drawn at is lost.
+      const layout = scene.layout ? `      layout: ${JSON.stringify(scene.layout)},\n` : ''
       return `    {
       id: ${JSON.stringify(scene.id)},
       heading: ${JSON.stringify(scene.heading ?? '')},
-${diagram}      narration:
+${layout}${diagram}      narration:
         ${JSON.stringify(scene.narration)},
       shapes: [
 ${shapes}

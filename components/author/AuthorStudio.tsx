@@ -5,7 +5,7 @@ import 'tldraw/tldraw.css'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { captureScene, type BoardMeta } from '@/lib/board-capture'
 import { phraseAt } from '@/lib/anchor'
-import { estimateNarrationSeconds, type Lesson, type ShapeKind } from '@/lib/lesson'
+import { estimateNarrationSeconds, type BoardShape, type Lesson, type ShapeKind } from '@/lib/lesson'
 import { checkLesson, toDemoModule } from '@/lib/lesson-check'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { SpeechResponse } from '@/app/api/tts/route'
@@ -33,6 +33,15 @@ interface Track {
   timings: Record<string, { at: number; anchor: string }>
   /** tldraw's own store snapshot, so a scene round-trips without loss. */
   snapshot: unknown | null
+  /**
+   * The scene as board shapes, captured whenever this track is put away.
+   *
+   * Only one scene is on the canvas at a time, so an export has to read the
+   * other six from somewhere. Capturing at stash time costs nothing and means
+   * a lesson exports whole rather than exporting the scene you happen to be
+   * looking at and six empty ones.
+   */
+  shapes: BoardShape[]
 }
 
 function blankTrack(index: number): Track {
@@ -41,6 +50,7 @@ function blankTrack(index: number): Track {
     narration: '',
     timings: {},
     snapshot: null,
+    shapes: [],
   }
 }
 
@@ -147,6 +157,11 @@ export default function AuthorStudio() {
         ...tracks[index],
         snapshot: editor.getSnapshot(),
         timings: timingsRef.current,
+        shapes: captureScene(
+          editor,
+          editor.getCurrentPageShapes(),
+          new Map(Object.entries(timingsRef.current))
+        ),
       }
       return { ...prev, tracks }
     })
@@ -385,10 +400,10 @@ export default function AuthorStudio() {
             editor.getCurrentPageShapes(),
             new Map(Object.entries(t.timings))
           )
-        } else if (t.snapshot) {
-          // Scenes not currently on the canvas keep whatever was captured when
-          // they were last open; re-reading them would mean loading each one.
-          shapes = (t as Track & { shapes?: Lesson['scenes'][number]['shapes'] }).shapes ?? []
+        } else {
+          // Captured when this scene was last put away. Only one scene is ever
+          // on the canvas, so the rest are read from there.
+          shapes = t.shapes ?? []
         }
         return {
           id: t.id,
