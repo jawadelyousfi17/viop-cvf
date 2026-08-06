@@ -451,7 +451,10 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
     // and again once the arrow labels have been lifted onto the board, so a
     // region is drawn around its own captions rather than through them.
     shapes: centreContent(
-      attachRings(fitFrames(liftArrowLabels(flowTopToBottom(withDiagram))), placed)
+      attachRings(
+        fitFrames(liftArrowLabels(carryGestures(flowTopToBottom(withDiagram), placed))),
+        placed
+      )
     ).sort((a, b) => a.at - b.at),
   }
 }
@@ -1002,6 +1005,69 @@ function attachRings(shapes: BoardShape[], before: Map<string, { x: number; y: n
     ring.w = occupiedWidth(best) + padX * 2
     ring.h = occupiedHeight(best) + padY * 2
     ring.at = Math.max(ring.at, best.at)
+  }
+
+  return shapes
+}
+
+/** The freehand gestures: drawn over the board, not packed into it. */
+const GESTURES = new Set<ShapeKind>(['curve', 'line', 'highlight', 'laser'])
+
+/**
+ * Carries each freehand gesture along with whatever it was drawn over.
+ *
+ * A highlight, a laser sweep, an underline or a brace is defined by absolute
+ * points, and the row layout deliberately never touches them — a connector
+ * that re-routes itself is right, a marker stroke that reshapes itself is not.
+ * But that left them pinned to coordinates the rest of the scene has since
+ * moved away from, so a sweep meant to run along a row of boxes ended up
+ * sweeping the empty board those boxes used to occupy.
+ *
+ * So each gesture is tied to the shape it started nearest and moved by exactly
+ * that shape's displacement. The stroke keeps its own shape and its meaning:
+ * still over the thing it was aimed at.
+ *
+ * @param before every shape's centre before the layout rewrote it.
+ */
+function carryGestures(shapes: BoardShape[], before: Map<string, { x: number; y: number }>) {
+  const gestures = shapes.filter(
+    (shape) => GESTURES.has(shape.kind) && !shape.group && shape.points.length >= 2
+  )
+  if (!gestures.length) return shapes
+
+  // How far each solid shape travelled, keyed by where it started.
+  const moved = shapes
+    .filter((shape) => !FLOATING.has(shape.kind) && before.has(shape.id))
+    .map((shape) => {
+      const from = before.get(shape.id)!
+      return {
+        from,
+        dx: shape.x + occupiedWidth(shape) / 2 - from.x,
+        dy: shape.y + occupiedHeight(shape) / 2 - from.y,
+      }
+    })
+  if (!moved.length) return shapes
+
+  for (const gesture of gestures) {
+    const at = before.get(gesture.id)
+    if (!at) continue
+
+    let nearest = moved[0]
+    let best = Infinity
+    for (const candidate of moved) {
+      const distance = Math.hypot(candidate.from.x - at.x, candidate.from.y - at.y)
+      if (distance < best) {
+        best = distance
+        nearest = candidate
+      }
+    }
+
+    gesture.x += nearest.dx
+    gesture.y += nearest.dy
+    for (const point of gesture.points) {
+      point.x += nearest.dx
+      point.y += nearest.dy
+    }
   }
 
   return shapes
