@@ -77,11 +77,29 @@ function authorize(url: string, params: Record<string, string>, key: string, sec
 }
 
 /**
+ * How well a result answers the query.
+ *
+ * The search is fuzzy and ranks by its own popularity, so asking for "router"
+ * puts a map "route" at the top with half a dozen actual routers below it.
+ * Matching the term is worth more than anything else here: a public-domain
+ * icon of the wrong thing is still the wrong thing, so licence only breaks
+ * ties between icons that are equally right.
+ */
+function score(term: string, license: string, wanted: string) {
+  const name = term.toLowerCase()
+  let points = 0
+  if (name === wanted) points += 4
+  else if (name.includes(wanted) || wanted.includes(name)) points += 2
+  if (/public.domain/i.test(license)) points += 1
+  return points
+}
+
+/**
  * The best symbol for a query, or null when there isn't one.
  *
- * Prefers a public-domain icon when the results offer one, because those carry
- * no attribution obligation — a board that has to print a credit line for
- * every glyph on it stops being a board.
+ * Among equally good matches, prefers public domain: everything else is
+ * Creative Commons Attribution, and a board that has to print a credit line
+ * for every glyph on it stops being a board.
  */
 export async function findIcon(query: string): Promise<NounIcon | null> {
   const key = process.env.NOUN_PROJECT_KEY
@@ -113,8 +131,11 @@ export async function findIcon(query: string): Promise<NounIcon | null> {
   const icons = (data.icons ?? []).filter((icon) => icon.thumbnail_url)
   if (!icons.length) return null
 
-  const free = icons.find((icon) => /public.domain/i.test(icon.license_description ?? ''))
-  const chosen = free ?? icons[0]
+  // Stable sort, so the API's own ranking breaks ties between equal scores.
+  const wanted = params.query.toLowerCase()
+  const chosen = icons
+    .map((icon, rank) => ({ icon, rank, points: score(icon.term ?? '', icon.license_description ?? '', wanted) }))
+    .sort((a, b) => b.points - a.points || a.rank - b.rank)[0].icon
 
   return {
     id: String(chosen.id ?? ''),

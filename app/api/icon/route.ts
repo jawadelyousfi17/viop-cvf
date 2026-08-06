@@ -44,8 +44,9 @@ export async function GET(request: Request) {
 
   const result: ImageResult = {
     // Through the signed proxy like everything else, so the canvas never talks
-    // to a third-party host directly.
-    src: signImageUrl(icon.url),
+    // to a third-party host directly. `signImageUrl` returns the signature
+    // alone — the proxy URL has to be built around it.
+    src: `/api/image/proxy?u=${encodeURIComponent(icon.url)}&s=${signImageUrl(icon.url)}`,
     // The thumbnail is 200px on its longest side; the board scales it to the
     // box the scene gave it, and a symbol is line art, so it takes that well.
     width: 200,
