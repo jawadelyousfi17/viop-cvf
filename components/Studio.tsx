@@ -27,8 +27,18 @@ const ITStudio = dynamic(() => import('./it/ITStudio'), { ssr: false })
  */
 function initialEngine(): Engine {
   if (typeof window === 'undefined') return DEFAULT_ENGINE
-  const requested = new URLSearchParams(window.location.search).get('engine')
-  return isEngine(requested) ? requested : DEFAULT_ENGINE
+  const params = new URLSearchParams(window.location.search)
+
+  const requested = params.get('engine')
+  if (isEngine(requested)) return requested
+
+  // `?demo=1` means the whiteboard demo. Three engines each answer that flag
+  // with a demo of their own, and falling through to the default meant the one
+  // written to be shown to people was the one you couldn't get to without
+  // knowing to ask for it by name.
+  if (params.has('demo')) return 'whiteboard'
+
+  return DEFAULT_ENGINE
 }
 
 function initialProvider(): Provider {
