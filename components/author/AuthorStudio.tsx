@@ -7,6 +7,7 @@ import { captureScene, type BoardMeta } from '@/lib/board-capture'
 import { phraseAt } from '@/lib/anchor'
 import { estimateNarrationSeconds, type BoardShape, type Lesson, type ShapeKind } from '@/lib/lesson'
 import { checkLesson, toDemoModule } from '@/lib/lesson-check'
+import { parseScript } from '@/lib/script-import'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
 import type { SpeechResponse } from '@/app/api/tts/route'
 
@@ -102,6 +103,8 @@ export default function AuthorStudio() {
   const [status, setStatus] = useState<string | null>(null)
   const [panel, setPanel] = useState(true)
   const [selected, setSelected] = useState<TLShapeId | null>(null)
+  const [scriptOpen, setScriptOpen] = useState(false)
+  const [scriptDraft, setScriptDraft] = useState('')
 
   const editorRef = useRef<Editor | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -232,6 +235,36 @@ export default function AuthorStudio() {
     setDuration(estimateNarrationSeconds(target.narration))
     setHead(0)
     audioRef.current = null
+  }
+
+  /**
+   * Loads a whole written script, one scene per narration block.
+   *
+   * Appends rather than replaces, and never touches a track that already has
+   * something drawn on it — an import is the start of a board, and losing an
+   * afternoon's drawing to a paste is not a recoverable mistake.
+   */
+  function importScript(mode: 'append' | 'replace') {
+    const parsed = parseScript(scriptDraft)
+    if (!parsed.length) {
+      setStatus('No narration found in that. Blockquotes, headed sections or blank-line paragraphs all work.')
+      return
+    }
+
+    stash()
+    setDraft((prev) => {
+      const blank = (t: Track) => !t.narration.trim() && !t.shapes.length
+      const kept = mode === 'replace' ? [] : prev.tracks.filter((t) => !blank(t))
+      const added = parsed.map((scene, i) => ({
+        ...blankTrack(kept.length + i),
+        narration: scene.narration,
+      }))
+      return { ...prev, tracks: [...kept, ...added] }
+    })
+
+    setScriptOpen(false)
+    setScriptDraft('')
+    setStatus(`Loaded ${parsed.length} scenes. Open one, press Narrate, and draw along.`)
   }
 
   /** Fetches the voiceover, which is what gives the clock its meaning. */
@@ -440,6 +473,7 @@ export default function AuthorStudio() {
     URL.revokeObjectURL(url)
   }
 
+  const scriptPreview = scriptDraft.trim() ? parseScript(scriptDraft) : []
   const anchorNow = phraseAt(alignment, head)
   const fraction = head / Math.max(0.1, duration)
   const drawnCount = Object.keys(track?.timings ?? {}).length
@@ -526,7 +560,10 @@ export default function AuthorStudio() {
             <option value="" className="text-zinc-900">— clear —</option>
           </select>
 
-          <button onClick={() => setPanel((p) => !p)} className={`${ghost} ml-auto`}>
+          <button onClick={() => setScriptOpen(true)} className={`${ghost} ml-auto`}>
+            Load script
+          </button>
+          <button onClick={() => setPanel((p) => !p)} className={ghost}>
             {panel ? 'Hide script' : 'Script'}
           </button>
         </div>
@@ -601,6 +638,69 @@ export default function AuthorStudio() {
 
         {status && <p className="mt-1.5 text-[11px] text-zinc-400">{status}</p>}
       </div>
+
+      {/* Paste a whole script in. Shows what it would produce before it does. */}
+      {scriptOpen && (
+        <div className="absolute inset-0 z-[400] flex items-center justify-center bg-black/70 p-6">
+          <div className="flex max-h-full w-full max-w-3xl flex-col gap-3 rounded-2xl border border-white/15 bg-zinc-900 p-4 text-zinc-200">
+            <div>
+              <h2 className="text-sm font-medium">Load a script</h2>
+              <p className="mt-1 text-xs text-zinc-400">
+                One scene per narration block. Blockquotes, headed sections and blank-line
+                paragraphs all work — as many scenes as the script has.
+              </p>
+            </div>
+
+            <textarea
+              value={scriptDraft}
+              onChange={(e) => setScriptDraft(e.target.value)}
+              autoFocus
+              rows={10}
+              placeholder="Paste the whole script here."
+              className="min-h-0 flex-1 resize-none rounded-lg border border-white/15 bg-white/5 p-2.5 font-mono text-[11px] leading-relaxed outline-none placeholder:text-zinc-600 focus:border-white/30"
+            />
+
+            {scriptPreview.length > 0 && (
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-white/10">
+                {scriptPreview.map((scene, i) => (
+                  <div key={i} className="flex gap-2 border-b border-white/5 px-2 py-1 text-[11px] last:border-0">
+                    <span className="w-6 shrink-0 text-zinc-500">{i + 1}</span>
+                    <span className={`w-10 shrink-0 tabular-nums ${scene.words < 30 || scene.words > 80 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                      {scene.words}w
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-zinc-300">{scene.narration}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400">
+                {scriptDraft.trim()
+                  ? `${scriptPreview.length} scenes found`
+                  : 'Nothing pasted yet'}
+              </span>
+              <button onClick={() => setScriptOpen(false)} className={`${ghost} ml-auto`}>
+                Cancel
+              </button>
+              <button
+                onClick={() => importScript('append')}
+                disabled={!scriptPreview.length}
+                className={ghost}
+              >
+                Add to board
+              </button>
+              <button
+                onClick={() => importScript('replace')}
+                disabled={!scriptPreview.length}
+                className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:bg-zinc-200 disabled:opacity-40"
+              >
+                Replace all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
