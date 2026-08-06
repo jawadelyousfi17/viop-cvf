@@ -1,5 +1,11 @@
 import OpenAI from 'openai'
-import { DEFAULT_VOICE_ID, isKnownVoice, openAIVoiceFor } from '@/lib/voices'
+import {
+  DEFAULT_FISH_VOICE,
+  DEFAULT_VOICE_ID,
+  fishVoiceFor,
+  isKnownVoice,
+  openAIVoiceFor,
+} from '@/lib/voices'
 
 export const maxDuration = 120
 
@@ -54,14 +60,20 @@ const VOICE_INSTRUCTIONS =
 /** OpenAI caps a single speech request at 4096 characters. */
 const MAX_INPUT = 4000
 
-type Provider = 'openai' | 'elevenlabs'
+/** Fish's own default; `s1` is the older, cheaper one. */
+const FISH_DEFAULT_MODEL = 's2.1-pro'
+
+type Provider = 'openai' | 'elevenlabs' | 'fish'
+
+const PROVIDERS = new Set<Provider>(['openai', 'elevenlabs', 'fish'])
 
 function resolveProvider(): Provider {
   const configured = process.env.TTS_PROVIDER?.toLowerCase()
-  if (configured === 'openai' || configured === 'elevenlabs') return configured
-  // Neither pinned: use whichever key is present, preferring OpenAI so a single
+  if (PROVIDERS.has(configured as Provider)) return configured as Provider
+  // Nothing pinned: use whichever key is present, preferring OpenAI so a single
   // key is enough to run the whole app.
-  return process.env.OPENAI_API_KEY ? 'openai' : 'elevenlabs'
+  if (process.env.OPENAI_API_KEY) return 'openai'
+  return process.env.FISH_API_KEY ? 'fish' : 'elevenlabs'
 }
 
 /**
@@ -85,11 +97,11 @@ export async function POST(request: Request) {
   const input = text.trim().slice(0, MAX_INPUT)
   const provider = resolveProvider()
 
-  // Only ids from the allowlist are honoured either way, so this can't be used
-  // to bill arbitrary voices to the account's key.
-  return provider === 'openai'
-    ? speakWithOpenAI(input, openAIVoiceFor(voiceId))
-    : speakWithElevenLabs(input, isKnownVoice(voiceId) ? voiceId : undefined)
+  // Only ids from the allowlist are honoured, whichever provider runs, so this
+  // can't be used to bill arbitrary voices to the account's key.
+  if (provider === 'openai') return speakWithOpenAI(input, openAIVoiceFor(voiceId))
+  if (provider === 'fish') return speakWithFish(input, fishVoiceFor(voiceId))
+  return speakWithElevenLabs(input, isKnownVoice(voiceId) ? voiceId : undefined)
 }
 
 async function speakWithOpenAI(input: string, voice?: string) {
@@ -120,6 +132,181 @@ async function speakWithOpenAI(input: string, voice?: string) {
     console.error('[tts] openai error', error)
     const message = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: `OpenAI speech failed: ${message}` }, { status: 502 })
+  }
+}
+
+/**
+ * Fish Audio. Its speech endpoint returns audio and nothing else, so the timing
+ * the board needs is recovered afterwards by transcribing what it just said —
+ * see alignFish.
+ */
+async function speakWithFish(input: string, requested?: string) {
+  const apiKey = process.env.FISH_API_KEY
+  if (!apiKey) {
+    return Response.json({ error: 'FISH_API_KEY is not set.' }, { status: 501 })
+  }
+
+  const referenceId = requested ?? process.env.FISH_VOICE_ID ?? DEFAULT_FISH_VOICE
+  if (!referenceId) {
+    return Response.json({ error: 'No Fish Audio voice configured.' }, { status: 501 })
+  }
+
+  let audio: ArrayBuffer
+  try {
+    const response = await fetch('https://api.fish.audio/v1/tts', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+        // Chooses the synthesis model; the header, oddly, not the body.
+        model: process.env.FISH_MODEL ?? FISH_DEFAULT_MODEL,
+      },
+      body: JSON.stringify({
+        text: input,
+        reference_id: referenceId,
+        format: 'mp3',
+        mp3_bitrate: 128,
+        // Unhurried, to match the teaching register the other providers get
+        // through their own settings.
+        prosody: { speed: 0.96 },
+      }),
+    })
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      console.error('[tts] fish error', response.status, detail)
+      return Response.json({ error: `Fish Audio returned ${response.status}.` }, { status: 502 })
+    }
+
+    audio = await response.arrayBuffer()
+  } catch (error) {
+    console.error('[tts] fish request failed', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return Response.json({ error: `Fish Audio failed: ${message}` }, { status: 502 })
+  }
+
+  if (!audio.byteLength) {
+    return Response.json({ error: 'Fish Audio returned no audio.' }, { status: 502 })
+  }
+
+  return Response.json(
+    {
+      audio: Buffer.from(audio).toString('base64'),
+      alignment: await alignFish(audio, input, apiKey),
+    } satisfies SpeechResponse,
+    { headers: { 'cache-control': 'no-store' } }
+  )
+}
+
+/**
+ * Recovers character timings for Fish audio by transcribing it.
+ *
+ * ElevenLabs hands back where every character falls, which is what lets a shape
+ * be drawn on the word that describes it. Fish returns bare audio, so the clip
+ * is sent straight back to Fish's own transcriber, which times every word it
+ * hears.
+ *
+ * Those words are then matched back onto the narration the model wrote, rather
+ * than used in its place — the player looks up anchor phrases in the original
+ * text, so the character array has to be the original characters, punctuation
+ * and all. Matching is by word and not by offset because a transcript agrees
+ * with its source on the words and on almost nothing else: "small, fast" comes
+ * back as "small" "fast", which over a couple of sentences is enough drift to
+ * put every shape in the wrong place.
+ *
+ * Returns null on any failure — an unsynced lesson still plays.
+ */
+async function alignFish(
+  audio: ArrayBuffer,
+  input: string,
+  apiKey: string
+): Promise<SpeechResponse['alignment']> {
+  if (process.env.FISH_ALIGNMENT === 'off') return null
+
+  try {
+    const form = new FormData()
+    form.append('audio', new Blob([audio], { type: 'audio/mpeg' }), 'speech.mp3')
+    form.append('language', process.env.FISH_LANGUAGE ?? 'en')
+    form.append('ignore_timestamps', 'false')
+
+    const response = await fetch('https://api.fish.audio/v1/asr', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${apiKey}` },
+      body: form,
+    })
+    if (!response.ok) {
+      console.warn('[tts] fish alignment unavailable', response.status)
+      return null
+    }
+
+    const data = (await response.json()) as {
+      duration?: number
+      segments?: { text?: string; start?: number; end?: number }[]
+    }
+    const segments = (data.segments ?? []).filter(
+      (segment) =>
+        typeof segment.start === 'number' &&
+        typeof segment.end === 'number' &&
+        segment.text?.trim()
+    )
+    if (!segments.length) return null
+
+    // Split by UTF-16 unit, so an index into this array is also an index the
+    // regex below produces.
+    const characters = input.split('')
+    const starts = new Array<number>(characters.length).fill(0)
+
+    const WORD = /[\p{L}\p{N}']+/gu
+    const words = [...input.matchAll(WORD)].map((match) => ({
+      text: match[0].toLowerCase(),
+      from: match.index,
+      to: match.index + match[0].length,
+    }))
+    if (!words.length) return null
+
+    // Each transcribed word, placed at the source word it belongs to.
+    const timed: { from: number; to: number; start: number; end: number }[] = []
+    let next = 0
+
+    for (const segment of segments) {
+      const spoken = segment.text!.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '')
+      if (!spoken) continue
+
+      // A short lookahead, so one misheard word costs one word rather than
+      // throwing the rest of the sentence out of step.
+      let found = -1
+      for (let i = next; i < Math.min(words.length, next + 8); i++) {
+        if (words[i].text === spoken) {
+          found = i
+          break
+        }
+      }
+      if (found === -1) continue
+
+      next = found + 1
+      timed.push({ ...words[found], start: segment.start!, end: segment.end! })
+    }
+    if (!timed.length) return null
+
+    // Spaces and punctuation between two words hold the earlier word's end, so
+    // a shape anchored just after a phrase waits for that phrase to finish.
+    let cursor = 0
+    let previous = 0
+    for (const word of timed) {
+      for (let i = cursor; i < word.from; i++) starts[i] = previous
+      const span = Math.max(1, word.to - word.from)
+      for (let i = word.from; i < word.to; i++) {
+        starts[i] = word.start + ((word.end - word.start) * (i - word.from)) / span
+      }
+      previous = word.end
+      cursor = word.to
+    }
+    for (let i = cursor; i < starts.length; i++) starts[i] = previous
+
+    return { characters, starts }
+  } catch (error) {
+    console.warn('[tts] fish alignment failed', error)
+    return null
   }
 }
 
