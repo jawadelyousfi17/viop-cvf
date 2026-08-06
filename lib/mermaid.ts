@@ -146,7 +146,7 @@ function sizeFor(label: string): { w: number; h: number } {
  */
 export function parseMermaid(
   source: string,
-  fit: { maxW: number; maxH: number } = { maxW: 1326, maxH: 720 }
+  fit: { maxW: number; maxH: number } = { maxW: 1326, maxH: 560 }
 ): MermaidGraph | null {
   if (!source?.trim()) return null
 

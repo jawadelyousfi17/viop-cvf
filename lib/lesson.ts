@@ -626,10 +626,11 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
 
     for (const unit of byX) {
       const next = unitW(unit)
-      // A diagram is laid out to fill the width it is given, so it always gets
-      // a row to itself — sharing one would push whatever it sits beside off
-      // the board.
-      const alone = Boolean(unit.bounds)
+      // A wide diagram gets a row to itself; a tall narrow one does not. A
+      // vertical chain is ~280 wide and ~600 tall, and giving that its own row
+      // wastes three quarters of the board's width and makes the scene tall
+      // enough that height, not width, decides the zoom.
+      const alone = Boolean(unit.bounds) && next > available * 0.55
       if (row.length && (alone || width + GAP_X + next > available)) {
         rows.push(row)
         row = []
@@ -789,8 +790,14 @@ function centreContent(shapes: BoardShape[]): BoardShape[] {
 
   if (!Number.isFinite(minX)) return shapes
 
+  // Centre what fits; top-align what doesn't. Centring content taller than the
+  // board pushes its first row to a negative y, above the top edge — which is
+  // how a scene ends up with its opening shape sliced off.
   const dx = (SCENE_W - (maxX - minX)) / 2 - minX
-  const dy = (SCENE_H - (maxY - minY)) / 2 - minY
+  const dy =
+    maxY - minY > SCENE_H - MARGIN * 2
+      ? MARGIN - minY
+      : (SCENE_H - (maxY - minY)) / 2 - minY
 
   for (const shape of shapes) {
     shape.x += dx

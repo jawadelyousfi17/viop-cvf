@@ -304,21 +304,25 @@ export class BoardPainter {
     const x = 0
     const y = 0
 
-    // The box, unless the packed content is taller than it. Scenes are laid
-    // out as rows and a dense one can run past the bottom; framing the fixed
-    // box would then simply cut the last row off. Scenes are 620 apart, so a
-    // taller frame still cannot reach its neighbour.
-    const content = shapes?.length
-      ? Math.max(...shapes.map((shape) => shape.y + (shape.kind === 'note' ? 200 : shape.h)))
-      : 0
-    const h = Math.max(SCENE_H, Math.min(SCENE_H + SCENE_GAP - 80, content + 40))
+    // Frame what the scene actually occupies, not the nominal box. A dense
+    // scene runs past the bottom, and framing 0..SCENE_H would cut the last
+    // row off — or, when it starts above zero, the first one.
+    const top = shapes?.length ? Math.min(0, ...shapes.map((shape) => shape.y)) : 0
+    const bottom = shapes?.length
+      ? Math.max(
+          SCENE_H,
+          ...shapes.map((shape) => shape.y + (shape.kind === 'note' ? 200 : shape.h))
+        )
+      : SCENE_H
+    // Scenes sit SCENE_GAP apart, so a taller frame still can't reach the next.
+    const h = Math.min(SCENE_H + SCENE_GAP - 80, bottom - top + 40)
 
     const usable = Math.max(200, screen.h - CHROME_TOP - CHROME_BOTTOM)
     const padTop = (h * CHROME_TOP) / usable
     const padBottom = (h * CHROME_BOTTOM) / usable
 
     this.editor.zoomToBounds(
-      new Box(x, y + BoardPainter.sceneOffsetY(sceneIndex) - padTop, w, h + padTop + padBottom),
+      new Box(x, y + top - 20 + BoardPainter.sceneOffsetY(sceneIndex) - padTop, w, h + padTop + padBottom),
       {
         inset: 24,
         animation: duration > 0 ? { duration, easing: EASINGS.easeInOutCubic } : undefined,
