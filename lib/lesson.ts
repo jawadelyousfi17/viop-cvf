@@ -192,6 +192,19 @@ export interface Scene {
    * shapes during normalization. Empty when the scene has no such structure.
    */
   diagram: SceneDiagram
+  /**
+   * Whether the layout passes get to move things.
+   *
+   * "auto" is the default and what a model-written scene wants: it plans
+   * coordinates badly, so the row layout re-flows them into bands and centres
+   * the result. "fixed" leaves every coordinate exactly as given, and is what
+   * a scene drawn by hand in the authoring tool wants — there, the positions
+   * *are* the design, and re-flowing them would throw away the drawing.
+   *
+   * Absent from the model's JSON schema on purpose. It is not a decision the
+   * model gets to make.
+   */
+  layout?: 'auto' | 'fixed'
 }
 
 export interface SceneDiagram {
@@ -423,6 +436,20 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
     for (const ref of [shape.from, shape.to]) {
       const target = ref ? byId.get(ref) : undefined
       if (target) shape.at = Math.max(shape.at, target.at)
+    }
+  }
+
+  // A hand-drawn scene is already laid out — by a person, on the board, at the
+  // size they wanted. Every pass below exists to rescue coordinates a model
+  // guessed, and running them here would only undo the drawing.
+  if (scene.layout === 'fixed') {
+    return {
+      id: scene.id || `scene-${sceneIndex + 1}`,
+      heading: scene.heading || '',
+      narration: (scene.narration ?? '').trim(),
+      diagram: { source: '', timing: [] },
+      layout: 'fixed',
+      shapes: [...shapes, ...expandDiagram(scene, sceneIndex)].sort((a, b) => a.at - b.at),
     }
   }
 
