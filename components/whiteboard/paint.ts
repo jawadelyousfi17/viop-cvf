@@ -644,7 +644,15 @@ export class BoardPainter {
     const query = isChart(shape.kind)
       ? chartKey(sceneIndex, shape.id)
       : shape.text.trim().toLowerCase()
-    const found = this.images.get(query)
+    const resolved = this.images.get(query)
+    // tldraw validates an asset's src and throws if it isn't a URL, and that
+    // throw happens inside the player's animation tick — so one malformed
+    // lookup takes down the whole scene rather than one picture. A result that
+    // doesn't look like something an <img> could load is treated as a miss.
+    const found = resolved && /^(https?:|\/|data:|blob:)/.test(resolved.src) ? resolved : undefined
+    if (resolved && !found) {
+      console.warn('[board] ignoring unusable image src', resolved.src.slice(0, 60))
+    }
 
     if (!found) {
       this.editor.createShape({

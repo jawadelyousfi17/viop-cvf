@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   if (cache.has(key)) {
     const hit = cache.get(key)!
     return hit
-      ? Response.json(hit, { headers: { 'cache-control': 'public, max-age=86400' } })
+      ? Response.json(hit, { headers: { 'cache-control': 'no-store' } })
       : Response.json({ error: 'No symbol found.' }, { status: 404 })
   }
 
@@ -56,7 +56,10 @@ export async function GET(request: Request) {
   }
 
   remember(key, result)
-  return Response.json(result, { headers: { 'cache-control': 'public, max-age=86400' } })
+  // Deliberately not cached by the browser. This route is memoised in process,
+  // so a repeat costs nothing anyway — and when the shape of the response is
+  // wrong, a day-long client cache means every reload keeps the bug.
+  return Response.json(result, { headers: { 'cache-control': 'no-store' } })
 }
 
 function remember(key: string, value: ImageResult | null) {
