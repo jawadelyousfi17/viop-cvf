@@ -10,10 +10,19 @@ import { parseMermaid, type NodeShape } from './mermaid'
  * whiteboard that keeps growing rather than a slideshow.
  */
 
-// 16:9, so the board fills a screen instead of leaving columns of nothing down
-// either side. Height stays 800; the width is what grew.
-export const SCENE_W = 1422
-export const SCENE_H = 800
+/**
+ * 16:9, so the board fills a screen instead of leaving columns of nothing down
+ * either side.
+ *
+ * Big numbers on purpose. Shape sizes are absolute — a box is 300 units wide
+ * whatever the board is — so the size of this box decides how many of them fit
+ * across a row, and therefore how many rows a scene needs. At 1422 a scene of
+ * twenty shapes needed six rows and came out half again as tall as it was wide,
+ * which meant the camera fitted it by height and left a third of the screen
+ * empty down each side. The same content across 1920 is four rows and fills it.
+ */
+export const SCENE_W = 1920
+export const SCENE_H = 1080
 /**
  * Vertical space between scenes on the shared canvas.
  *
@@ -93,9 +102,13 @@ export const POINT_KINDS = new Set<ShapeKind>(['curve', 'line', 'highlight', 'la
 
 const MAX_POINTS: Record<string, number> = { curve: 48, line: 12, highlight: 24, laser: 24 }
 
-/** Floor for a photograph on the board. */
-const MIN_IMAGE_W = 500
-const MIN_IMAGE_H = 340
+/**
+ * Floor for a photograph on the board. Shallower than it is wide: height is the
+ * scarce dimension, and a picture that claims two rows of it pushes the
+ * explanation off the bottom of the scene.
+ */
+const MIN_IMAGE_W = 440
+const MIN_IMAGE_H = 250
 
 export const COLORS = [
   'black',
@@ -417,17 +430,29 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
   // reserved room between ranks for the diagram's edge labels, and pushing
   // those nodes apart afterwards just dismantles the layout — which showed up
   // as a diagram block wider than the board it was fitted to.
-  const spaced = spaceForArrowLabels(shapes)
+  const spaced = fitFrames(spaceForArrowLabels(groupFrames(shapes)))
   const withDiagram = [...spaced, ...expandDiagram(scene, sceneIndex)]
+
+  // Where the model put things, kept before the layout rewrites it — the only
+  // record of which shape a ring was drawn around.
+  const placed = new Map(
+    withDiagram.map((shape) => [
+      shape.id,
+      { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 },
+    ])
+  )
 
   return {
     id: scene.id || `scene-${sceneIndex + 1}`,
     heading: scene.heading || '',
     narration: (scene.narration ?? '').trim(),
     diagram: { source: '', timing: [] },
-    shapes: centreContent(flowTopToBottom(withDiagram)).sort(
-      (a, b) => a.at - b.at
-    ),
+    // Frames are fitted twice: once so the spacing pass leaves them a sane box,
+    // and again once the arrow labels have been lifted onto the board, so a
+    // region is drawn around its own captions rather than through them.
+    shapes: centreContent(
+      attachRings(fitFrames(liftArrowLabels(flowTopToBottom(withDiagram))), placed)
+    ).sort((a, b) => a.at - b.at),
   }
 }
 
@@ -451,7 +476,13 @@ const NODE_KINDS: Record<NodeShape, ShapeKind> = {
  * the block ends up.
  */
 function expandDiagram(scene: Scene, sceneIndex: number): BoardShape[] {
-  const graph = parseMermaid(scene.diagram?.source ?? '')
+  // Sized against the board rather than a constant of its own, so the two can
+  // never drift apart. A diagram may take the full width but only about two
+  // thirds of the height — the rest of the scene has to go somewhere.
+  const graph = parseMermaid(scene.diagram?.source ?? '', {
+    maxW: SCENE_W - MARGIN * 2,
+    maxH: Math.round(SCENE_H * 0.68),
+  })
   if (!graph) return []
 
   const timing = new Map(
@@ -530,8 +561,21 @@ const CHAR_WIDTH: Record<BoardShape['size'], number> = { s: 9, m: 12, l: 16, xl:
 /** Line height for the same presets, for guessing how far text will grow. */
 const LINE_HEIGHT: Record<BoardShape['size'], number> = { s: 22, m: 28, l: 38, xl: 52 }
 
-/** Connectors and freehand strokes: they follow other shapes, so never packed. */
-const FLOATING = new Set<ShapeKind>(['arrow', 'elbow', 'curve', 'line', 'highlight', 'laser'])
+/**
+ * Connectors, freehand strokes and overlays: they follow other shapes, so they
+ * are never packed into a row. A ring is here because it means "around that" —
+ * dealt into a band of its own it becomes an empty circle beside the thing it
+ * was drawn to circle. It is placed by attachRings once the layout has settled.
+ */
+const FLOATING = new Set<ShapeKind>([
+  'arrow',
+  'elbow',
+  'curve',
+  'line',
+  'highlight',
+  'laser',
+  'ring',
+])
 
 const MARGIN = 48
 const GAP_X = 56
@@ -811,14 +855,294 @@ function centreContent(shapes: BoardShape[]): BoardShape[] {
   return shapes
 }
 
+/** Breathing room a grouping frame keeps around the shapes it encloses. */
+const FRAME_PAD = 34
+
+/**
+ * Ties a grouping frame to the shapes inside it.
+ *
+ * A frame is a large empty dashed box drawn behind a group to say "all of this
+ * is one thing" — a service, a machine, a phase. On its own the row layout
+ * would treat it as just another shape and deal it out into a band of its own,
+ * leaving an empty rectangle above the group it was meant to enclose.
+ *
+ * So containment is worked out here, from the coordinates the model chose,
+ * while they still mean something. The frame and its contents become one group,
+ * which the layout then moves as a single rigid block — the same mechanism a
+ * Mermaid diagram already uses.
+ *
+ * Containment is decided here, before the arrow-label spacer runs — that pass
+ * pushes shapes rightward and would carry half a group out through the side of
+ * its own frame. The frame's box is fitted to its members afterwards, by
+ * fitFrames, once nothing is moving any more.
+ */
+function groupFrames(shapes: BoardShape[]): BoardShape[] {
+  const frames = shapes.filter(
+    (shape) =>
+      shape.kind === 'box' &&
+      !shape.text.trim() &&
+      (shape.dash === 'dashed' || shape.dash === 'dotted') &&
+      !shape.group
+  )
+  if (!frames.length) return shapes
+
+  // Biggest first, so a frame inside a frame claims its contents second.
+  for (const [i, frame] of frames.sort((a, b) => b.w * b.h - a.w * a.h).entries()) {
+    if (frame.group) continue
+
+    const inside = shapes.filter(
+      (shape) =>
+        shape !== frame &&
+        !shape.group &&
+        !FLOATING.has(shape.kind) &&
+        shape.x >= frame.x - 12 &&
+        shape.y >= frame.y - 12 &&
+        shape.x + occupiedWidth(shape) <= frame.x + frame.w + 12 &&
+        shape.y + occupiedHeight(shape) <= frame.y + frame.h + 12
+    )
+    // One shape in a box is a box, not a region.
+    if (inside.length < 2) continue
+
+    const group = `f${i}`
+    frame.group = group
+    // A filled frame would hide what it encloses.
+    frame.fill = 'none'
+    for (const shape of inside) shape.group = group
+
+    // An arrow with both ends in the region belongs to it too — not for the
+    // layout, which never moves a connector, but so the label lifted off it
+    // later counts as part of the region and the frame is drawn around it.
+    const held = new Set(inside.map((shape) => shape.id))
+    for (const shape of shapes) {
+      if (shape.kind !== 'arrow' || shape.group) continue
+      if (shape.from && shape.to && held.has(shape.from) && held.has(shape.to)) {
+        shape.group = group
+      }
+    }
+
+    // Behind, and drawn before anything it contains.
+    frame.at = Math.max(0, Math.min(...inside.map((shape) => shape.at)) - 0.02)
+  }
+
+  return shapes
+}
+
+/**
+ * Redraws each grouping frame around whatever its members ended up as.
+ *
+ * The model's own rectangle is only ever a hint at which shapes belong
+ * together — by the time the spacing pass has opened up room for arrow labels,
+ * it fits nothing. So the box is thrown away and rebuilt from the contents.
+ */
+function fitFrames(shapes: BoardShape[]): BoardShape[] {
+  const framed = new Map<string, BoardShape[]>()
+  for (const shape of shapes) {
+    if (!shape.group?.startsWith('f')) continue
+    const list = framed.get(shape.group) ?? []
+    list.push(shape)
+    framed.set(shape.group, list)
+  }
+
+  for (const members of framed.values()) {
+    const frame = members.find((shape) => !shape.text.trim() && shape.kind === 'box')
+    const inside = members.filter((shape) => shape !== frame && !FLOATING.has(shape.kind))
+    if (!frame || !inside.length) continue
+
+    const bounds = boundsOf(inside)
+    frame.x = bounds.x - FRAME_PAD
+    frame.y = bounds.y - FRAME_PAD
+    frame.w = bounds.w + FRAME_PAD * 2
+    frame.h = bounds.h + FRAME_PAD * 2
+  }
+
+  return shapes
+}
+
+/**
+ * Puts each ring back around the thing it was drawn to circle.
+ *
+ * A ring carries no reference to its target — the model expresses "this one
+ * matters" by drawing a circle over the top of it. Those coordinates stop
+ * meaning anything the moment the row layout moves everything, so the target is
+ * worked out from where the ring started, and the ring is redrawn around
+ * wherever that shape ended up.
+ *
+ * @param before each shape's centre as the model placed it, before layout.
+ */
+function attachRings(shapes: BoardShape[], before: Map<string, { x: number; y: number }>) {
+  const rings = shapes.filter((shape) => shape.kind === 'ring')
+  if (!rings.length) return shapes
+
+  const targets = shapes.filter(
+    (shape) => !FLOATING.has(shape.kind) && shape.text.trim() && before.has(shape.id)
+  )
+  if (!targets.length) return shapes
+
+  for (const ring of rings) {
+    const from = before.get(ring.id)
+    if (!from) continue
+
+    let best: BoardShape | null = null
+    let nearest = Infinity
+    for (const target of targets) {
+      const at = before.get(target.id)!
+      const distance = Math.hypot(at.x - from.x, at.y - from.y)
+      if (distance < nearest) {
+        nearest = distance
+        best = target
+      }
+    }
+    if (!best) continue
+
+    // Thrown around it by hand, so a little wider than the thing itself.
+    const padX = 26
+    const padY = 18
+    ring.x = best.x - padX
+    ring.y = best.y - padY
+    ring.w = occupiedWidth(best) + padX * 2
+    ring.h = occupiedHeight(best) + padY * 2
+    ring.at = Math.max(ring.at, best.at)
+  }
+
+  return shapes
+}
+
+/** Widest an arrow's label block may grow before it wraps to another line. */
+const EDGE_LABEL_W = 240
+
+/**
+ * Measures the block an arrow's label will occupy once it is lifted off the
+ * arrow and set beside it.
+ *
+ * The first line is the label proper; anything after it is the small print,
+ * set smaller and in grey. Both are wrapped to the same column so the block
+ * reads as one caption rather than two stray pieces of text.
+ */
+function edgeLabelBox(arrow: BoardShape) {
+  const lines = arrow.text.split('\n').map((line) => line.trim()).filter(Boolean)
+  const head = lines[0] ?? ''
+  const caption = lines.slice(1).join(' ')
+
+  const w = Math.max(
+    90,
+    Math.min(EDGE_LABEL_W, Math.max(labelWidth(head, arrow.size), labelWidth(caption, 's')))
+  )
+  const headH = Math.ceil(labelWidth(head, arrow.size) / w) * LINE_HEIGHT[arrow.size]
+  const capH = caption ? Math.ceil(labelWidth(caption, 's') / w) * LINE_HEIGHT.s : 0
+
+  return { head, caption, w, headH, capH, h: headH + capH }
+}
+
+/**
+ * Takes each bound arrow's label off the arrow and sets it beside the line.
+ *
+ * tldraw fits an arrow's label inside the arrow's own span, which is why the
+ * prompt has always capped labels at three words: anything longer wraps to two
+ * characters a line and lands on the shapes at each end. But the label is where
+ * the real information lives — "validate and store", "read user, write login
+ * logs" — and a three-word ceiling throws most of it away.
+ *
+ * So the label becomes ordinary text on the board, sitting above a horizontal
+ * link or beside a vertical one, exactly where a hand would have written it.
+ * The arrow keeps the line and loses the lettering.
+ *
+ * Runs after layout, because it needs the positions the shapes actually ended
+ * up with.
+ */
+function liftArrowLabels(shapes: BoardShape[]): BoardShape[] {
+  const byId = new Map(shapes.map((shape) => [shape.id, shape]))
+  const lifted: BoardShape[] = []
+
+  for (const arrow of shapes) {
+    if (arrow.kind !== 'arrow' || !arrow.from || !arrow.to || !arrow.text.trim()) continue
+
+    const a = byId.get(arrow.from)
+    const b = byId.get(arrow.to)
+    if (!a || !b) continue
+
+    const box = edgeLabelBox(arrow)
+    if (!box.head) continue
+
+    const from = { x: a.x + occupiedWidth(a) / 2, y: a.y + occupiedHeight(a) / 2 }
+    const to = { x: b.x + occupiedWidth(b) / 2, y: b.y + occupiedHeight(b) / 2 }
+    const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+
+    // A horizontal link has its gap to the sides, so the label goes above the
+    // line; a vertical one has room beside it and nowhere above.
+    const horizontal = Math.abs(to.x - from.x) >= Math.abs(to.y - from.y)
+    let x = horizontal ? mid.x - box.w / 2 : mid.x + 16
+    let y = horizontal ? mid.y - 14 - box.h : mid.y - box.h / 2
+
+    // Nothing has reserved this spot. A link that crosses the board — and every
+    // diagram edge that skips a rank — puts its midpoint straight through
+    // whatever happens to be there, so back the label off until it is clear.
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const clash = shapes.some(
+        (other) =>
+          other !== arrow &&
+          !FLOATING.has(other.kind) &&
+          !(other.kind === 'box' && !other.text.trim()) &&
+          x < other.x + occupiedWidth(other) &&
+          other.x < x + box.w &&
+          y < other.y + occupiedHeight(other) &&
+          other.y < y + box.h
+      )
+      if (!clash) break
+      if (horizontal) y -= box.h + 12
+      else x += box.w + 12
+    }
+
+    lifted.push({
+      ...arrow,
+      id: `${arrow.id}~l`,
+      kind: 'text',
+      text: box.head,
+      x,
+      y,
+      w: box.w,
+      h: box.headH,
+      from: null,
+      to: null,
+      color: arrow.color,
+      fill: 'none',
+      points: [],
+      data: [],
+    })
+
+    if (box.caption) {
+      lifted.push({
+        ...arrow,
+        id: `${arrow.id}~c`,
+        kind: 'text',
+        text: box.caption,
+        x,
+        y: y + box.headH,
+        w: box.w,
+        h: box.capH,
+        from: null,
+        to: null,
+        // Grey is what every reference board uses for the line under the line.
+        color: 'grey',
+        fill: 'none',
+        size: 's',
+        points: [],
+        data: [],
+      })
+    }
+
+    arrow.text = ''
+  }
+
+  return lifted.length ? [...shapes, ...lifted] : shapes
+}
+
 /**
  * Opens up horizontal room for arrow labels.
  *
- * tldraw fits an arrow's label inside the arrow's own span, so a wordy label on
- * a short arrow wraps one or two characters per line and collides with the
- * shapes at each end. The prompt asks for generous gaps, but the model is not
- * reliable about it, so this pass measures each labelled arrow and pushes the
- * downstream shapes right until the label fits.
+ * A label set beside its arrow still has to fit in the gap between the shapes
+ * it joins, so this pass measures each one and pushes the downstream shapes
+ * right until it does. The prompt asks for generous gaps, but the model is not
+ * reliable about it.
  */
 function spaceForArrowLabels(shapes: BoardShape[]): BoardShape[] {
   const arrows = shapes.filter((s) => s.kind === 'arrow' && s.text.trim() && s.from && s.to)
@@ -843,7 +1167,7 @@ function spaceForArrowLabels(shapes: BoardShape[]): BoardShape[] {
 
       const [left, right] = dx >= 0 ? [a, b] : [b, a]
       const gap = right.x - (left.x + left.w)
-      const needed = labelWidth(arrow.text.trim(), arrow.size) + 48
+      const needed = edgeLabelBox(arrow).w + 40
       const delta = needed - gap
       if (delta <= 1) continue
 

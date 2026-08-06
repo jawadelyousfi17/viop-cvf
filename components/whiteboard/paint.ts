@@ -200,6 +200,31 @@ const isChart = (kind: BoardShape['kind']) => (CHART_KINDS as readonly string[])
 const ROUND_GEOS = new Set(['ellipse', 'oval', 'cloud', 'heart', 'octagon'])
 
 /**
+ * The saturated partner each tint casts as its shadow.
+ *
+ * A filled shape with a solid twin sitting a few pixels behind it is the single
+ * detail that makes a hand-drawn board read as designed rather than merely
+ * sketched — it is what every Excalidraw diagram does. Black and grey are
+ * absent deliberately: a black blob behind a black outline is a smudge, not a
+ * shadow, so structural shapes cast nothing.
+ */
+const SHADOW_COLOR: Record<string, TLGeoShape['props']['color']> = {
+  'light-blue': 'blue',
+  'light-green': 'green',
+  'light-red': 'red',
+  'light-violet': 'violet',
+  blue: 'blue',
+  green: 'green',
+  red: 'red',
+  violet: 'violet',
+  orange: 'orange',
+  yellow: 'yellow',
+}
+
+/** How far behind and below the shadow sits. */
+const SHADOW_OFFSET = 10
+
+/**
  * Draws one lesson onto a shared tldraw canvas. Scenes are placed side by side
  * so the whole lesson lives on one board, and shapes fade and rise into place
  * as the narration reaches them.
@@ -264,7 +289,7 @@ export class BoardPainter {
    * and control bar occupy on screen — to push the board up into the clear
    * space.
    *
-   * Frames the scene's actual content rather than the nominal 1200x800 box, so
+   * Frames the scene's actual content rather than the nominal scene box, so
    * a scene the spacing pass has widened still fits, and a sparse scene isn't
    * marooned in empty board.
    */
@@ -454,12 +479,17 @@ export class BoardPainter {
 
   private paintGeo(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {
     const x = shape.x + wobble(shape.id, 'x', HAND.drift)
+    const rotation = wobble(shape.id, 'r', HAND.tiltBox)
+
+    // Drawn first so it sits behind: tldraw stacks in creation order.
+    const shadow = this.paintShadow(shape, x, shape.y + offsetY, rotation, animate)
+
     this.editor.createShape({
       id,
       type: 'geo',
       x,
       y: shape.y + offsetY,
-      rotation: wobble(shape.id, 'r', HAND.tiltBox),
+      rotation,
       opacity: animate ? 0 : 1,
       props: {
         geo: GEO_KINDS[shape.kind] ?? 'rectangle',
@@ -484,8 +514,47 @@ export class BoardPainter {
       ROUND_GEOS.has(GEO_KINDS[shape.kind] ?? '')
         ? ellipsePath(x, shape.y + offsetY, shape.w, shape.h)
         : boxPath(x, shape.y + offsetY, shape.w, shape.h),
-      animate
+      animate,
+      shadow ? [{ id: shadow, type: 'geo' }] : undefined
     )
+  }
+
+  /**
+   * The solid twin behind a filled shape. Returns its id so it can be revealed
+   * on the same beat as the shape it belongs to — a shadow that fades in on its
+   * own is just a second rectangle.
+   */
+  private paintShadow(
+    shape: BoardShape,
+    x: number,
+    y: number,
+    rotation: number,
+    animate: boolean
+  ): TLShapeId | null {
+    const color = SHADOW_COLOR[shape.color]
+    if (!color || shape.fill === 'none') return null
+
+    const id = createShapeId()
+    this.editor.createShape({
+      id,
+      type: 'geo',
+      x: x + SHADOW_OFFSET,
+      y: y + SHADOW_OFFSET,
+      rotation,
+      opacity: animate ? 0 : 1,
+      props: {
+        geo: GEO_KINDS[shape.kind] ?? 'rectangle',
+        w: Math.max(40, shape.w),
+        h: Math.max(40, shape.h),
+        color,
+        fill: 'solid',
+        dash: 'solid',
+        size: shape.size,
+        scale: 1,
+      },
+    })
+    // Never registered as a painted shape, so nothing can bind an arrow to it.
+    return id
   }
 
   private paintNote(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {
@@ -1219,12 +1288,21 @@ export class BoardPainter {
    * the shape is inked in while a visible cursor traces its outline, so the
    * viewer's eye has something to follow — the way it would follow a hand.
    */
-  private reveal(id: TLShapeId, type: TraceJob['type'], path: Vec2[], animate: boolean) {
+  private reveal(
+    id: TLShapeId,
+    type: TraceJob['type'],
+    path: Vec2[],
+    animate: boolean,
+    extra?: TraceJob['extra']
+  ) {
     if (!animate || path.length < 2) {
-      if (animate) this.setShape({ id, type, opacity: 1 })
+      if (animate) {
+        this.setShape({ id, type, opacity: 1 })
+        for (const part of extra ?? []) this.setShape({ ...part, opacity: 1 })
+      }
       return
     }
-    this.enqueue({ id, type, path, stroke: null })
+    this.enqueue({ id, type, path, stroke: null, extra })
   }
 
   /**

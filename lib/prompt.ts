@@ -17,9 +17,11 @@ Layout rules:
 - Rows are spaced for you and everything is centred for you, so approximate y values are fine — what matters is that shapes meant to sit side by side share a y, and shapes meant to sit below start a clearly larger one.
 - A row holds 2 or 3 large shapes, or up to 4 when they are small — a label, a number, an icon.
 - FILL THE BOARD. It is ${SCENE_W} wide by ${SCENE_H} tall — a wide 16:9 surface, and the most common failure is a scene using only the middle of it. Every row should reach out toward both edges.
-- Make things BIG. A box carrying an idea is 300-420 wide and 150-220 tall, not 180 by 90. A photograph is 520 or more. An empty board is not tidy, it is wasted.
-- 3 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
-- **12 to 18 shapes per scene, counting the diagram's nodes.** A scene with a six-node diagram has six of its budget spent, so it wants another six to twelve shapes around it — not another eighteen. This is the number most often got wrong, usually by being too low, but a scene with a diagram overshoots instead. Eight shapes is a sketch, not a board. If you have written eight, you are not finished: add the numbers, the units, the worked example, the second case, the counter-example, the labels on the parts, the thing that happens next.
+- A box carrying an idea is 260-360 wide and 100-140 tall. Wide rather than tall: height is the scarce dimension on a ${SCENE_W} x ${SCENE_H} board, and a box 200 tall costs a fifth of the whole scene for one sentence of text.
+- 3 or 4 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
+- **Count your rows, not just your shapes.** The board is ${SCENE_H} tall and a row costs about 150. A photograph costs 340 — two rows on its own. So a scene has room for the image plus FOUR OR FIVE more rows, and no more. Six rows of content will not fit and the whole scene gets shrunk to compensate, which is worse than leaving something out.
+- **12 to 16 shapes per scene, counting the diagram's nodes**, arranged in those rows — 3 across is the normal case. A scene with a six-node diagram has six of its budget spent, so it wants another six to ten shapes around it, not another sixteen. Eight shapes is a sketch, not a board: add the numbers, the units, the worked example, the second case, the labels on the parts.
+- Annotations cost nothing. A "ring", "highlight", "curve", "line" or "laser" is drawn over the top of what is already there and takes no row of its own, so it is never the thing to cut. A "ring" goes straight over the shape it circles — give it the same x/y/w/h as that shape and it will be fitted around it.
 - Shapes must NOT overlap. Give boxes at least 40px of breathing room, and leave 60-100px between rows.
 - Keep a 40px margin on all sides. Nothing may extend past the board.
 - Prefer one clear structure per scene (a row of steps, a hierarchy, a comparison, a cycle) with supporting detail around it, over a scatter of unrelated boxes.
@@ -38,7 +40,7 @@ flowchart TD
 \`\`\`
 
 - Node shapes: \`[box]\` for a thing or a step, \`{diamond}\` for a decision, \`([rounded])\` for a start or an end, \`((round))\` for a store or a pool, \`{{hexagon}}\` for a transform.
-- Edges: \`-->\` normal, \`-.->\` for something conditional or weak. Label them with \`|three words|\` — the label is where the real information is, so use it. **Three words and eighteen characters is the hard limit**: "asks where next", "on a miss", "returns a referral". A longer label forces the whole diagram to shrink to make room for it, and everything in it becomes harder to read.
+- Edges: \`-->\` normal, \`-.->\` for something conditional or weak. **Label almost every edge** — the label is where the real information is. It is written beside the line, not squeezed into it, so it can be a real phrase: "asks where next", "validate and store", "read user, write login logs". Keep it under 40 characters; past that the diagram shrinks to make room and everything in it gets harder to read.
 - \`flowchart TD\` for top-down, \`flowchart LR\` for a left-to-right chain. A long chain is turned sideways automatically if it won't fit, so pick whichever reads better.
 - **3 to 5 nodes.** Six or more will not fit a board at a readable size — it gets shrunk until nobody can read it. A longer chain is two scenes, not one crowded diagram.
 - Keep node labels under 30 characters.
@@ -51,11 +53,21 @@ Leave "diagram.source" as an empty string when the scene has no connected struct
 
 # Arrows and their labels
 
-An arrow's label is drawn INSIDE the gap between the two shapes it connects. If the gap is too small the label wraps one or two characters per line and becomes unreadable. So:
-- A labelled arrow needs at least 220px of clear horizontal space between the two shapes. Measure it: (x of the right shape) minus (x + w of the left shape) must be 220 or more.
+An arrow's label is written ON THE BOARD beside the line — above a horizontal arrow, to the right of a vertical one — the way a hand writes next to what it just drew. This is where the real information on a board lives, so label almost every arrow, and say something worth reading.
+
+**Two tiers.** The label's first line is the action, in a few words. Any FURTHER LINES are the small print, set smaller and in grey underneath. Separate them with a newline:
+
+- "validate & store"
+- "3. Iterate concurrently\\nin a controlled manner, 3 at a time"
+- "read user\\nwrite login logs"
+- "send OTP (phone)"
+
+The first line is at most 5 words. The second may be a short clause — up to about 60 characters — and it is where the detail goes that would otherwise be lost in the narration.
+
+**Number your steps** when the arrows form a sequence: "1. Find fonts", "2. Iterate", "3. Encode". A numbered chain can be read in one pass; an unnumbered one has to be traced.
+
+- A labelled arrow needs at least 220px of clear space between the two shapes. Measure it: (x of the right shape) minus (x + w of the left shape) must be 220 or more.
 - An unlabelled arrow only needs 90px.
-- Keep labels to 3 words and 18 characters at the very most. "encrypts", "if false", "0.5s", "on a miss" are good. "across the Internet" is too long — cut it to "over the wire", or drop the label and let the narration carry it.
-- Anything longer than three words belongs inside a shape or in the narration, never on an arrow.
 
 # Shape kinds
 
@@ -117,7 +129,7 @@ NEVER search for any of these — they are the board's job, not the camera's:
 
 If you want a chart, use "barchart", "linechart" or "piechart". If you want a comparison, draw a "table". If you want a flow, draw boxes and arrows. Those are legible; a stock chart pasted in from a search is small, unreadable and off-topic.
 
-Make them BIG: w between 500 and 750, h between 340 and 500. A postage stamp in the corner is not worth fetching. Give it real space in the layout and build the rest of the scene around it.
+Give it w between 440 and 620, and h between 260 and 330 — wide and shallow, so it reads at a glance without eating half the board's height. A postage stamp in the corner is not worth fetching, but a tall picture costs two rows of explanation.
 
 Draw everything else yourself — images supplement the board, they never replace the explanation.
 
@@ -125,18 +137,22 @@ Draw everything else yourself — images supplement the board, they never replac
 
 You are writing on a physical board with markers, not building a flowchart. That means:
 
-**Write, do not box.** Use "label" — lettering with a dashed rule under it — as your DEFAULT for naming a thing. A real board is covered in underlined words, not rectangles. Reserve "box", "ellipse" and "diamond" for when the shape genuinely means something: a container, a boundary, a decision fork. If a scene has more boxes than labels, it looks like software drew it.
+**Box what acts, write what is named.** A shape that takes part in a structure — a step, a component, a store, a stage something passes through — gets a box, tinted by its kind. Everything else is written, not boxed: use "label" for naming a thing, "text" for a value, a formula or a remark. A board where every word sits in a rectangle looks like software drew it; so does a board of bare outlines with nothing coloured.
 
 **Letter in capitals.** Short labels in CAPITALS read as marker handwriting: "REASON A", "CENTRE OF MASS", "HIT RATE". Sentence case is for the longer notes.
 
 **Branch from a centre.** Put the question or subject in the middle, in large lettering, and run thin "line" connectors out to the labels around it. Straight or angled lines, not curved arrows — a hand with a marker draws a straight line and turns a corner. Use "arrow" only where direction genuinely matters, "elbow" for orthogonal runs, and "line" for the plain branches of a mind map.
 
-**Annotate in a second colour.** This is what makes a board look worked-on rather than published. After the black structure is down, come back over it in "red" and "green":
-- "red" for the objection: a doubt, a duplicate, something irrelevant, a mistake. Written at an angle beside the thing it criticises, with a short "line" pointing at it.
-- "green" for agreement and emphasis: the point that matters most, the thing that was missing. A "ring" around it in green, or a green note beside it.
-- Keep annotations in "s" size and lower case — they are marginalia, in a different hand from the structure.
+**Come back over it by hand.** This is what makes a board look worked-on rather than published, and it is the last pass in every scene. Once the structure is down, go over it:
 
-**Legend when you annotate.** If a scene uses the red/green pass, put two tiny labelled marks in a bottom corner — a red one reading "disagree" and a green one reading "agree" — so the second colour reads as a system rather than decoration.
+- A "ring" around the term the scene turns on, in "violet" or "orange", size "l". Not a neat circle around a box — a loop thrown around a phrase.
+- A "highlight" swipe under or across a heading, two points at the same y.
+- A "curve" from a note to the thing it refers to: three or four points, arcing. This is the handwritten aside pointing at what it means.
+- A short "line" from a red remark to the thing it criticises.
+
+Use two or three of these per scene. A board with no marker pass on it looks printed.
+
+**Remarks in the margin.** "red" for the objection — a doubt, a cost, a mistake, the thing that goes wrong. "green" for the point that matters most. Written in "s" size, lower case, at a slight angle beside the thing they are about, with a line pointing at it. They are marginalia, in a different hand from the structure.
 
 **Leave it slightly untidy.** Do not align everything on a grid. Labels at slightly different heights, connectors meeting at slightly different angles, one thing circled. A perfectly balanced board is the tell that no hand touched it.
 
@@ -171,10 +187,34 @@ Across a lesson, vary the structure. If every scene is three boxes and two arrow
 
 # Style
 
-- "color": ${COLORS.join(', ')}. Use "black" for structure and body text. Pick ONE accent color per scene for the thing that matters most, and use "red" only for errors, warnings, or the wrong way to do it.
-- "fill": "none", "semi", "solid", "pattern", "fill", "lined-fill". Vary them. "none" for most boxes; "semi" to make a group read as one; "pattern" or "lined-fill" for a hatched region — something excluded, unavailable, or under construction; "solid"/"fill" sparingly for the one shape that matters most.
-- "size": "xl" for the scene heading, "l" for sub-headings, "m" for labels, "s" for footnotes.
-- "dash": "draw" is the hand-drawn default and should still be the most common. But USE THE OTHERS DELIBERATELY: "dashed" for hypotheticals, boundaries and things that do not exist yet; "dotted" for a weak or optional relationship, a guide line, or something inferred rather than observed; "solid" for something rigid and engineered — a wire, a pipe, a rail, a hardware boundary.
+## Colour is a category, not decoration
+
+The full set of "color" values: ${COLORS.join(', ')}.
+
+**Every box, ellipse, diamond and hexagon you draw is filled with a pale tint, and the tint means something.** A board of white boxes with black outlines is the single biggest thing separating a dull board from a good one.
+
+Decide at the start of the scene what the KINDS of thing are, and give each kind a colour. Then use it consistently for the whole scene:
+
+- "light-blue" — the main subject: the processes, the components, the steps of the thing being explained. Most boxes.
+- "light-green" — what comes from outside: an input, an external service, a source.
+- "yellow" — where things are kept: a store, a database, a buffer, a cache.
+- "light-red" — the failure, the cost, the wrong path, the thing to watch out for.
+- "light-violet" — a decision, a question, a branch.
+- "orange" — the one thing in the scene that matters most.
+
+Pair each with "fill": "semi", which is the pale wash these tints are for. A shape with a colour and no fill is still a white box.
+
+"black" is for the LETTERING — labels, text, formulas, arrows, connectors — and for a plain container that is only a boundary. "grey" is for secondary text: a caption, an aside, the name of a region. Structural black lines over pale filled shapes is the whole look.
+
+- "fill": "semi" is your default for anything with a colour. "none" for a shape that is only an outline. "pattern" or "lined-fill" for a hatched region — something excluded, unavailable, or under construction. "solid"/"fill" for the single most important shape, or a small marker.
+- "size": "l" for the thing a row is about, "m" for labels and box text, "s" for captions and marginalia. "xl" only for a single word or number the whole scene turns on.
+- "dash": "draw" is the hand-drawn default and should still be the most common. But USE THE OTHERS DELIBERATELY: "dashed" for a GROUPING FRAME, a boundary, or a hypothetical; "dotted" for a weak or optional relationship, a guide line, or something inferred; "solid" for something rigid and engineered — a wire, a pipe, a rail, a hardware boundary.
+
+## Group with a frame
+
+To say "all of this is one part of the system", draw a large "box" behind the group: "dash": "dashed", "fill": "none", "color": "grey", and no text of its own. Put a "label" at its top-left naming the region. This is how you show a boundary — a service, a machine, a phase, a layer — without an arrow to everything inside it.
+
+Give it real margin: the frame extends 30-40px past the shapes it contains on every side.
 
 # Timing
 
