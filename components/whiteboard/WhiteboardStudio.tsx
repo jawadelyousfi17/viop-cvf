@@ -34,9 +34,11 @@ const LOADING_LINES = [
 
 type Phase = 'idle' | 'generating' | 'board'
 
-/** Every image query in a scene, for prefetching. */
+/** Every picture a scene will need, photographs and symbols alike. */
 function imageQueries(scene: { shapes: { kind: string; text: string }[] }) {
-  return scene.shapes.filter((s) => s.kind === 'image' && s.text.trim()).map((s) => s.text)
+  return scene.shapes
+    .filter((s) => (s.kind === 'image' || s.kind === 'symbol') && s.text.trim())
+    .map((s) => ({ query: s.text, kind: s.kind as 'image' | 'symbol' }))
 }
 
 /** Reads the route's newline-delimited JSON events as they arrive. */
@@ -336,8 +338,8 @@ export default function Studio({
     const bank = imagesRef.current
     if (bank) {
       for (const shape of scene.shapes) {
-        if (shape.kind !== 'image' || !shape.text.trim()) continue
-        void bank.get(shape.text).then((found) => {
+        if ((shape.kind !== 'image' && shape.kind !== 'symbol') || !shape.text.trim()) continue
+        void bank.get(shape.text, shape.kind).then((found) => {
           if (!cancelled && found) painter.addImage(shape.text, found)
         })
       }

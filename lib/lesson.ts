@@ -77,6 +77,8 @@ export const SHAPE_KINDS = [
   /** Right-angle routed connector, for grids and orthogonal diagrams. */
   'elbow',
   'image',
+  /** A line-art symbol, fetched by name from The Noun Project. */
+  'symbol',
   'icon',
   // Composites: many shapes drawn as one, built from `text`.
   'table',
@@ -387,6 +389,12 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
     if (kind === 'image') {
       w = clamp(Math.max(w, MIN_IMAGE_W), MIN_IMAGE_W, SCENE_W - 80)
       h = clamp(Math.max(h, MIN_IMAGE_H), MIN_IMAGE_H, SCENE_H - 80)
+    }
+    // A symbol is a glyph, not a photograph: it reads at icon size and looks
+    // absurd blown up to fill a row.
+    if (kind === 'symbol') {
+      w = clamp(w, 90, 320)
+      h = clamp(h, 90, 320)
     }
     let x = clamp(num(shape.x, 40), 0, SCENE_W - 24)
     let y = clamp(num(shape.y, 40), 0, SCENE_H - 24)

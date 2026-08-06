@@ -20,28 +20,37 @@ export class ImageBank {
    */
   private failures = 0
 
-  get(query: string): Promise<ImageResult | null> {
+  /**
+   * @param kind `symbol` looks in The Noun Project for a line-art glyph rather
+   *   than in the photo search. Cached under the same key space, since a scene
+   *   never asks for both a photograph and a symbol of the same phrase.
+   */
+  get(query: string, kind: 'image' | 'symbol' = 'image'): Promise<ImageResult | null> {
     const key = query.trim().toLowerCase()
     if (!key) return Promise.resolve(null)
 
     const existing = this.cache.get(key)
     if (existing) return existing
 
-    const pending = this.load(query)
+    const pending = this.load(query, kind)
     this.cache.set(key, pending)
     return pending
   }
 
-  /** Kicks off every image lookup a scene will need, all at once. */
-  prefetch(queries: string[]) {
-    for (const query of queries) void this.get(query).catch(() => null)
+  /** Kicks off every lookup a scene will need, all at once. */
+  prefetch(queries: { query: string; kind: 'image' | 'symbol' }[] | string[]) {
+    for (const entry of queries) {
+      if (typeof entry === 'string') void this.get(entry).catch(() => null)
+      else void this.get(entry.query, entry.kind).catch(() => null)
+    }
   }
 
-  private async load(query: string): Promise<ImageResult | null> {
+  private async load(query: string, kind: 'image' | 'symbol' = 'image'): Promise<ImageResult | null> {
     if (!this.enabled) return null
 
     try {
-      const response = await fetch(`/api/image?q=${encodeURIComponent(query)}`)
+      const endpoint = kind === 'symbol' ? '/api/icon' : '/api/image'
+      const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`)
       if (response.status === 501) {
         this.enabled = false
         return null

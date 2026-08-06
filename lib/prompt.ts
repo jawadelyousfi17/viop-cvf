@@ -21,6 +21,7 @@ Layout rules:
 - 3 or 4 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
 - **Count your rows, not just your shapes.** The board is ${SCENE_H} tall and a row costs about 150. A photograph costs 340 — two rows on its own. So a scene has room for the image plus FOUR OR FIVE more rows, and no more. Six rows of content will not fit and the whole scene gets shrunk to compensate, which is worse than leaving something out.
 - **12 to 16 shapes per scene, counting the diagram's nodes**, arranged in those rows — 3 across is the normal case. A scene with a six-node diagram has six of its budget spent, so it wants another six to ten shapes around it, not another sixteen. Eight shapes is a sketch, not a board: add the numbers, the units, the worked example, the second case, the labels on the parts.
+- **Two to four "symbol" shapes a scene.** They are the cheapest way to stop a board being a wall of rectangles: one beside each label in a row, or one inside each box. A scene with none is almost always a scene of boxes with words in them.
 - Annotations cost nothing. A "ring", "highlight", "curve", "line" or "laser" is drawn over the top of what is already there and takes no row of its own, so it is never the thing to cut. A "ring" goes straight over the shape it circles — give it the same x/y/w/h as that shape and it will be fitted around it.
 - Shapes must NOT overlap. Give boxes at least 40px of breathing room, and leave 60-100px between rows.
 - Keep a 40px margin on all sides. Nothing may extend past the board.
@@ -80,7 +81,8 @@ The first line is at most 5 words. The second may be a short clause — up to ab
 - "elbow" — the same connector routed at RIGHT ANGLES instead. Use it for grids, orthogonal diagrams, circuits, block diagrams and anything laid out on axes, where a curved line looks wrong.
 
 - "image" — a photograph of a real object, fetched from an image search. Never a chart or a diagram. See the section on images below.
-- "icon" — a single large emoji, drawn as a glyph. Put ONE emoji in "text" and give it a box about 120 by 120. Instant, no lookup, and it makes a board of rectangles read as a board about something: a lock on the encrypted box, a clock on the slow path, a warning on the failure case, a brain, a chip, a leaf, a rocket. Use several per lesson, beside the labels they belong to.
+- "symbol" — a line-art glyph of a thing, fetched by name. Put the THING in "text", one or two words, no adjectives and no "icon": "router", "firewall", "database", "satellite", "kidney", "turbine", "handshake". This is the one to reach for when the subject is technical or abstract and a photograph would just be a black box with lights on it. Give it a square-ish box, 120 to 260 a side. Use several a scene — beside a label, inside a box, at the head of a column — and they do for a systems board what an emoji cannot.
+- "icon" — a single large emoji. Reach for "symbol" first: an emoji is a cartoon and there are only a few hundred of them, so it fits a mood but rarely fits a subject. Keep emoji for the human things — a person, a clock, a warning — and use a symbol for anything technical.
 
 These four build a real structure out of many cells instead of one box with text crammed in it. Their content goes in "text": NEWLINES separate rows, PIPES separate columns. Give them a real box — 400 to 800 wide.
 
@@ -111,7 +113,7 @@ Its "anchor" is the phrase you are saying as you point. Give it a colour of "red
 
 # Images
 
-EVERY SCENE MUST CONTAIN AN "image". Not most scenes — every single one. A scene of drawn boxes with no photograph in it is not finished. If a lesson has six scenes it has at least six images.
+EVERY SCENE MUST CONTAIN AN "image". Not most scenes — every single one. A "symbol" does not count: a symbol is a drawing of an idea, a photograph is evidence that the thing is real, and a scene wants both. A scene of drawn boxes with no photograph in it is not finished. If a lesson has six scenes it has at least six images.
 
 A second image in a scene is welcome wherever a comparison, a before-and-after, or a second real example would help.
 
@@ -181,7 +183,7 @@ A board of labelled boxes teaches almost nothing — it is a list wearing a cost
 - **A formula or expression** as a "text" shape: "z = Wx + b", "t = distance / speed".
 - **A comparison**, laid out as two labelled columns of small text so the difference is visible at a glance.
 - **A highlight** over the term the whole scene turns on.
-- **Icons** beside your labels, and a real photograph or animation where one exists.
+- **Symbols** beside your labels — a drawn glyph of the actual thing, which is what makes a systems board readable at a glance — and a real photograph where one exists.
 
 Across a lesson, vary the structure. If every scene is three boxes and two arrows, you have not taught — you have made five copies of the same slide.
 

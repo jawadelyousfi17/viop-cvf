@@ -419,7 +419,7 @@ export class BoardPainter {
 
     if (shape.kind === 'arrow' || shape.kind === 'elbow') {
       this.paintArrow(sceneIndex, shape, id, offsetY, animate)
-    } else if (shape.kind === 'image') {
+    } else if (shape.kind === 'image' || shape.kind === 'symbol') {
       this.paintImage(shape, id, offsetY, animate, sceneIndex, scene)
     } else if (shape.kind === 'label') {
       this.paintLabel(shape, id, offsetY, animate)
