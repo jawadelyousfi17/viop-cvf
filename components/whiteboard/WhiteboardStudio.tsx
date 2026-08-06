@@ -14,6 +14,7 @@ import { CHART_KINDS, chartKey } from '@/lib/chart'
 import { renderChart } from '../charts'
 import { Narrator } from '../narrator'
 import { parseScript } from '@/lib/script-import'
+import type { SavedScript } from '@/app/api/scripts/route'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
 // the critical path for the topic screen.
@@ -814,6 +815,37 @@ function TopicScreen({
   chooser: React.ReactNode
 }) {
   const scenes = script.trim() ? parseScript(script).length : 0
+  const [saved, setSaved] = useState<SavedScript[]>([])
+  const [loading, setLoading] = useState<string | null>(null)
+
+  // The scripts sitting in scripts/. Fetched once, and a failure just means the
+  // row of buttons doesn't appear.
+  useEffect(() => {
+    let live = true
+    void fetch('/api/scripts')
+      .then((r) => r.json())
+      .then((data) => {
+        if (live) setSaved(data.scripts ?? [])
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+
+  /** Loads a saved script and sends it straight off to be drawn. */
+  async function runSaved(name: string) {
+    setLoading(name)
+    try {
+      const response = await fetch(`/api/scripts?name=${encodeURIComponent(name)}`)
+      if (!response.ok) throw new Error(String(response.status))
+      const data = (await response.json()) as { text: string }
+      setScript(data.text)
+      onSubmit(topic, data.text)
+    } catch {
+      setLoading(null)
+    }
+  }
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
       <div className="w-full max-w-2xl">
@@ -830,6 +862,49 @@ function TopicScreen({
         </p>
 
         <div className="mt-8">{chooser}</div>
+
+        {/* Scripts already written, ready to draw. */}
+        {saved.length > 0 && (
+          <div className="mt-6">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
+              Saved scripts
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {saved.map((entry) => (
+                <button
+                  key={entry.name}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void runSaved(entry.name)}
+                  className="group flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="text-sm font-medium text-zinc-800">{entry.title}</span>
+                  <span className="text-xs text-zinc-400">
+                    {loading === entry.name ? 'sending…' : `${entry.scenes} scenes`}
+                  </span>
+                  {/* Whether the narration is already recorded. A script with
+                      its voice on disk starts instantly and costs nothing. */}
+                  {loading !== entry.name &&
+                    (entry.recorded >= entry.scenes ? (
+                      <span
+                        title="Narration already recorded"
+                        className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
+                      >
+                        voice ready
+                      </span>
+                    ) : entry.recorded > 0 ? (
+                      <span
+                        title="Some scenes still need synthesising"
+                        className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+                      >
+                        voice {entry.recorded}/{entry.scenes}
+                      </span>
+                    ) : null)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <form
           onSubmit={(event) => {

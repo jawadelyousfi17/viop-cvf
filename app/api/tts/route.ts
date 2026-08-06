@@ -1,6 +1,13 @@
 import OpenAI from 'openai'
 import { cacheKey, readSpeech, writeSpeech } from '@/lib/tts-cache'
 import {
+  ELEVENLABS_DEFAULT_MODEL,
+  FISH_DEFAULT_MODEL,
+  OPENAI_DEFAULT_MODEL,
+  resolveProvider,
+  speechIdentity,
+} from '@/lib/tts-identity'
+import {
   DEFAULT_FISH_VOICE,
   DEFAULT_VOICE_ID,
   fishVoiceFor,
@@ -10,14 +17,12 @@ import {
 
 export const maxDuration = 120
 
-const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini-tts'
 const OPENAI_DEFAULT_VOICE = 'sage'
 
 // "EVE". Alternatives: Hope uYXf8XasLslADfZ2MB4u, Ivy MClEFoImJXBTgLwdLI5n.
 const ELEVENLABS_DEFAULT_VOICE = DEFAULT_VOICE_ID
 // The quality model, not the latency-optimised turbo/flash ones. Scenes are
 // prefetched a scene ahead, so the extra generation time is hidden anyway.
-const ELEVENLABS_DEFAULT_MODEL = 'eleven_v3'
 
 /**
  * Tuned for a teacher reading aloud rather than an announcer.
@@ -61,21 +66,6 @@ const VOICE_INSTRUCTIONS =
 /** OpenAI caps a single speech request at 4096 characters. */
 const MAX_INPUT = 4000
 
-/** Fish's own default; `s1` is the older, cheaper one. */
-const FISH_DEFAULT_MODEL = 's2.1-pro'
-
-type Provider = 'openai' | 'elevenlabs' | 'fish'
-
-const PROVIDERS = new Set<Provider>(['openai', 'elevenlabs', 'fish'])
-
-function resolveProvider(): Provider {
-  const configured = process.env.TTS_PROVIDER?.toLowerCase()
-  if (PROVIDERS.has(configured as Provider)) return configured as Provider
-  // Nothing pinned: use whichever key is present, preferring OpenAI so a single
-  // key is enough to run the whole app.
-  if (process.env.OPENAI_API_KEY) return 'openai'
-  return process.env.FISH_API_KEY ? 'fish' : 'elevenlabs'
-}
 
 /**
  * Narrates one scene. Returns mp3 bytes, or 501 when no usable key is
@@ -100,24 +90,9 @@ export async function POST(request: Request) {
 
   // Only ids from the allowlist are honoured, whichever provider runs, so this
   // can't be used to bill arbitrary voices to the account's key.
-  const voice =
-    (provider === 'openai'
-      ? openAIVoiceFor(voiceId)
-      : provider === 'fish'
-        ? fishVoiceFor(voiceId)
-        : isKnownVoice(voiceId)
-          ? voiceId
-          : undefined) ?? 'default'
-
-  const model =
-    provider === 'openai'
-      ? (process.env.OPENAI_TTS_MODEL ?? OPENAI_DEFAULT_MODEL)
-      : provider === 'fish'
-        ? (process.env.FISH_MODEL ?? FISH_DEFAULT_MODEL)
-        : (process.env.ELEVENLABS_MODEL_ID ?? ELEVENLABS_DEFAULT_MODEL)
-
   // Nothing about a recording changes between runs, and testing a board means
   // playing the same script over and over. Pay for it once.
+  const { voice, model } = speechIdentity(voiceId)
   const key = cacheKey({ text: input, provider, voice, model })
   const cached = await readSpeech(key)
   if (cached) {

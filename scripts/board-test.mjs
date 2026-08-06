@@ -26,7 +26,11 @@ const script = await readFile(file, 'utf8')
 
 // What the script should come back as, so a dropped scene is visible.
 const wanted = await (
-  await fetch(`http://localhost:${PORT}/api/parse?f=${encodeURIComponent(file)}`)
+  await fetch(`http://localhost:${PORT}/api/parse-text`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: script }),
+  })
 ).json()
 
 const started = Date.now()

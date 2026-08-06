@@ -1,3 +1,5 @@
+# DNS — how a name becomes an address
+
 Every website you've ever visited has a name. But the internet doesn't actually understand names. It understands numbers.
 
 Type "wikipedia dot org" into your browser and hit enter. In the fraction of a second before the page appears, your computer has to answer one critical question: where, exactly, is that? Not the name — the address. Something like two-oh-eight dot eighty dot one-fifty-four dot two-twenty-four. That's an IP address, and it's the only thing routers and servers on the internet really know how to work with.
