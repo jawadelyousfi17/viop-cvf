@@ -295,6 +295,40 @@ What was said:
 ${lesson.scenes.map((scene) => scene.narration).join(' ').slice(0, 2500)}`
 }
 
+/**
+ * Drawing the board for a script that is already written.
+ *
+ * The other direction from the usual one. Normally the model decides both what
+ * is said and what is drawn; here the words are fixed and only the board is
+ * open. That makes one instruction matter more than everything else in this
+ * file: the narration has to come back byte for byte. Every anchor is a
+ * substring of it, so a model that "improves" the punctuation silently breaks
+ * the timing for the whole scene.
+ *
+ * Scene count comes from the script, not from the guidance — a fourteen-block
+ * script is a fourteen-scene lesson.
+ */
+export function scriptPrompt(blocks: string[], history: TaughtLesson[] = []) {
+  const scenes = blocks
+    .map((block, index) => `--- SCENE ${index + 1} ---\n${block}`)
+    .join('\n\n')
+
+  return `${historyPreamble(history)}Below is a finished script, already written and already timed by whoever wrote it. Your job is only to draw the board for it.
+
+**Produce exactly ${blocks.length} scenes**, one per block, in this order. Not five to seven — ${blocks.length}.
+
+**Copy each block into its scene's "narration" character for character.** Do not rewrite it, shorten it, expand it, fix its punctuation or change a single word. Every "anchor" you write has to appear verbatim inside it, so any edit you make to the narration breaks the timing of the shapes you drew for it.
+
+Everything else is yours: the shapes, the diagram, the colours, the layout, when each thing appears. Read each block, work out what it is actually claiming, and build the board that shows it.
+
+Two things to watch, given the words are fixed:
+
+- The anchors have to come from the words as written. Find the phrase in the block that introduces each shape and copy it exactly — do not invent a phrase you would have preferred.
+- A block that says a number wants that number on the board. A block that draws a comparison wants both sides drawn. You cannot add a sentence to make a shape make sense, so the board has to carry it.
+
+${scenes}`
+}
+
 export function userPrompt(topic: string, history: TaughtLesson[] = []) {
   // The image requirement is repeated here, in the last thing the model reads
   // before it starts writing. Stated only in the system prompt it was skipped

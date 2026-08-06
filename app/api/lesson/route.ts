@@ -1,9 +1,14 @@
 import { isEngine, type Engine } from '@/lib/engines'
+import { parseScript } from '@/lib/script-import'
 import { DEFAULT_PROVIDER, isProvider } from '@/lib/providers'
 import { LlmError, streamStructured } from '@/lib/llm'
 import { LESSON_JSON_SCHEMA as WHITEBOARD_SCHEMA } from '@/lib/lesson'
 import { LessonStreamParser as WhiteboardParser } from '@/lib/lesson-stream'
-import { SYSTEM_PROMPT as WHITEBOARD_PROMPT, userPrompt as whiteboardUser } from '@/lib/prompt'
+import {
+  SYSTEM_PROMPT as WHITEBOARD_PROMPT,
+  scriptPrompt as whiteboardScript,
+  userPrompt as whiteboardUser,
+} from '@/lib/prompt'
 import { LESSON_JSON_SCHEMA as SLIDES_SCHEMA } from '@/lib/template-lesson'
 import { LessonStreamParser as SlidesParser } from '@/lib/template-stream'
 import { SYSTEM_PROMPT as SLIDES_PROMPT, userPrompt as slidesUser } from '@/lib/template-prompt'
@@ -24,6 +29,9 @@ function engineConfig(engine: Engine) {
     return {
       system: WHITEBOARD_PROMPT,
       user: whiteboardUser,
+      // Only the board engines can be given a finished script: the others
+      // write their own narration as part of planning a slide or an animation.
+      script: whiteboardScript,
       schema: WHITEBOARD_SCHEMA,
       parser: () => new WhiteboardParser(),
     }
@@ -59,36 +67,58 @@ function engineConfig(engine: Engine) {
  */
 export async function POST(request: Request) {
   let topic: unknown
+  let script: unknown
   let history: unknown
   let engine: unknown
   let provider: unknown
   try {
-    ;({ topic, history, engine, provider } = await request.json())
+    ;({ topic, script, history, engine, provider } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
 
-  if (typeof topic !== 'string' || !topic.trim()) {
-    return Response.json({ error: 'Give me a topic to teach.' }, { status: 400 })
+  const hasScript = typeof script === 'string' && script.trim().length > 0
+
+  if (!hasScript && (typeof topic !== 'string' || !topic.trim())) {
+    return Response.json({ error: 'Give me a topic to teach, or a script to draw.' }, { status: 400 })
   }
-  if (topic.length > 500) {
+  if (typeof topic === 'string' && topic.length > 500) {
     return Response.json(
       { error: 'That topic is too long — keep it under 500 characters.' },
+      { status: 400 }
+    )
+  }
+  // A long script is a long lesson, not an error, but there is a ceiling on
+  // what one request can plan coherently.
+  if (hasScript && (script as string).length > 24000) {
+    return Response.json(
+      { error: 'That script is too long — keep it under 24,000 characters.' },
       { status: 400 }
     )
   }
 
   const config = engineConfig(isEngine(engine) ? engine : 'slides')
 
-  const userPrompt = config.user(
-    topic.trim(),
-    Array.isArray(history)
-      ? history
-          .filter((h) => h && typeof h.title === 'string')
-          .slice(-6)
-          .map((h) => ({ title: String(h.title), summary: String(h.summary ?? '') }))
-      : []
-  )
+  const past = Array.isArray(history)
+    ? history
+        .filter((h) => h && typeof h.title === 'string')
+        .slice(-6)
+        .map((h) => ({ title: String(h.title), summary: String(h.summary ?? '') }))
+    : []
+
+  let userPrompt: string
+  if (hasScript && config.script) {
+    const blocks = parseScript(script as string).map((scene) => scene.narration)
+    if (!blocks.length) {
+      return Response.json(
+        { error: 'No narration found in that script. Separate scenes with blank lines.' },
+        { status: 400 }
+      )
+    }
+    userPrompt = config.script(blocks, past)
+  } else {
+    userPrompt = config.user(String(topic ?? '').trim(), past)
+  }
 
   // Started before the response stream opens, so a missing key or a rejected
   // request is still an error page rather than an empty lesson.

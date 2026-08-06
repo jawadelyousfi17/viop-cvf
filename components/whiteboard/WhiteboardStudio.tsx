@@ -13,6 +13,7 @@ import { ImageBank } from '../images'
 import { CHART_KINDS, chartKey } from '@/lib/chart'
 import { renderChart } from '../charts'
 import { Narrator } from '../narrator'
+import { parseScript } from '@/lib/script-import'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
 // the critical path for the topic screen.
@@ -74,6 +75,8 @@ export default function Studio({
 }) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [topic, setTopic] = useState('')
+  /** A finished script to draw, instead of a topic to invent one for. */
+  const [script, setScript] = useState('')
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** The lesson title, shown on the loading screen before scene one arrives. */
@@ -196,9 +199,10 @@ export default function Studio({
     void import('@/lib/demo-lesson').then(({ DEMO_LESSON }) => start(DEMO_LESSON))
   }, [start])
 
-  async function generate(nextTopic: string) {
+  async function generate(nextTopic: string, script?: string) {
     const trimmed = nextTopic.trim()
-    if (!trimmed) return
+    const scripted = script?.trim() ?? ''
+    if (!trimmed && !scripted) return
 
     const runId = ++runIdRef.current
     const isCurrent = () => runIdRef.current === runId
@@ -225,7 +229,7 @@ export default function Studio({
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, history, engine, provider }),
+        body: JSON.stringify({ topic: trimmed, script: scripted, history, engine, provider }),
       })
 
       if (!response.ok || !response.body) {
@@ -249,7 +253,7 @@ export default function Studio({
           if (!started) {
             started = true
             start({
-              title: pendingMeta?.title || trimmed,
+              title: pendingMeta?.title || trimmed || 'Your script',
               summary: pendingMeta?.summary ?? '',
               scenes: [event.scene],
             })
@@ -551,6 +555,8 @@ export default function Studio({
         topic={topic}
         setTopic={setTopic}
         onSubmit={generate}
+        script={script}
+        setScript={setScript}
         busy={phase === 'generating'}
         pendingTitle={pendingTitle}
         error={error}
@@ -788,6 +794,8 @@ function TopicScreen({
   topic,
   setTopic,
   onSubmit,
+  script,
+  setScript,
   busy,
   pendingTitle,
   error,
@@ -795,12 +803,15 @@ function TopicScreen({
 }: {
   topic: string
   setTopic: (value: string) => void
-  onSubmit: (topic: string) => void
+  onSubmit: (topic: string, script?: string) => void
+  script: string
+  setScript: (value: string) => void
   busy: boolean
   pendingTitle: string | null
   error: string | null
   chooser: React.ReactNode
 }) {
+  const scenes = script.trim() ? parseScript(script).length : 0
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
       <div className="w-full max-w-2xl">
@@ -812,7 +823,8 @@ function TopicScreen({
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-zinc-500">
           Name a topic and I&rsquo;ll work through it at the whiteboard — drawing as I talk,
-          the way a good teacher does.
+          the way a good teacher does. Or give me a script you have already written, and I
+          will draw the board for it and leave your words alone.
         </p>
 
         <div className="mt-8">{chooser}</div>
@@ -820,7 +832,7 @@ function TopicScreen({
         <form
           onSubmit={(event) => {
             event.preventDefault()
-            onSubmit(topic)
+            onSubmit(topic, script)
           }}
           className="mt-6"
         >
@@ -836,12 +848,37 @@ function TopicScreen({
             />
             <button
               type="submit"
-              disabled={busy || !topic.trim()}
+              disabled={busy || (!topic.trim() && !script.trim())}
               className="shrink-0 rounded-xl bg-zinc-900 px-6 py-3.5 text-[15px] font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy ? 'Preparing…' : 'Teach me'}
+              {busy ? 'Preparing…' : scenes ? `Draw ${scenes} scenes` : 'Teach me'}
             </button>
           </div>
+
+          {/* A script, if there is one. Scene count comes from the script, so a
+              fourteen-block script is a fourteen-scene lesson. */}
+          <details className="mt-3 group" open={Boolean(script.trim())}>
+            <summary className="cursor-pointer select-none text-sm text-zinc-500 transition hover:text-zinc-700">
+              {scenes
+                ? `Script — ${scenes} scene${scenes === 1 ? '' : 's'}, drawn as written`
+                : 'Have a script already? Paste it instead'}
+            </summary>
+            <textarea
+              value={script}
+              onChange={(event) => setScript(event.target.value)}
+              disabled={busy}
+              rows={8}
+              placeholder={
+                'Paste the whole script. One scene per block — blank lines, headed sections\nor blockquotes all work, and there is no limit on how many.\n\nYour words are copied through exactly; only the drawing is invented.'
+              }
+              className="mt-2 w-full resize-y rounded-xl border border-zinc-200 bg-white px-4 py-3 font-mono text-[13px] leading-relaxed text-zinc-800 shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/5 disabled:opacity-60"
+            />
+            {scenes > 0 && (
+              <p className="mt-1.5 text-xs text-zinc-500">
+                The topic box becomes optional — it only names the lesson.
+              </p>
+            )}
+          </details>
         </form>
 
         {busy ? (
