@@ -117,32 +117,52 @@ interface Pending {
   row: number
 }
 
-/** Splits `text @blue = a 1, b 2 | anchor` into its parts. */
-function split(rest: string) {
+/**
+ * Splits `text @blue = a 1, b 2 | anchor` into its parts.
+ *
+ * Each separator is deliberately narrow about when it counts, because the
+ * alternative is a language that quietly eats content. `=` is only data on a
+ * chart, so a formula can say `z = Wx + b`. `@` is only a colour when it names
+ * one, so an address survives. `|` is the last one on the line, so a table's
+ * own columns are not mistaken for an anchor.
+ */
+function split(rest: string, kind: ShapeKind) {
   let text = rest
   let anchor = ''
   let colour = ''
   let data = ''
 
-  const bar = text.indexOf('|')
+  // Anchors sit at the end, and cells are written with commas, so the last
+  // pipe is the separator even when the text contains others.
+  const bar = text.lastIndexOf('|')
   if (bar !== -1) {
     anchor = text.slice(bar + 1).trim()
     text = text.slice(0, bar)
   }
 
-  const equals = text.indexOf('=')
-  if (equals !== -1) {
-    data = text.slice(equals + 1).trim()
-    text = text.slice(0, equals)
+  if (CHARTS.has(kind)) {
+    const equals = text.indexOf('=')
+    if (equals !== -1) {
+      data = text.slice(equals + 1).trim()
+      text = text.slice(0, equals)
+    }
   }
 
-  text = text.replace(/@([a-z]+)/i, (_, name) => {
-    colour = String(name).toLowerCase()
+  text = text.replace(/@([a-z-]+)/i, (whole, name) => {
+    const found = String(name).toLowerCase()
+    if (!(found in COLOURS)) return whole
+    colour = found
     return ''
   })
 
   return { text: text.trim(), anchor, colour, data }
 }
+
+/** Kinds that read `= label value, ...` as their numbers. */
+const CHARTS = new Set<ShapeKind>(['barchart', 'linechart', 'piechart'])
+
+/** Kinds built from cells: commas are columns, ` / ` is a new row. */
+const CELLED = new Set<ShapeKind>(['table', 'array'])
 
 /** `one 3, two 7` — a label and a number per entry. */
 function parseData(source: string) {
@@ -288,9 +308,18 @@ export function compileChalk(source: string): ChalkResult {
       body = body.slice(named[0].length)
     }
 
-    const parts = split(body)
+    const parts = split(body, kind)
     const shape = blank(id, kind)
     shape.text = parts.text.replace(/\s+\/\s+/g, '\n')
+    // Cells are written with commas and drawn with pipes. The board's own
+    // format uses pipes, which is exactly the character an anchor is marked
+    // with — so the two never meet in what someone actually types.
+    if (CELLED.has(kind)) {
+      shape.text = shape.text
+        .split('\n')
+        .map((row) => row.split(',').map((cell) => cell.trim()).join('|'))
+        .join('\n')
+    }
     shape.anchor = parts.anchor
 
     if (parts.colour) {

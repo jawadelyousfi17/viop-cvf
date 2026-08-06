@@ -21,10 +21,11 @@ export const CHALK_SYSTEM = `You draw boards. You write them in Chalk, a small l
 
 Everything after the kind is optional:
 - \`@blue\` colours it. One of: blue green red violet yellow orange grey.
-- \`| words\` is the ANCHOR — see below. This is the most important thing on the line.
+- \`| words\` at the END of the line is the ANCHOR — see below. This is the most important thing on the line.
 - \`#name\` right after the kind gives it a name, so an arrow can point at it: \`box #cpu CORE\`
 - \` / \` inside text is a line break: \`box CORE / 0.3 ns\`
-- \`= a 1, b 2\` is chart data.
+- \`= a 1, b 2\` is chart data. Only \`bar\`, \`plot\` and \`pie\` read it, so any other
+  line can contain an equals sign: \`txt z = Wx + b\` is fine.
 
 # Kinds
 
@@ -36,8 +37,10 @@ note                               a sticky note, for an aside
 img <search query>                 a PHOTOGRAPH of a real thing. Query ends in "photograph".
 sym <thing>                        a line-art symbol, fetched by name: router, kidney, turbine
 ico <emoji>                        one emoji
-tbl a|b\\nc|d                       a table. First line is the header.
-arr 42|17|8|99                     a row of cells with indices — arrays, memory, buffers
+tbl Op, Avg / Lookup, O(1)         a table. Commas are columns, \` / \` is a new row.
+                                   The first row is the header.
+arr 42, 17, 8, 99                  a row of cells with indices drawn under them —
+                                   arrays, memory, buffers, a tape
 stk top / next / bottom            stacked layers
 bar plot pie                       charts. Put the numbers in \`= label value, ...\`
 ring                               circles whatever was written on the line before it
