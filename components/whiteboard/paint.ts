@@ -1307,14 +1307,21 @@ export class BoardPainter {
    * Traces one shape at a time. A teacher draws one thing then the next; two
    * shapes appearing at once reads as a machine again. When the queue backs up
    * behind the narration, each trace speeds up rather than falling behind.
+   *
+   * `speed` multiplies the duration, so a deeper queue means a shorter trace.
+   * It used to divide it, which meant a busy board drew *slower* and fell
+   * further behind the voice with every shape — invisible at nine shapes a
+   * scene and very visible at twenty.
    */
   private async drainQueue() {
     this.tracing = true
 
     while (this.queue.length) {
       const job = this.queue.shift()!
-      const rush = Math.min(3, this.queue.length)
-      await this.trace(job, 1 / (1 + rush * 0.6))
+      // Deeper cap than before, because a scene with a diagram queues a node
+      // and its arrows on the same word.
+      const rush = Math.min(8, this.queue.length)
+      await this.trace(job, 1 / (1 + rush * 0.55))
     }
 
     this.tracing = false
@@ -1324,7 +1331,7 @@ export class BoardPainter {
   private trace(job: TraceJob, speed: number) {
     return new Promise<void>((resolve) => {
       const length = pathLength(job.path)
-      const duration = Math.max(220, Math.min(950, length * 1.15)) / speed
+      const duration = Math.max(90, Math.min(950, length * 1.15) * speed)
       const start = performance.now()
 
       const step = (now: number) => {
