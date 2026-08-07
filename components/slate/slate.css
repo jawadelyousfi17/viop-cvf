@@ -1,0 +1,559 @@
+/**
+ * Slate's board, as a stylesheet.
+ *
+ * Scoped under .slate so it can live in an app that already has a design of its
+ * own. Everything is variables at the top: recolouring the whole engine, light
+ * to dark or one palette to another, is the first block of this file.
+ */
+
+.slate {
+  --slate: #20302e;
+  --slate-deep: #182422;
+  --slate-edge: #0f1817;
+  --chalk: #ede8da;
+  --chalk-soft: #b6c0ba;
+  --chalk-faint: #6f817c;
+  --rule: rgba(237, 232, 218, 0.16);
+  --c-blue: #9fc2e8;
+  --c-green: #9bd0a2;
+  --c-red: #e39b96;
+  --c-violet: #bca5e6;
+  --c-yellow: #e3ce92;
+  --c-orange: #e0b084;
+  --c-grey: #9aaca7;
+  --draw: 380ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  background: var(--slate);
+  color: var(--chalk);
+  font-family: 'IBM Plex Sans Condensed', ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.slate .mono {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* ---------- the board ---------- */
+.slate-board {
+  overflow: auto;
+  padding: 34px 30px 28px;
+  background-image:
+    radial-gradient(circle at 20% 16%, rgba(237, 232, 218, 0.05), transparent 42%),
+    radial-gradient(circle at 80% 74%, rgba(237, 232, 218, 0.035), transparent 46%);
+}
+.slate .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 26px;
+}
+.slate .row:last-child {
+  margin-bottom: 0;
+}
+
+/* Everything drawable fades and rises onto its beat. */
+.slate [data-beat] {
+  opacity: 0;
+  transform: translateY(5px);
+  transition:
+    opacity var(--draw) var(--ease),
+    transform var(--draw) var(--ease),
+    filter var(--draw) var(--ease);
+}
+.slate [data-beat].on {
+  opacity: 1;
+  transform: none;
+}
+/* Carried from an earlier scene: present, but not what this scene is about. */
+.slate .ghost.on {
+  opacity: 0.45;
+  filter: saturate(0.35);
+}
+.slate .marked-dim.on {
+  opacity: 0.3;
+  filter: saturate(0.2);
+}
+.slate .marked-hl {
+  background: rgba(227, 206, 146, 0.14) !important;
+  border-color: var(--c-yellow) !important;
+}
+.slate .marked-ring {
+  outline: 2px dashed var(--c-yellow);
+  outline-offset: 6px;
+  border-radius: 6px;
+}
+
+/* ---------- shapes ---------- */
+.slate .node {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: min(300px, 80vw);
+}
+.slate .shape {
+  position: relative;
+  border: 1.5px solid var(--chalk-soft);
+  border-radius: 3px;
+  padding: 12px 14px;
+  background: rgba(237, 232, 218, 0.03);
+  min-width: 150px;
+}
+.slate .shape.k-actor {
+  border-radius: 26px;
+}
+.slate .shape.k-store {
+  border-radius: 3px / 14px;
+}
+.slate .shape.k-choice {
+  border-left-width: 5px;
+}
+.slate .shape.k-step {
+  border-left: 5px solid var(--chalk-soft);
+}
+.slate .kindtag {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  display: block;
+  margin-bottom: 5px;
+}
+.slate .label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  display: block;
+}
+.slate .sub {
+  font-size: 12.5px;
+  color: var(--chalk-soft);
+  margin-top: 3px;
+  display: block;
+}
+/* The stat slot: the number, set large, inside the thing it describes. */
+.slate .stat {
+  display: block;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--rule);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 16px;
+}
+.slate .stat i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--chalk-faint);
+  display: block;
+  letter-spacing: 0.05em;
+}
+.slate .children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+.slate .children .shape {
+  min-width: 0;
+  padding: 8px 10px;
+  background: rgba(237, 232, 218, 0.05);
+}
+.slate .children .label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.slate .children .kindtag {
+  display: none;
+}
+/* An attached list: full width under whatever else is in the box. */
+.slate .inner-txt {
+  flex: 1 0 100%;
+  font-size: 12px;
+  color: var(--chalk-soft);
+  border-top: 1px dashed var(--rule);
+  padding-top: 7px;
+  white-space: pre-line;
+}
+.slate .note {
+  margin: 0 10px;
+  padding: 8px 11px;
+  border: 1px solid var(--rule);
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
+  font-size: 12.5px;
+  color: var(--chalk-soft);
+  background: rgba(237, 232, 218, 0.04);
+}
+.slate .note::before {
+  content: 'note';
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* ---------- arrows ---------- */
+.slate .arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 38px;
+  width: 120px;
+  flex: 0 0 auto;
+}
+.slate .arrow .alabel {
+  font-size: 11.5px;
+  color: var(--chalk-soft);
+  text-align: center;
+  line-height: 1.25;
+}
+.slate .arrow svg {
+  width: 100%;
+  height: 12px;
+  overflow: visible;
+}
+.slate .arrow path,
+.slate .arrow line {
+  stroke: var(--chalk-soft);
+  stroke-width: 1.4;
+  fill: none;
+  stroke-linecap: round;
+}
+.slate .arrow.dashed line {
+  stroke-dasharray: 5 4;
+}
+
+/* ---------- structures ---------- */
+.slate .stk {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: min(330px, 84vw);
+}
+.slate .stk .layer {
+  border: 1.5px solid var(--chalk-soft);
+  background: rgba(237, 232, 218, 0.04);
+  padding: 9px 12px;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+.slate .arr {
+  display: flex;
+}
+.slate .arr .cell {
+  border: 1.5px solid var(--chalk-soft);
+  border-right-width: 0;
+  padding: 9px 13px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 14px;
+  text-align: center;
+}
+.slate .arr .cell:last-child {
+  border-right-width: 1.5px;
+}
+.slate .arr .cell i {
+  display: block;
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--chalk-faint);
+  margin-top: 3px;
+}
+.slate table.tbl {
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.slate table.tbl th,
+.slate table.tbl td {
+  border: 1px solid var(--rule);
+  padding: 7px 11px;
+  text-align: left;
+}
+.slate table.tbl th {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+}
+.slate table.tbl td.mono {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+.slate .chart {
+  width: min(360px, 86vw);
+}
+.slate .chart .ctitle {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  margin-bottom: 9px;
+}
+.slate .chart .barrow {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 9px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.slate .chart .track {
+  height: 11px;
+  background: rgba(237, 232, 218, 0.07);
+}
+.slate .chart .fill {
+  height: 100%;
+  background: var(--chalk-soft);
+  transform-origin: left;
+  transition: transform 500ms var(--ease);
+}
+.slate .chart .val {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--chalk-faint);
+}
+.slate pre.code {
+  margin: 0;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--slate-edge);
+  padding: 12px 14px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--chalk-soft);
+  overflow-x: auto;
+  max-width: min(460px, 88vw);
+}
+.slate pre.code .hlline {
+  display: block;
+  background: rgba(188, 165, 230, 0.16);
+  color: var(--chalk);
+  margin: 0 -14px;
+  padding: 0 14px;
+  border-left: 2px solid var(--c-violet);
+}
+
+/* ---------- media and lettering ---------- */
+.slate .sym {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 106px;
+  margin: 0;
+}
+.slate .sym svg {
+  width: 54px;
+  height: 54px;
+  stroke: var(--chalk-soft);
+  stroke-width: 1.3;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.slate .sym span {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  text-align: center;
+}
+.slate .ico {
+  font-size: 38px;
+  line-height: 1;
+}
+.slate .photo {
+  width: 230px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 8px;
+  background: rgba(15, 24, 23, 0.55);
+  margin: 0;
+}
+.slate .photo .frame {
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(237, 232, 218, 0.045) 0 6px,
+    transparent 6px 12px
+  );
+}
+.slate .photo .frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.slate .photo .frame svg {
+  width: 60%;
+  height: 60%;
+  stroke: var(--chalk-faint);
+  stroke-width: 1.2;
+  fill: none;
+}
+.slate .photo figcaption {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  margin-top: 7px;
+}
+.slate .callout {
+  max-width: 620px;
+  margin: 0 auto;
+  text-align: center;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: clamp(19px, 2.4vw, 27px);
+  line-height: 1.25;
+  border-top: 1px solid var(--rule);
+  padding-top: 18px;
+}
+.slate .callout small {
+  display: block;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  margin-bottom: 8px;
+}
+.slate .lab {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 24px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 5px;
+}
+
+/* ---------- colour roles ---------- */
+.slate .c-blue {
+  --c: var(--c-blue);
+}
+.slate .c-green {
+  --c: var(--c-green);
+}
+.slate .c-red {
+  --c: var(--c-red);
+}
+.slate .c-violet {
+  --c: var(--c-violet);
+}
+.slate .c-yellow {
+  --c: var(--c-yellow);
+}
+.slate .c-orange {
+  --c: var(--c-orange);
+}
+.slate .c-grey {
+  --c: var(--c-grey);
+}
+.slate [class*='c-'] .shape,
+.slate [class*='c-'].shape {
+  border-color: var(--c, var(--chalk-soft));
+}
+.slate [class*='c-'] .label,
+.slate [class*='c-'].label {
+  color: var(--c, var(--chalk));
+}
+.slate [class*='c-'] .layer {
+  border-color: var(--c, var(--chalk-soft));
+}
+.slate [class*='c-'] .fill {
+  background: var(--c, var(--chalk-soft));
+}
+.slate [class*='c-'] .cell {
+  border-color: var(--c, var(--chalk-soft));
+}
+
+/* ---------- the narration rail ---------- */
+.slate-rail {
+  overflow: auto;
+  padding: 12px 0;
+  background: var(--slate-deep);
+  border-right: 1px solid var(--rule);
+}
+.slate .railhead {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  padding: 0 14px 10px;
+  margin: 0;
+}
+.slate .beat {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  color: var(--chalk-faint);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 8px 14px 8px 12px;
+  cursor: pointer;
+  transition:
+    color 0.2s var(--ease),
+    border-color 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+.slate .beat .n {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  opacity: 0.7;
+  padding-top: 2px;
+}
+.slate .beat.past {
+  color: var(--chalk-soft);
+}
+.slate .beat.now {
+  color: var(--chalk);
+  border-left-color: var(--c-violet);
+  background: rgba(188, 165, 230, 0.08);
+}
+.slate .beat.now .n {
+  color: var(--c-violet);
+  opacity: 1;
+}
+.slate .beat:hover {
+  color: var(--chalk-soft);
+}
+
+@media (max-width: 880px) {
+  .slate .arrow {
+    padding-top: 0;
+    width: auto;
+    height: 48px;
+    justify-content: center;
+  }
+  .slate .arrow svg {
+    width: 12px;
+    height: 30px;
+    transform: rotate(90deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slate [data-beat],
+  .slate .chart .fill {
+    transition-duration: 1ms;
+  }
+}

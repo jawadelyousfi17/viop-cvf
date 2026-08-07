@@ -22,6 +22,7 @@ const TemplateStudio = dynamic(() => import('./template/TemplateStudio'), { ssr:
 const ManimStudio = dynamic(() => import('./manim/ManimStudio'), { ssr: false })
 const ITStudio = dynamic(() => import('./it/ITStudio'), { ssr: false })
 const MathStudio = dynamic(() => import('./math/MathStudio'), { ssr: false })
+const SlateStudio = dynamic(() => import('./slate/SlateStudio'), { ssr: false })
 
 /**
  * Top-level shell. Owns which engine is in use and renders that engine's
@@ -94,6 +95,9 @@ export default function Studio() {
   }
   if (engine === 'it') {
     return <ITStudio key="it" engine={engine} provider={provider} model={model} chooser={chooser} />
+  }
+  if (engine === 'slate') {
+    return <SlateStudio key="slate" engine={engine} provider={provider} model={model} chooser={chooser} />
   }
   if (engine === 'math') {
     return <MathStudio key="math" engine={engine} provider={provider} model={model} chooser={chooser} />
