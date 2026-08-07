@@ -427,7 +427,7 @@ export class BoardPainter {
     } else if (shape.kind === 'text') {
       this.paintText(shape, id, offsetY, animate)
     } else {
-      this.paintGeo(shape, id, offsetY, animate)
+      this.paintGeo(shape, id, offsetY, animate, scene.some((s) => s.parent === shape.id))
     }
 
     this.painted.set(key, id)
@@ -466,12 +466,29 @@ export class BoardPainter {
     )
   }
 
-  private paintGeo(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {
+  /**
+   * @param holds whether other shapes are drawn inside this one, which changes
+   *   where its label goes and how heavily it may be filled.
+   */
+  private paintGeo(
+    shape: BoardShape,
+    id: TLShapeId,
+    offsetY: number,
+    animate: boolean,
+    holds = false
+  ) {
     const x = shape.x + wobble(shape.id, 'x', HAND.drift)
     const rotation = wobble(shape.id, 'r', HAND.tiltBox)
 
+    // A container's name belongs in the band the layout reserved for it at the
+    // top, not down the middle of the box on top of its own contents.
+    const verticalAlign = holds ? 'start' : 'middle'
+    // And it is a background, not a block of colour: whatever sits inside has
+    // to read against it.
+    const fill = holds && shape.fill === 'solid' ? 'semi' : shape.fill
+
     // Drawn first so it sits behind: tldraw stacks in creation order.
-    const shadow = this.paintShadow(shape, x, shape.y + offsetY, rotation, animate)
+    const shadow = this.paintShadow(shape, x, shape.y + offsetY, rotation, animate, fill)
 
     this.editor.createShape({
       id,
@@ -487,12 +504,12 @@ export class BoardPainter {
         richText: toRichText(shape.text ?? ''),
         color: shape.color,
         labelColor: shape.color === 'yellow' ? 'black' : shape.color,
-        fill: shape.fill,
+        fill,
         dash: shape.dash,
         size: shape.size,
         font: BOARD_FONT,
         align: 'middle',
-        verticalAlign: 'middle',
+        verticalAlign,
         scale: 1,
       },
     })
@@ -518,10 +535,11 @@ export class BoardPainter {
     x: number,
     y: number,
     rotation: number,
-    animate: boolean
+    animate: boolean,
+    fill: BoardShape['fill'] = shape.fill
   ): TLShapeId | null {
     const color = SHADOW_COLOR[shape.color]
-    if (!color || shape.fill === 'none') return null
+    if (!color || fill === 'none') return null
 
     const id = createShapeId()
     this.editor.createShape({
