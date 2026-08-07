@@ -57,7 +57,11 @@ hl                                 highlights whatever was written on the line b
 
 # Anchors
 
-\`| words\` names the exact phrase in THIS scene's narration that the shape illustrates. When the voice reaches those words, the shape is drawn. Two to five words, copied exactly.
+\`| words\` names the exact phrase in THIS scene's narration that the shape illustrates. When the voice reaches those words, the shape is drawn. Two to five words.
+
+**Copy the phrase, do not write your own.** It is looked up in the narration, character for character. A phrase you tidied, shortened or paraphrased is not found — the shape is still drawn, it just stops landing on the words and falls back to its place in the list. This is the single easiest thing to get wrong and the hardest to see afterwards, so copy from the words in front of you.
+
+**One phrase, one shape.** Never anchor two shapes to the same words. They land in the same instant, and a board that puts up three shapes during one sentence has nothing left to do for the rest of the scene — the learner ends up watching a finished board while the voice catches up with it. Walk the narration from its first word to its last and hand each shape the moment it is actually mentioned. If two shapes have no separate moment between them, one of them is a shape you do not need.
 
 **Anchor about half your lines, not all of them.** A shape with no anchor is placed between its anchored neighbours, so a line written between two anchored ones already lands in the right place. Anchor the first shape of each row and the one carrying the row's point; leave the rest bare. An anchor on every single line is wasted effort — those shapes were going to land there anyway.
 
@@ -93,9 +97,37 @@ A blank line ends a row. Shapes written together sit side by side; a blank line 
 
 Positions are worked out for you. Never write coordinates.
 
+**Arrows are read as layout.** \`-> a b\` does not only draw a line: the two ends are pulled into the same row, in the direction the arrow points, kept next to each other with nothing between them, and given extra room so the connector has a run. So say what leads to what and let that arrange the board — an arrow carries the layout further than any amount of careful ordering.
+
+# How to draw a scene
+
+In this order, every time:
+
+1. **Say what the scene is claiming**, to yourself, in one sentence. That sentence is the scene. Everything on the board is part of saying it; anything that belongs to the next point belongs to the next scene.
+2. **Pull out the concrete things** — the names, the numbers, the parts, the steps, the comparison. Those become shapes. The rest is talk, and the voice is already carrying it.
+3. **Pick the structure that fits.** Layers → \`stk\`. A sequence → arrows. Parts of a whole → indentation. Values worth comparing → \`tbl\`, \`arr\` or a chart. Two cases → two rows, one green, one red. Most scenes have exactly one structure and a little detail around it.
+4. **Write the rows top to bottom in the order the words arrive.** A scene reads like a page.
+5. **Anchor as you go**, walking the narration from the first word to the last.
+6. **Read it back and cut.**
+
+# What to leave out
+
+A crowded board is as useless as an empty one, and it is the easier mistake to make: everything on it looks like effort. It isn't. A learner reads a board by finding the thing that matters, and every shape that doesn't matter is in the way of that.
+
+Go through your lines one at a time and ask what each says that nothing else already says. If the answer is nothing, delete it. Specifically:
+
+- A \`txt\` under a shape restating the shape's own label.
+- A second \`sym\`, \`ico\` or \`img\` of something already drawn.
+- A \`num\` beside a box when the same number is already inside it.
+- A third arrow saying what two arrows already say, and any arrow between two shapes whose relationship is obvious from where they sit.
+- A \`note\` summarising what the narration is saying anyway.
+- Any line you wrote because a rule below said you could, rather than because the scene needed it.
+
+Space is not waste. A board with room around its parts reads in a glance; the same board with the gaps filled in has to be studied.
+
 # What makes it good
 
-- 12 to 16 shapes a scene, in 4 or 5 rows.
+- 9 to 13 shapes a scene, in 4 or 5 rows. That is a ceiling, not a target: a scene that says what it needs in seven lines is finished at seven.
 - Every scene has one \`img\`, and two to four \`sym\`.
 - Numbers on the board, not just in the narration — but written INTO the thing
   they describe, not floating beside it. \`box RAM / 16 GB · 100 ns\`, not a box
@@ -117,18 +149,19 @@ Positions are worked out for you. Never write coordinates.
     say about a hundred nanoseconds to answer. In that time the core could have run
     say three hundred more steps. It is not thinking. It is waiting.
 
-    box #cpu PROCESSOR / 0.3 ns per step @blue | processor does something
-    box #ram MAIN MEMORY / 100 ns per fetch @yellow | hundred nanoseconds
-    -> cpu ram : one value / three hundred steps wasted | three hundred more steps
+    sym processor | Your processor does something
+    box #cpu PROCESSOR / 0.3 ns per step @blue | every third of a nanosecond
+    box #ram MAIN MEMORY / 100 ns per fetch @yellow | Main memory takes
 
-    sym processor | every third of a nanosecond
-    sym memory chip | Main memory takes
-    img computer processor die close up photograph | It is waiting
+    -> cpu ram : one value / three hundred steps wasted | a hundred nanoseconds to answer
 
     bar nanoseconds to answer @blue = one step 0.3, L1 1, memory 100 | In that time
     num 300x @red | three hundred more steps
+
+    img computer processor die close up photograph | It is not thinking
     txt this gap is the whole problem @red | It is waiting
-    hl | It is waiting`
+
+Eight shapes, not sixteen. Every one of them is doing something the others are not, and every anchor is a different moment in the narration — so the board is drawn one thing at a time, across the whole scene, instead of arriving in two handfuls.`
 
 export function chalkTopicPrompt(topic: string) {
   return `Draw a board lesson about: ${topic}
@@ -145,7 +178,13 @@ export function chalkScriptPrompt(blocks: string[]) {
 
 **Do not write any \`say\` lines.** The narration below is already attached to each scene — writing it out again would only be a chance to get it wrong. Start each scene with \`---\` and go straight to the shapes.
 
-Read each block, work out what it is actually claiming, and draw that. Your anchors are phrases from the block, copied exactly.
+The words are fixed, which changes two things.
+
+**Your anchors are lifted out of the block, character for character.** You cannot write the phrase you would have preferred — only the one that is there. Find the words that introduce each shape and copy them, including their punctuation and capitalisation. A phrase that differs by a word is not found, and the shape quietly stops landing on the beat. Never use the same phrase twice.
+
+**The board has to carry what you cannot say.** You cannot add a sentence to make a shape make sense. So a block that says a number wants that number written into the shape it belongs to; a block that draws a comparison wants both sides drawn; a block that names the parts of something wants those parts indented inside it.
+
+For each block: work out the one thing it is claiming, pull out the concrete things in it — names, numbers, parts, steps — pick the structure that fits them, write the rows top to bottom in the order the words arrive, anchoring as you go. Then read it back and delete anything that repeats something already on the board.
 
 ${scenes}`
 }
