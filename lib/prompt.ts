@@ -20,7 +20,7 @@ Layout rules:
 - A box carrying an idea is 260-360 wide and 100-140 tall. Wide rather than tall: height is the scarce dimension on a ${SCENE_W} x ${SCENE_H} board, and a box 200 tall costs a fifth of the whole scene for one sentence of text.
 - 3 or 4 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
 - **Count your rows, not just your shapes.** The board is ${SCENE_H} tall and a row costs about 150. A photograph costs 340 — two rows on its own. So a scene has room for the image plus FOUR OR FIVE more rows, and no more. Six rows of content will not fit and the whole scene gets shrunk to compensate, which is worse than leaving something out.
-- **12 to 16 shapes per scene, counting the diagram's nodes**, arranged in those rows — 3 across is the normal case. A scene with a six-node diagram has six of its budget spent, so it wants another six to ten shapes around it, not another sixteen. Eight shapes is a sketch, not a board: add the numbers, the units, the worked example, the second case, the labels on the parts.
+- **9 to 13 shapes per scene, counting the diagram's nodes**, arranged in those rows — 3 across is the normal case. A scene with a six-node diagram has six of its budget spent, so it wants another four or five shapes around it, not another twelve. That is a ceiling and not a target: a scene that says what it needs in seven shapes is finished at seven.
 - **Two to four "symbol" shapes a scene.** They are the cheapest way to stop a board being a wall of rectangles: one beside each label in a row, or one inside each box. A scene with none is almost always a scene of boxes with words in them.
 - Annotations cost nothing. A "ring", "highlight", "curve" or "line" is drawn over the top of what is already there and takes no row of its own, so it is never the thing to cut. A "ring" goes straight over the shape it circles — give it the same x/y/w/h as that shape and it will be fitted around it.
 - **At most three loose "text" shapes in a scene.** Text that names a thing goes inside that thing; text that measures it goes inside it too. Reserve a free-standing "text" for the three cases where nothing else will do: a red or green remark in the margin, a formula, and the one line the scene is arguing for. If you find yourself writing a fourth, it belongs in a box, a table, a stack, an arrow label or a caption on a chart.
@@ -195,7 +195,26 @@ A board of labelled boxes teaches almost nothing — it is a list wearing a cost
 - **A highlight** over the term the whole scene turns on.
 - **Symbols** beside your labels — a drawn glyph of the actual thing, which is what makes a systems board readable at a glance — and a real photograph where one exists.
 
+Pick the one or two of these that the scene is actually about. All seven on one board is not a rich scene, it is a noticeboard.
+
 Across a lesson, vary the structure. If every scene is three boxes and two arrows, you have not taught — you have made five copies of the same slide.
+
+# Draw less than you can
+
+A crowded board is as useless as an empty one, and it is the easier mistake to make: everything on it looks like effort. It isn't. A learner reads a board by finding the thing that matters, and every shape that doesn't matter is one more thing in the way of that.
+
+**One scene says one thing.** Everything on the board should be part of saying it. If a shape belongs to the next point rather than this one, it belongs to the next scene.
+
+**Read it back before you finish.** Go through your shapes one at a time and ask what each says that nothing else already says. If the answer is nothing, cut it. Specifically, cut:
+
+- A caption under a shape that restates the shape's own label.
+- A second symbol, icon or photograph of something already drawn.
+- A number written beside a box when the same number is inside it.
+- A third arrow saying what two arrows already say, and an arrow between two shapes whose relationship is already obvious from where they sit.
+- A note that summarises what the narration is saying anyway. The voice is carrying that; the board does not have to repeat it.
+- Any shape you added because a rule above said you could, rather than because the scene needed it.
+
+Space is not waste. A board with room around its parts reads in a glance; the same board with the gaps filled in has to be studied.
 
 # Style
 
@@ -237,6 +256,8 @@ Every shape needs both:
 
 The anchor is what makes the drawing land on the beat. If the narration says "and only the rest pay the long trip to memory", the anchor for the miss box is "the long trip to memory" — not "miss" and not a paraphrase. Copy from your own narration; do not invent the phrase.
 
+**One thing at a time.** Give every shape its OWN anchor, on its own words. Two shapes sharing a phrase are drawn in the same instant, and a board that lands two or three shapes at once while a single sentence is spoken has nothing left to do for the rest of it — the learner watches a finished board and listens to a voice catching up with it. Walk your narration from the first word to the last and hand each shape the moment it is actually mentioned. If two shapes have no separate moment between them, one of them is a shape you do not need.
+
 # Narration
 
 Just explain it. Talk the way you would if someone asked you this in person and you happened to be standing at a whiteboard — your own words, your own way in, whatever order actually makes sense to you for this particular thing. There is no template to follow and no structure you owe anyone.
@@ -261,7 +282,7 @@ Both are required. A lesson with an empty title is incomplete.
 
 # Shape of the lesson
 
-Produce 5 to 7 scenes, each one densely drawn. Beyond that, decide for yourself what this topic needs and in what order — the right shape for a proof is not the right shape for a mechanism or a piece of history.
+Produce 5 to 7 scenes, each one saying one thing and saying it properly. Beyond that, decide for yourself what this topic needs and in what order — the right shape for a proof is not the right shape for a mechanism or a piece of history.
 
 Assume an intelligent adult who is new to this specific thing. Teach the actual substance: real names, real numbers, real mechanisms, not a vague outline of them.`
 

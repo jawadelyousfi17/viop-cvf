@@ -3,7 +3,13 @@
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from 'tldraw'
-import { estimateNarrationSeconds, holdInsideParents, type Lesson } from '@/lib/lesson'
+import {
+  estimateNarrationSeconds,
+  holdInsideParents,
+  normalizeLesson,
+  oneAtATime,
+  type Lesson,
+} from '@/lib/lesson'
 import type { LessonEvent } from '@/lib/lesson-stream'
 import type { Engine } from '@/lib/engines'
 import type { Provider } from '@/lib/providers'
@@ -14,6 +20,8 @@ import { CHART_KINDS, chartKey } from '@/lib/chart'
 import { renderChart } from '../charts'
 import { Narrator } from '../narrator'
 import { parseScript } from '@/lib/script-import'
+import { compileChalk } from '@/lib/chalk'
+import { CHALK_SYSTEM, chalkScriptPrompt } from '@/lib/chalk-prompt'
 import type { SavedScript } from '@/app/api/scripts/route'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
@@ -26,6 +34,19 @@ const SUGGESTIONS = [
   'The Krebs cycle, but only the parts that matter',
   'What causes the northern lights?',
 ]
+
+/** What goes in the Chalk box when it is empty — the language in eight lines. */
+const CHALK_EXAMPLE = `say A domain name is not one flat label. It is a hierarchy, read from right to left.
+
+lab READING A DOMAIN @black | not one flat label
+arr blog|example|co|uk | read from right to left
+
+box #root ROOT @grey | at the far right
+  box uk @blue
+  box co @blue
+sym dns server @violet | the hierarchy
+
+-> root uk : delegates to`
 
 const LOADING_LINES = [
   'Reading up on your topic…',
@@ -200,6 +221,24 @@ export default function Studio({
     setIsPlaying(true)
     setPhase('board')
   }, [voiceId])
+
+  /**
+   * Plays a lesson compiled from Chalk in the browser.
+   *
+   * No model, no stream, nothing to wait for: the board is already a board by
+   * the time it gets here, so there is no plan to keep and nothing more to draw.
+   */
+  const drawChalk = useCallback(
+    (compiled: Lesson) => {
+      runIdRef.current++
+      streamingRef.current = false
+      planRef.current = null
+      setPlan(null)
+      setError(null)
+      start(compiled)
+    },
+    [start]
+  )
 
   /** Appends a streamed scene and, if playback was holding for it, resumes. */
   const addScene = useCallback((event: Extract<LessonEvent, { type: 'scene' }>) => {
@@ -500,8 +539,9 @@ export default function Studio({
     // of audio and images are in flight — and gating the board on it left the
     // canvas showing a single shape until the audio landed.
     let duration = estimateNarrationSeconds(scene.narration)
-    let schedule = holdInsideParents(
-      scene.shapes.map((shape) => ({ shape, time: shape.at * duration }))
+    let schedule = oneAtATime(
+      holdInsideParents(scene.shapes.map((shape) => ({ shape, time: shape.at * duration }))),
+      duration
     )
 
     void narrator.get(sceneIndex, scene.narration).then((narration) => {
@@ -513,11 +553,14 @@ export default function Studio({
       setHasVoice(narrator.hasVoice)
 
       // Re-time against the real clip: anchored shapes now land on their words.
-      schedule = holdInsideParents(
-        scene.shapes.map((shape) => {
-          const anchored = shape.anchor ? narration.timeOf(shape.anchor) : null
-          return { shape, time: anchored ?? shape.at * narration.duration }
-        })
+      schedule = oneAtATime(
+        holdInsideParents(
+          scene.shapes.map((shape) => {
+            const anchored = shape.anchor ? narration.timeOf(shape.anchor) : null
+            return { shape, time: anchored ?? shape.at * narration.duration }
+          })
+        ),
+        narration.duration
       )
 
       const next = lessonRef.current?.scenes[sceneIndex + 1]
@@ -715,6 +758,7 @@ export default function Studio({
         onSubmit={generate}
         script={script}
         setScript={setScript}
+        onChalk={drawChalk}
         busy={phase === 'generating'}
         pendingTitle={pendingTitle}
         error={error}
@@ -995,12 +1039,14 @@ function TopicScreen({
   pendingTitle,
   error,
   chooser,
+  onChalk,
 }: {
   topic: string
   setTopic: (value: string) => void
   onSubmit: (topic: string, script?: string) => void
   script: string
   setScript: (value: string) => void
+  onChalk: (lesson: Lesson) => void
   busy: boolean
   pendingTitle: string | null
   error: string | null
@@ -1009,6 +1055,12 @@ function TopicScreen({
   const scenes = script.trim() ? parseScript(script).length : 0
   const [saved, setSaved] = useState<SavedScript[]>([])
   const [loading, setLoading] = useState<string | null>(null)
+  /** The saved script being looked at, before deciding what to do with it. */
+  const [picked, setPicked] = useState<{ title: string; text: string } | null>(null)
+  const [chalk, setChalk] = useState('')
+  const [chalkNote, setChalkNote] = useState<string | null>(null)
+  const [writing, setWriting] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // The scripts sitting in scripts/. Fetched once, and a failure just means the
   // row of buttons doesn't appear.
@@ -1025,18 +1077,76 @@ function TopicScreen({
     }
   }, [])
 
-  /** Loads a saved script and sends it straight off to be drawn. */
-  async function runSaved(name: string) {
+  /**
+   * Loads a saved script and offers what can be done with it.
+   *
+   * It used to go straight to the model, which is the expensive way to draw a
+   * script you have already written. The words are on disk and so is their
+   * voiceover; the only thing missing is the board, and there are two ways to
+   * get one.
+   */
+  async function pickSaved(name: string, title: string) {
     setLoading(name)
+    setChalkNote(null)
     try {
       const response = await fetch(`/api/scripts?name=${encodeURIComponent(name)}`)
       if (!response.ok) throw new Error(String(response.status))
       const data = (await response.json()) as { text: string }
       setScript(data.text)
-      onSubmit(topic, data.text)
+      setPicked({ title, text: data.text })
     } catch {
+      setPicked(null)
+    } finally {
       setLoading(null)
     }
+  }
+
+  /** The whole input for a model asked to write Chalk for the picked script. */
+  const promptForChalk = picked
+    ? `${CHALK_SYSTEM}\n\n${chalkScriptPrompt(parseScript(picked.text).map((s) => s.narration))}`
+    : ''
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(promptForChalk)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard blocked — the textarea below is still there to select from.
+    }
+  }
+
+  /** Compiles what is in the Chalk box and puts it on the board. */
+  function drawChalk() {
+    const source = chalk.trim()
+    if (!source) return
+
+    // The words come from the script, not from the Chalk: they are already
+    // written, already recorded, and copying them through a compiler is one
+    // more chance to change them.
+    const narration = picked ? parseScript(picked.text).map((scene) => scene.narration) : undefined
+    const { lesson, errors, warnings } = compileChalk(source, narration ? { narration } : {})
+
+    if (!lesson.scenes.length) {
+      setChalkNote(
+        errors[0] ? `Line ${errors[0].line}: ${errors[0].message}` : 'Nothing there to draw.'
+      )
+      return
+    }
+
+    // Both are worth saying, and they mean different things: a dropped line is
+    // missing from the board, a flagged anchor is on it but off the beat.
+    const notes = [
+      errors.length
+        ? `${errors.length} line${errors.length === 1 ? '' : 's'} skipped — line ${errors[0].line}: ${errors[0].message}`
+        : '',
+      warnings.length
+        ? `${warnings.length} anchor${warnings.length === 1 ? '' : 's'} not in the narration — line ${warnings[0].line}: ${warnings[0].message}`
+        : '',
+    ].filter(Boolean)
+
+    setChalkNote(notes.length ? notes.join(' · ') : null)
+    onChalk(normalizeLesson(lesson))
   }
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
@@ -1067,12 +1177,12 @@ function TopicScreen({
                   key={entry.name}
                   type="button"
                   disabled={busy}
-                  onClick={() => void runSaved(entry.name)}
+                  onClick={() => void pickSaved(entry.name, entry.title)}
                   className="group flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="text-sm font-medium text-zinc-800">{entry.title}</span>
                   <span className="text-xs text-zinc-400">
-                    {loading === entry.name ? 'sending…' : `${entry.scenes} scenes`}
+                    {loading === entry.name ? 'opening…' : `${entry.scenes} scenes`}
                   </span>
                   {/* Whether the narration is already recorded. A script with
                       its voice on disk starts instantly and costs nothing. */}
@@ -1095,6 +1205,105 @@ function TopicScreen({
                 </button>
               ))}
             </div>
+
+            {/* What to do with the one you picked. The words and their voice
+                are already on disk; only the board is missing, and the model
+                is the expensive of the two ways to get one. */}
+            {picked && (
+              <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                <p className="text-sm text-zinc-800">
+                  <span className="font-medium">{picked.title}</span>
+                  <span className="text-zinc-400">
+                    {' '}
+                    — {parseScript(picked.text).length} scenes, written and recorded
+                  </span>
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setWriting((value) => !value)}
+                    className="rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-[13px] font-medium text-zinc-700 transition hover:border-zinc-400 disabled:opacity-50"
+                  >
+                    {writing ? 'Hide the Chalk' : 'Paste the Chalk'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onSubmit(topic, picked.text)}
+                    className="rounded-xl bg-zinc-900 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50"
+                  >
+                    Send it to the model &rarr;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPicked(null)}
+                    className="rounded-xl px-2.5 py-2 text-[13px] text-zinc-400 transition hover:text-zinc-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {writing && (
+                  <div className="mt-4 border-t border-zinc-100 pt-4">
+                    {/* Step one: the exact input to hand a model somewhere else.
+                        The language is small enough that any model can write it,
+                        and a board written this way costs nothing here. */}
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
+                        1 · The prompt for this script
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void copyPrompt()}
+                        className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-900"
+                      >
+                        {copied ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={promptForChalk}
+                      rows={4}
+                      onFocus={(event) => event.currentTarget.select()}
+                      className="mt-2 w-full resize-y rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-500 outline-none"
+                    />
+
+                    <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
+                      2 · What it wrote back
+                    </p>
+                    <textarea
+                      value={chalk}
+                      onChange={(event) => setChalk(event.target.value)}
+                      rows={10}
+                      spellCheck={false}
+                      placeholder={CHALK_EXAMPLE}
+                      className="mt-2 w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 font-mono text-[12px] leading-relaxed text-zinc-800 shadow-sm outline-none transition placeholder:text-zinc-300 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/5"
+                    />
+
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={!chalk.trim()}
+                        onClick={drawChalk}
+                        className="rounded-xl bg-zinc-900 px-4 py-2 text-[13px] font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Draw it
+                      </button>
+                      <span className="text-xs text-zinc-400">
+                        Costs nothing — the words and the voice are already here.
+                      </span>
+                    </div>
+                    {chalkNote && (
+                      <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        {chalkNote}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

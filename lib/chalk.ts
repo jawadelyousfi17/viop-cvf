@@ -112,7 +112,17 @@ export interface ChalkError {
 
 export interface ChalkResult {
   lesson: Lesson
+  /** Lines that could not be compiled, and were dropped. */
   errors: ChalkError[]
+  /**
+   * Lines that compiled but will not do what they say.
+   *
+   * An anchor that is not in the narration is the whole reason this exists: the
+   * shape is still drawn, it just falls back to its position in the list and
+   * lands near its moment rather than on it. Nothing else in the pipeline can
+   * see that, and now that Chalk gets typed by hand it needs saying.
+   */
+  warnings: ChalkError[]
 }
 
 export interface ChalkOptions {
@@ -132,6 +142,8 @@ interface Pending {
   row: number
   /** How far the line was indented — two spaces to a level. */
   depth: number
+  /** Which line of the source it came from, for reporting. */
+  line: number
 }
 
 /**
@@ -228,6 +240,7 @@ function blank(id: string, kind: ShapeKind): BoardShape {
  */
 export function compileChalk(source: string, options: ChalkOptions = {}): ChalkResult {
   const errors: ChalkError[] = []
+  const warnings: ChalkError[] = []
   const scenes: Scene[] = []
 
   let title = ''
@@ -246,6 +259,21 @@ export function compileChalk(source: string, options: ChalkOptions = {}): ChalkR
     // is the usual case and the cheap one.
     const written = narration.join(' ').trim()
     const supplied = options.narration?.[scenes.length]?.trim() ?? ''
+
+    // Checked the way the player matches: it lowercases both sides before
+    // searching the alignment, so a check stricter than the runtime would
+    // report failures that do not exist.
+    const words = (written || supplied).toLowerCase()
+    for (const item of pending) {
+      const anchor = item.shape.anchor.trim()
+      if (anchor && !words.includes(anchor.toLowerCase())) {
+        warnings.push({
+          line: item.line,
+          message: `Anchor "${anchor}" is not in this scene's narration, so the shape falls back to its place in the list.`,
+        })
+      }
+    }
+
     scenes.push(finishScene(scenes.length, written || supplied, pending, flow.join('\n')))
     narration = []
     pending = []
@@ -315,7 +343,7 @@ export function compileChalk(source: string, options: ChalkOptions = {}): ChalkR
         continue
       }
       // Arrows follow their ends, so they never claim a row of their own.
-      pending.push({ shape: arrow, row, depth: 0 })
+      pending.push({ shape: arrow, row, depth: 0, line: number })
       continue
     }
 
@@ -381,12 +409,12 @@ export function compileChalk(source: string, options: ChalkOptions = {}): ChalkR
         }
         if (!shape.anchor) shape.anchor = previous.shape.anchor
       }
-      pending.push({ shape, row, depth: indent })
+      pending.push({ shape, row, depth: indent, line: number })
       continue
     }
 
     attach(shape, indent, pending)
-    pending.push({ shape, row, depth: indent })
+    pending.push({ shape, row, depth: indent, line: number })
   }
 
   flush()
@@ -398,6 +426,7 @@ export function compileChalk(source: string, options: ChalkOptions = {}): ChalkR
       scenes: scenes.filter((scene) => scene.narration.trim()),
     },
     errors,
+    warnings,
   }
 }
 

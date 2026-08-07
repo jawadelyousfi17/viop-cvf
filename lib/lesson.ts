@@ -1203,6 +1203,49 @@ function nestChildren(shapes: BoardShape[]): BoardShape[] {
 }
 
 /**
+ * The least time between one shape being drawn and the next, in seconds.
+ *
+ * Long enough that the eye follows a hand rather than watching a board assemble
+ * itself, short enough that a scene with a dozen shapes still keeps up with the
+ * voice.
+ */
+const DRAW_BEAT = 0.4
+
+/**
+ * Draws one thing at a time.
+ *
+ * Shapes that share an anchor — or a rounded `at` — land on the same instant,
+ * and two or three appearing at once during a single sentence is the thing that
+ * makes a board feel pre-made: it finishes early and the voice spends the rest
+ * of the scene catching up with a picture that is already complete. So shapes
+ * due together are dealt out in order, a beat apart.
+ *
+ * The beat shrinks rather than overrunning: a scene with more shapes than
+ * seconds draws them faster, it does not push half of them past the narration.
+ *
+ * @param duration how long the scene's narration runs, in seconds.
+ */
+export function oneAtATime<T extends { shape: BoardShape; time: number }>(
+  schedule: T[],
+  duration: number
+): T[] {
+  if (schedule.length < 2) return schedule
+
+  const order = [...schedule].sort((a, b) => a.time - b.time)
+  const first = Math.max(0, order[0].time)
+  // Whatever is left of the scene, shared out — never longer than a beat.
+  const beat = Math.min(DRAW_BEAT, Math.max(0.1, (duration - first) / order.length))
+
+  let previous = -Infinity
+  for (const entry of order) {
+    entry.time = Math.max(entry.time, previous + beat)
+    previous = entry.time
+  }
+
+  return schedule
+}
+
+/**
  * Holds every shape back until whatever contains it has been drawn.
  *
  * Nesting decides the order in `at`, but the player retimes anchored shapes

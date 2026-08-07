@@ -196,6 +196,15 @@ export function checkScene(raw: Scene, index: number): SceneReport {
       message: `Thin scene (weight ${weight.toFixed(1)} of 10). Add numbers, a second case, or labels on the parts.`,
     })
   }
+  // And the other end of it. Only ever warning about thin scenes is one-sided
+  // advice: it reads as "more is better" right up until a board nobody can find
+  // anything on. A scene has a size it should be, not a floor it should clear.
+  if (weight > 20 || solid.length > 16) {
+    issues.push({
+      severity: 'warning',
+      message: `Crowded scene (weight ${weight.toFixed(1)}, ${solid.length} shapes). Cut whatever repeats something already on the board.`,
+    })
+  }
 
   return {
     index,
