@@ -26,6 +26,15 @@ export interface Cue {
    * it, to an opacity to bring it in, to a transform to slide it.
    */
   at: (n: number, hold?: number) => number
+  /**
+   * The same driver, started `delay` seconds after the beat.
+   *
+   * `at(n, hold)` scales the *speed* of a reveal, which is not a stagger: rows
+   * given different holds all lurch at the same instant at different rates.
+   * A row that arrives after its neighbour needs its clock to start later,
+   * and that is the one thing `at` cannot express.
+   */
+  after: (n: number, delay?: number, speed?: number) => number
   /** Seconds since this scene began. For anything that ticks. */
   t: number
 }
@@ -54,18 +63,38 @@ export const seg = (k: number, from: number, to: number) =>
  *
  * `pathLength="1"` normalises the dash maths, so one driver works for a 40px
  * tick and a 900px sweep without measuring either.
+ *
+ * `dashed` is a different mechanism on purpose. The reveal *is* a dash trick —
+ * one dash as long as the path, pulled through by its offset — so a dashed
+ * stroke cannot also be revealed that way: a `6 6` pattern in user units on a
+ * path whose length has been normalised to 1 is one solid dash, which is how
+ * every dashed line on the board was appearing fully drawn at beat zero. A
+ * dashed line is an annotation, not a pen stroke, so it fades instead.
  */
 export function Ink({
   d,
   k = 1,
   className = 'stroke',
+  dashed = false,
   style,
 }: {
   d: string
   k?: number
   className?: string
+  dashed?: boolean
   style?: React.CSSProperties
 }) {
+  if (dashed) {
+    return (
+      <path
+        d={d}
+        className={className}
+        strokeDasharray="7 6"
+        opacity={ease(k)}
+        style={style}
+      />
+    )
+  }
   return (
     <path
       d={d}

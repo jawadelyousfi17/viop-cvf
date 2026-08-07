@@ -32,7 +32,7 @@ interface Sheet {
 const REVEAL = 0.62
 
 /** A plate with everything on it, for measuring the finished composition. */
-const FULL: Cue = { p: 0.5, beat: 99, t: 4, at: () => 1 }
+const FULL: Cue = { p: 0.5, beat: 99, t: 4, at: () => 1, after: () => 1 }
 
 export default function DockerDemo() {
   const [sheet, setSheet] = useState<Sheet | null>(null)
@@ -140,6 +140,11 @@ export default function DockerDemo() {
           const start = scene.beats[n - 1]
           if (start == null) return 0
           return clamp((now - start) / (REVEAL / hold))
+        },
+        after: (n, delay = 0, speed = 1) => {
+          const start = scene.beats[n - 1]
+          if (start == null) return 0
+          return clamp((now - start - delay) / (REVEAL / speed))
         },
       },
     }

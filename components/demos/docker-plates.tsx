@@ -1,8 +1,10 @@
 'use client'
 
+import { arrowHead } from '@/lib/slate-rough'
 import {
   Call,
   Count,
+  seg,
   Crate,
   Die,
   Fade,
@@ -270,12 +272,7 @@ export const PLATES: Plate[] = [
           </g>
 
           {/* The shared line sits clear of its own label. */}
-          <Ink
-            d={`M290 -96H560`}
-            k={c.at(4, 1.2)}
-            className="stroke hair cool"
-            style={{ strokeDasharray: '6 6' }}
-          />
+          <Ink d={`M290 -96H560`} k={c.at(4, 1.2)} className="stroke hair cool" dashed />
           <Fade k={c.at(4, 1.5)}>
             <text x={425} y={-112} textAnchor="middle" className="tech" fontSize={13} fill="var(--cool)">
               shared with every container
@@ -322,6 +319,7 @@ export const PLATES: Plate[] = [
                     d={`M${dots[0][0]} ${dots[0][1]}L${x} ${y}`}
                     k={clamp(c.at(2, 1 + i * 0.1))}
                     className="stroke hair ghosted"
+                    dashed
                   />
                 )}
               </g>
@@ -698,89 +696,159 @@ export const PLATES: Plate[] = [
   // 9 ————————————————————————————— it still needs a root directory
   {
     title: 'It still needs a root',
-    render: (c) => (
-      <g transform={drift(c.p)}>
-        <g transform="translate(120 110)">
-          <Heading n={9} of={17} title="It still needs a root" k={c.at(1)} />
-        </g>
+    render: (c) => {
+      // One tree, and everything that happens to it. The fence is drawn around
+      // a real subtree, the "/" badge lands on the fence, the escape arc climbs
+      // over the fence's own wall — nothing on this plate floats free, because
+      // the narration is about one place.
+      const rows = [
+        ['/', 0],
+        ['etc/', 1],
+        ['usr/', 1],
+        ['var/', 1],
+        ['srv/', 1],
+        ['app/', 2],
+        ['bin/', 3],
+        ['lib/', 3],
+        ['app.py', 3],
+      ] as const
+      const rowX = (d: number) => 24 + d * 56
+      const rowY = (i: number) => i * 56
+      const fenced = ease(c.at(4))
+      const escape = c.at(7)
+      // The arc's own geometry, shared by the head so they cannot separate.
+      const arc = { sx: 296, sy: 434, cx: 368, cy: 236, ex: 480, ey: 296 }
+      const headAngle = Math.atan2(arc.ey - arc.cy, arc.ex - arc.cx)
+      return (
+        <g transform={drift(c.p)}>
+          <g transform="translate(120 100)">
+            <Heading n={9} of={17} title="It still needs a root" k={c.at(1)} />
+          </g>
 
-        {/* The host tree. */}
-        <g transform="translate(180 250)">
-          <Fade k={c.at(1)}>
-            <text className="micro" y={-14}>
-              the host file tree
-            </text>
-          </Fade>
-          <Ink d={`M20 0V420`} k={c.at(1, 1.1)} className="stroke hair" />
-          {['/', '/etc', '/usr', '/var', '/home', '/opt'].map((name, i) => (
-            <g key={name} transform={`translate(0 ${i * 70 + 20})`}>
-              <Ink d={`M20 0H70`} k={c.at(1, 1.2 + i * 0.1)} className="stroke hair" />
-              <Fade k={c.at(1, 1.4 + i * 0.1)}>
-                <text x={82} y={6} className="tech" fontSize={16} fill="var(--graphite)">
-                  {name}
+          <g transform="translate(200 250)">
+            <Fade k={c.at(1)}>
+              <text className="micro" y={-34}>
+                the host file tree
+              </text>
+            </Fade>
+
+            {/* The rows outside the fence lose their light when the fence goes
+                up — "it can't see anything outside that folder". */}
+            <g opacity={mix(1, 0.3, fenced)}>
+              {rows.slice(0, 5).map(([name, d], i) => (
+                <Fade key={name} k={c.after(1, i * 0.24, 1.5)}>
+                  <text x={rowX(d)} y={rowY(i)} className="tech" fontSize={17} fill="var(--ink)">
+                    {name}
+                  </text>
+                </Fade>
+              ))}
+              <Ink d={`M32 12V${rowY(4) - 8}`} k={c.after(1, 0.2, 1.2)} className="stroke hair" />
+              {[1, 2, 3, 4].map((i) => (
+                <Ink
+                  key={i}
+                  d={`M32 ${rowY(i) - 6}H${rowX(1) - 10}`}
+                  k={c.after(1, i * 0.24, 2)}
+                  className="stroke hair"
+                />
+              ))}
+              <Fade k={c.at(2)}>
+                <text x={rowX(0) + 44} y={rowY(0)} className="tech" fontSize={14} fill="var(--hot)">
+                  ← we cannot lend it this one
                 </text>
               </Fade>
             </g>
-          ))}
-          <Fade k={c.at(2)}>
-            <text y={470} className="tech" fontSize={13} fill="var(--hot)">
-              we cannot lend it this one
-            </text>
-          </Fade>
-        </g>
 
-        {/* chroot: a subtree boxed off. */}
-        <g transform="translate(620 250)">
-          <Fade k={c.at(3)}>
-            <text className="micro" y={-14}>
-              long before docker
-            </text>
-            <text y={26} className="title" fontSize={40} fill="var(--ink)">
-              chroot
-            </text>
-          </Fade>
-          <g transform="translate(0 60)">
-            <Ink d={box(0, 0, 330, 240, 3)} k={c.at(4)} className="stroke" />
-            <Fade k={c.at(4, 1.3)}>
-              <text x={165} y={130} textAnchor="middle" className="tech" fontSize={14} fill="var(--graphite)">
-                the top of the tree, as far
+            {/* The srv/app subtree — the folder chroot will point at. */}
+            <Ink d={`M88 ${rowY(4) + 12}V${rowY(5) - 8}`} k={c.after(1, 1.1, 1.5)} className="stroke hair" />
+            <Ink d={`M88 ${rowY(5) - 6}H${rowX(2) - 10}`} k={c.after(1, 1.2, 2)} className="stroke hair" />
+            <Ink d={`M144 ${rowY(5) + 12}V${rowY(8) - 8}`} k={c.after(1, 1.3, 1.5)} className="stroke hair" />
+            {rows.map(([name, d], i) => {
+              if (i < 5) return null
+              return (
+                <g key={name}>
+                  {i > 5 && (
+                    <Ink
+                      d={`M144 ${rowY(i) - 6}H${rowX(3) - 10}`}
+                      k={c.after(1, 1.3 + (i - 5) * 0.18, 2)}
+                      className="stroke hair"
+                    />
+                  )}
+                  <Fade k={c.after(1, 1.2 + (i - 5) * 0.18, 1.5)}>
+                    <text x={rowX(d)} y={rowY(i)} className="tech" fontSize={17} fill="var(--ink)">
+                      {name}
+                    </text>
+                  </Fade>
+                </g>
+              )
+            })}
+
+            {/* The fence: chroot, drawn around the subtree it actually fences. */}
+            <Ink d={box(120, 254, 216, 224, 4)} k={c.at(4)} className="stroke hot heavy" />
+            <g opacity={ease(seg(c.at(4), 0.7, 1))}>
+              <circle cx={120} cy={254} r={15} fill="var(--paper)" stroke="var(--hot)" strokeWidth={2} />
+              <text x={120} y={260} textAnchor="middle" className="tech" fontSize={15} fill="var(--hot)">
+                /
               </text>
-              <text x={165} y={154} textAnchor="middle" className="tech" fontSize={14} fill="var(--graphite)">
-                as this process knows
+            </g>
+
+            {/* The escape: over the fence's own wall, head welded to the arc. */}
+            <Ink
+              d={`M${arc.sx} ${arc.sy}Q${arc.cx} ${arc.cy} ${arc.ex} ${arc.ey}`}
+              k={escape}
+              className="stroke hot heavy"
+            />
+            <circle cx={arc.sx} cy={arc.sy} r={4} className="fillhot" opacity={ease(escape)} />
+            <path
+              d={arrowHead(arc.ex, arc.ey, headAngle, 15)}
+              className="fillhot"
+              opacity={ease(seg(escape, 0.65, 1))}
+            />
+            <Fade k={c.after(7, 0.35)}>
+              <text x={arc.ex + 24} y={arc.ey - 2} className="tech" fontSize={15} fill="var(--hot)">
+                running as root, it climbs back out
+              </text>
+              <text x={arc.ex + 24} y={arc.ey + 22} className="tech" fontSize={13} fill="var(--graphite)">
+                and reaches the host files again
+              </text>
+            </Fade>
+          </g>
+
+          {/* chroot, named and explained, tied to the fence by a leader. */}
+          <g transform="translate(880 300)">
+            <Fade k={c.at(3)}>
+              <text className="micro" y={-18}>
+                long before docker
+              </text>
+              <text y={30} className="title" fontSize={46} fill="var(--ink)">
+                chroot
+              </text>
+            </Fade>
+            <Fade k={c.at(4)}>
+              <text y={74} className="tech" fontSize={14} fill="var(--graphite)">
+                point the process at a folder, and the kernel
+              </text>
+              <text y={98} className="tech" fontSize={14} fill="var(--graphite)">
+                treats that folder as the absolute top of the tree
+              </text>
+            </Fade>
+            <Ink d={`M-24 30H-140L-330 212`} k={c.at(4, 1.4)} className="stroke hair hot" dashed />
+          </g>
+
+          <g transform="translate(880 640)">
+            <Fade k={c.at(5)}>
+              <text className="tech" fontSize={15} fill="var(--graphite)">
+                but there is one major problem
+              </text>
+            </Fade>
+            <Fade k={c.at(6)}>
+              <text y={52} className="title" fontSize={46} fill="var(--hot)">
+                never a security boundary
               </text>
             </Fade>
           </g>
         </g>
-
-        {/* And the way out of it. */}
-        <g transform="translate(1080 300)">
-          <Fade k={c.at(5)}>
-            <text className="tech" fontSize={15} fill="var(--hot)">
-              never a security boundary
-            </text>
-          </Fade>
-          <Ink
-            d={`M0 60C60 60 40 140 130 140S250 60 320 60`}
-            k={c.at(6)}
-            className="stroke hot heavy"
-          />
-          <Ink d={`M300 46l24 14-24 14`} k={c.at(6, 1.5)} className="stroke hot heavy" />
-          <Fade k={c.at(6, 1.4)}>
-            <text y={190} className="tech" fontSize={13} fill="var(--graphite)">
-              a process running as root
-            </text>
-            <text y={212} className="tech" fontSize={13} fill="var(--graphite)">
-              can climb back out
-            </text>
-          </Fade>
-          <Fade k={c.at(7)}>
-            <text y={290} className="tech" fontSize={14} fill="var(--ink)">
-              so engines use something stronger
-            </text>
-          </Fade>
-        </g>
-      </g>
-    ),
+      )
+    },
   },
 
   // 10 ———————————————————————————— pivot_root
@@ -824,8 +892,9 @@ export const PLATES: Plate[] = [
 
           {/* The old tree leaves the plate entirely rather than lying under it. */}
           <g transform="translate(790 240)">
+            {swing < 0.999 && (
             <g
-              transform={`translate(${swing * 420} ${swing * 210}) rotate(${swing * 22} 170 220)`}
+              transform={`translate(${swing * 160} ${swing * 60}) rotate(${swing * 14} 170 220)`}
               opacity={(1 - swing) * 0.9}
             >
               <Ink d={box(0, 0, 340, 440, 3)} k={c.at(1, 1.2)} className="stroke hair" />
@@ -835,6 +904,7 @@ export const PLATES: Plate[] = [
                 </text>
               </Fade>
             </g>
+            )}
             <Fade k={clamp(swing * 1.6 - 0.5)}>
               <text x={480} y={470} textAnchor="middle" className="tech" fontSize={13} fill="var(--faint)">
                 safely disconnected
