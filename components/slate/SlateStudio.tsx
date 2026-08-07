@@ -12,7 +12,7 @@ import { SLATE_YAML_SYSTEM, slateYamlScriptPrompt } from '@/lib/slate-yaml-promp
 import { narrationScenes, parseLesson, splitSentences, type SlateLesson } from '@/lib/slate'
 import { looksLikeYaml, parseYamlLesson } from '@/lib/slate-yaml'
 import { lint } from '@/lib/slate-lint'
-import { drawScene, roughen, showBeat } from './draw'
+import { drawScene, fitBoard, roughen, showBeat } from './draw'
 import './slate.css'
 
 /**
@@ -227,9 +227,15 @@ export default function SlateStudio({
     }
     registryRef.current = registry
 
+    // The rows go on a sheet — a page of fixed width that rows wrap against,
+    // and the thing the zoom scales. Without one there is nothing to measure:
+    // a full-width board is always exactly as wide as the window.
     const { fragment, pristine } = drawScene(lesson, scene, registry)
+    const sheet = document.createElement('div')
+    sheet.className = 'sheet'
+    sheet.appendChild(fragment)
     board.textContent = ''
-    board.appendChild(fragment)
+    board.appendChild(sheet)
     Object.assign(registryRef.current, pristine)
     showBeat(board, 0)
     setBeat(0)
@@ -239,10 +245,14 @@ export default function SlateStudio({
     // people out: the board is laid out in the fallback face, every box is
     // sized to it, and then the real hand arrives and every box is a different
     // width with a straight-edged border still pinned to the old one.
-    roughen(board)
-    void document.fonts?.ready.then(() => roughen(board))
+    const redraw = () => {
+      fitBoard(board)
+      roughen(board)
+    }
+    redraw()
+    void document.fonts?.ready.then(redraw)
 
-    const observer = new ResizeObserver(() => roughen(board))
+    const observer = new ResizeObserver(redraw)
     observer.observe(board)
     return () => observer.disconnect()
   }, [lesson, scene, playing])

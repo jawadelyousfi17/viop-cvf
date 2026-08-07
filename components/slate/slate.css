@@ -71,12 +71,27 @@
 
 /* ---------- the board ---------- */
 .slate-board {
-  overflow: auto;
+  /* Hidden, not auto: the sheet is zoomed to fit, so nothing should ever need
+     scrolling — and a transform does not shrink the box it reserves, so `auto`
+     would show scrollbars for space that is not being used. */
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   /* Clears the floating header and transport, which sit over the board rather
-     than beside it — so the first row is never under the title card and the
-     last is never under the play button. */
+     than beside it — so the scene is never under the title card or the play
+     button however far it is zoomed. */
   padding: 96px 44px 104px;
   background: var(--slate);
+}
+
+/* The page a scene is laid out on. Fixed width so a row wraps at a readable
+   measure instead of running the width of whatever monitor it landed on; the
+   zoom then makes that page fill the glass. */
+.slate .sheet {
+  width: 1280px;
+  flex: 0 0 auto;
+  transform-origin: center center;
 }
 .slate .row {
   display: flex;

@@ -748,6 +748,65 @@ export function showBeat(board: HTMLElement, beat: number) {
 /** The levels at which attention can be pushed back: rows, sides, steps, parts. */
 const FOCUSABLE = '.row > .node, .compare > .side, .flow > .fstep, .gkids > *, .lay > *'
 
+/** Never blow a two-shape scene up into a billboard. */
+const MAX_ZOOM = 1.9
+
+/**
+ * The page widths a scene may be laid out on, narrowest first.
+ *
+ * A row wraps against the page, so the width decides the *shape* of the scene:
+ * wide and short, or narrow and tall. Which one fills a given window is not
+ * something an author can know — they do not know what it will be opened on —
+ * so it is chosen here, per window, by trying them.
+ */
+const PAGE_WIDTHS = [560, 700, 880, 1080, 1280, 1560, 1900]
+
+/**
+ * Scales the sheet so the scene fills the window.
+ *
+ * The board is laid out at a fixed page width — a readable measure that rows
+ * wrap against — and then zoomed to fit, which is what the whiteboard engine
+ * has always done with its camera. Without it a scene laid out for a laptop
+ * sat in a band across the top of a 2560px screen with two thirds of the glass
+ * empty under it, which reads as a page that failed to load rather than a board
+ * with room around its parts.
+ *
+ * Zoom, not reflow: the arrangement an author wrote is the arrangement they get
+ * at every size, only bigger. Ink keeps its pen width through it because the
+ * strokes are drawn with a non-scaling stroke.
+ */
+export function fitBoard(board: HTMLElement) {
+  const sheet = board.querySelector<HTMLElement>(':scope > .sheet')
+  if (!sheet) return
+
+  // Measured with the previous zoom removed, or every fit compounds the last.
+  sheet.style.transform = ''
+  const style = getComputedStyle(board)
+  const availableWidth =
+    board.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+  const availableHeight =
+    board.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+  if (availableWidth <= 0 || availableHeight <= 0) return
+
+  // Try each page width and keep the one that puts the most ink on the glass.
+  // Maximising *area* rather than zoom is what makes a tall window wrap a wide
+  // band into a column instead of shrinking it into a stripe: the widest page
+  // always zooms largest, and on a portrait screen it also leaves four fifths
+  // of the height empty.
+  let best = { width: PAGE_WIDTHS[PAGE_WIDTHS.length - 1], zoom: 0, area: -1 }
+  for (const width of PAGE_WIDTHS) {
+    sheet.style.width = `${width}px`
+    const height = sheet.offsetHeight
+    if (!height) continue
+    const zoom = Math.min(availableWidth / width, availableHeight / height, MAX_ZOOM)
+    const area = zoom * zoom * width * height
+    if (area > best.area) best = { width, zoom, area }
+  }
+
+  sheet.style.width = `${best.width}px`
+  sheet.style.transform = best.zoom === 1 ? '' : `scale(${Math.round(best.zoom * 1000) / 1000})`
+}
+
 /**
  * Draws every outline on the board by hand.
  *
