@@ -117,6 +117,30 @@ export default function Studio({
   const lessonRef = useRef<Lesson | null>(null)
   const waitingRef = useRef(false)
   const streamingRef = useRef(false)
+
+  /**
+   * A script being drawn a scene at a time.
+   *
+   * Drawing a fifteen-scene script in one call spends fifteen scenes' worth of
+   * tokens before you have seen whether the first one is any good. So a script
+   * is drawn on demand: one scene when you press run, the next when you ask for
+   * it. The total comes from the server, which is the only side that knows how
+   * the script divides; `next` is the block to ask for, and it is counted
+   * separately from the scene index because a question inserts a scene that was
+   * never in the script.
+   */
+  const planRef = useRef<{ script: string; total: number; next: number } | null>(null)
+  const [plan, setPlan] = useState<{ total: number; next: number } | null>(null)
+  /** Set while a scene is being fetched, so one request can't be sent twice. */
+  const drawingRef = useRef(false)
+  const [drawing, setDrawing] = useState(false)
+  /**
+   * The scene ended and the next one has not been drawn yet.
+   *
+   * Distinct from `finished`: the lesson is not over, it is waiting to be paid
+   * for. Play and next both mean "draw it and carry on" while this is set.
+   */
+  const [atEdge, setAtEdge] = useState(false)
   /** Bumped per lesson so a stale stream can't write into a newer one. */
   const runIdRef = useRef(0)
 
@@ -171,6 +195,7 @@ export default function Studio({
     setLesson(next)
     setSceneIndex(0)
     setFinished(false)
+    setAtEdge(false)
     setHasVoice(true)
     setIsPlaying(true)
     setPhase('board')
@@ -197,6 +222,79 @@ export default function Studio({
     }
   }, [])
 
+  /**
+   * Draws the next block of a script that is being drawn on demand.
+   *
+   * Returns whether there was anything left to draw, so the caller can tell
+   * "one moment" apart from "that was the end of the script".
+   */
+  const drawNext = useCallback(async () => {
+    const pending = planRef.current
+    if (!pending || drawingRef.current || pending.next >= pending.total) return false
+
+    drawingRef.current = true
+    setDrawing(true)
+    setError(null)
+    const runId = runIdRef.current
+
+    try {
+      const response = await fetch('/api/lesson', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          script: pending.script,
+          from: pending.next,
+          count: 1,
+          engine,
+          provider,
+          model,
+        }),
+      })
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error ?? `Request failed (${response.status})`)
+      }
+
+      for await (const event of readEvents(response.body)) {
+        if (runIdRef.current !== runId) return false
+
+        if (event.type === 'scene') {
+          const drawn = { ...pending, next: pending.next + 1 }
+          planRef.current = drawn
+          setPlan({ total: drawn.total, next: drawn.next })
+          addScene(event)
+        } else if (event.type === 'error') {
+          throw new Error(event.message)
+        }
+      }
+      return true
+    } catch (cause) {
+      if (runIdRef.current !== runId) return false
+      // Nothing is lost — the scenes already drawn stay playable, and the
+      // button can be pressed again.
+      waitingRef.current = false
+      setIsPlaying(false)
+      setError(cause instanceof Error ? cause.message : 'Could not draw the next scene.')
+      return false
+    } finally {
+      drawingRef.current = false
+      setDrawing(false)
+    }
+  }, [addScene, engine, provider, model])
+
+  /**
+   * Draws the scene the lesson is waiting on, and plays it.
+   *
+   * What both "next" and "play" mean once playback has run to the end of what
+   * has been drawn and the script still has more in it.
+   */
+  const carryOn = useCallback(async () => {
+    setAtEdge(false)
+    waitingRef.current = true
+    if (await drawNext()) setIsPlaying(true)
+    else waitingRef.current = false
+  }, [drawNext])
+
   // `/?demo=1` plays a hand-written lesson, so the board can be seen working
   // before any keys are set up.
   useEffect(() => {
@@ -215,6 +313,12 @@ export default function Studio({
     setError(null)
     setPendingTitle(null)
     setPhase('generating')
+    planRef.current = null
+    setPlan(null)
+
+    // A script is drawn one scene at a time; a topic is written straight
+    // through, because there is no script to divide until the model writes one.
+    const onDemand = scripted.length > 0
 
     let started = false
     let pendingMeta: Extract<LessonEvent, { type: 'meta' }> | null = null
@@ -234,7 +338,15 @@ export default function Studio({
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, script: scripted, history, engine, provider, model }),
+        body: JSON.stringify({
+          topic: trimmed,
+          script: scripted,
+          history,
+          engine,
+          provider,
+          model,
+          ...(onDemand ? { from: 0, count: 1 } : {}),
+        }),
       })
 
       if (!response.ok || !response.body) {
@@ -246,7 +358,13 @@ export default function Studio({
       for await (const event of readEvents(response.body)) {
         if (!isCurrent()) return
 
-        if (event.type === 'meta') {
+        if (event.type === 'plan') {
+          // How many scenes the script comes to. Only the first is on its way.
+          if (onDemand) {
+            planRef.current = { script: scripted, total: event.total, next: 0 }
+            setPlan({ total: event.total, next: 0 })
+          }
+        } else if (event.type === 'meta') {
           if (started) setLesson((prev) => (prev ? { ...prev, title: event.title } : prev))
           else {
             // Arrives a few seconds before scene one — show it so the wait has
@@ -255,6 +373,11 @@ export default function Studio({
             setPendingTitle(event.title)
           }
         } else if (event.type === 'scene') {
+          if (planRef.current) {
+            const drawn = { ...planRef.current, next: planRef.current.next + 1 }
+            planRef.current = drawn
+            setPlan({ total: drawn.total, next: drawn.next })
+          }
           if (!started) {
             started = true
             start({
@@ -275,7 +398,12 @@ export default function Studio({
       if (!started) throw new Error('The model returned a lesson with no scenes.')
       streamingRef.current = false
 
-      const finishedLesson = lessonRef.current
+      // A script drawn on demand has barely started: there is no lesson to
+      // summarise yet, and suggesting follow-up questions after scene one is a
+      // request paid for and thrown away.
+      const more = Boolean(planRef.current && planRef.current.next < planRef.current.total)
+
+      const finishedLesson = more ? null : lessonRef.current
       if (finishedLesson) {
         setHistory((prev) => [
           ...prev,
@@ -296,7 +424,7 @@ export default function Studio({
       }
 
       // Playback was holding for a scene that will now never arrive.
-      if (waitingRef.current) {
+      if (waitingRef.current && !more) {
         waitingRef.current = false
         setIsPlaying(false)
         setFinished(true)
@@ -308,6 +436,8 @@ export default function Studio({
   }
 
   const scene = lesson?.scenes[sceneIndex]
+  /** Whether the script goes on past what has been drawn. */
+  const hasMore = Boolean(plan && plan.next < plan.total)
   const sceneId = scene?.id
 
   // Scene lifecycle: move the camera, start the narration, and reveal shapes as
@@ -431,6 +561,12 @@ export default function Studio({
             // Playback has outrun the model. Hold here; `addScene` resumes us
             // the moment the next scene lands.
             waitingRef.current = true
+          } else if (planRef.current && planRef.current.next < planRef.current.total) {
+            // The script goes on, but the board for it has not been drawn — and
+            // drawing it costs money. So stop at the edge and wait to be asked.
+            // Play or next carries on from here.
+            setIsPlaying(false)
+            setAtEdge(true)
           } else {
             setIsPlaying(false)
             setFinished(true)
@@ -457,6 +593,13 @@ export default function Studio({
       const painter = painterRef.current
       if (!lesson || !painter) return
 
+      // Asking for a scene past the end is what draws it: the rest of the
+      // script is written, it just hasn't been put on the board yet.
+      if (index >= lesson.scenes.length) {
+        void carryOn()
+        return
+      }
+
       const target = Math.max(0, Math.min(lesson.scenes.length - 1, index))
 
       // Skipping forward shouldn't leave holes in the board: fill in every
@@ -469,9 +612,10 @@ export default function Studio({
 
       waitingRef.current = false
       setFinished(false)
+      setAtEdge(false)
       setSceneIndex(target)
     },
-    [lesson]
+    [lesson, carryOn]
   )
 
   /**
@@ -538,6 +682,7 @@ export default function Studio({
     painterRef.current?.reset()
     waitingRef.current = false
     setFinished(false)
+    setAtEdge(false)
     setSceneIndex(0)
     setIsPlaying(true)
   }
@@ -548,6 +693,10 @@ export default function Studio({
     streamingRef.current = false
     waitingRef.current = false
     lessonRef.current = null
+    planRef.current = null
+    setPlan(null)
+    setError(null)
+    setAtEdge(false)
 
     setIsPlaying(false)
     setPhase('idle')
@@ -646,9 +795,23 @@ export default function Studio({
 
             <button
               type="button"
-              onClick={() => (finished ? restart() : setIsPlaying((value) => !value))}
+              onClick={() =>
+                finished
+                  ? restart()
+                  : atEdge
+                    ? void carryOn()
+                    : setIsPlaying((value) => !value)
+              }
               className="flex size-11 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700"
-              aria-label={finished ? 'Replay lesson' : isPlaying ? 'Pause' : 'Play'}
+              aria-label={
+                finished
+                  ? 'Replay lesson'
+                  : atEdge
+                    ? 'Draw the next scene and carry on'
+                    : isPlaying
+                      ? 'Pause'
+                      : 'Play'
+              }
             >
               {finished ? (
                 <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -668,13 +831,36 @@ export default function Studio({
             </button>
 
             <IconButton
-              label="Next scene"
+              label={
+                lesson && sceneIndex >= lesson.scenes.length - 1 && hasMore
+                  ? 'Draw the next scene'
+                  : 'Next scene'
+              }
               onClick={() => goToScene(sceneIndex + 1)}
-              disabled={!lesson || sceneIndex >= lesson.scenes.length - 1}
+              disabled={
+                drawing || !lesson || (sceneIndex >= lesson.scenes.length - 1 && !hasMore)
+              }
             >
               <path d="M6 5l6 5-6 5V5Z" />
               <path d="M14 5v10" />
             </IconButton>
+
+            {/* What is left of the script, and whether a scene is on its way.
+                Without this the board looks finished when it is only waiting to
+                be asked for the rest. */}
+            {plan && (
+              <span className="ml-1 whitespace-nowrap text-xs tabular-nums text-zinc-400">
+                {drawing
+                  ? `drawing ${plan.next + 1} of ${plan.total}…`
+                  : `${plan.next} of ${plan.total} drawn`}
+              </span>
+            )}
+
+            {error && (
+              <span className="ml-1 max-w-[16rem] truncate text-xs text-red-600" title={error}>
+                {error}
+              </span>
+            )}
 
             <span className="mx-1 h-6 w-px bg-black/10" />
 

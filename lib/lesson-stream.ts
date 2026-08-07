@@ -3,6 +3,8 @@ import { isRenderableScene, normalizeScene, type Scene } from './lesson'
 /** Newline-delimited events sent from `/api/lesson` to the player. */
 export type LessonEvent =
   | { type: 'meta'; title: string; summary: string }
+  /** How many scenes the script comes to, whether or not they are all coming. */
+  | { type: 'plan'; total: number }
   | { type: 'scene'; index: number; scene: Scene }
   | { type: 'done'; total: number }
   | { type: 'error'; message: string }

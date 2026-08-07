@@ -72,8 +72,10 @@ export async function POST(request: Request) {
   let engine: unknown
   let provider: unknown
   let model: unknown
+  let from: unknown
+  let count: unknown
   try {
-    ;({ topic, script, history, engine, provider, model } = await request.json())
+    ;({ topic, script, history, engine, provider, model, from, count } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -108,6 +110,10 @@ export async function POST(request: Request) {
     : []
 
   let userPrompt: string
+  // How many scenes the whole script comes to, whatever slice of it was asked
+  // for. Sent to the client so it knows what is left to draw.
+  let planned = 0
+
   if (hasScript && config.script) {
     const blocks = parseScript(script as string).map((scene) => scene.narration)
     if (!blocks.length) {
@@ -116,7 +122,21 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-    userPrompt = config.script(blocks, past)
+    planned = blocks.length
+
+    // A window is a request for part of the script. Absent, the whole thing is
+    // drawn in one call, which is what a pasted script has always done.
+    const start = Math.max(0, Math.min(blocks.length - 1, Math.trunc(num(from, 0))))
+    const wanted = Math.max(1, Math.trunc(num(count, blocks.length)))
+    const windowed = start > 0 || wanted < blocks.length
+
+    userPrompt = windowed
+      ? config.script(blocks.slice(start, start + wanted), past, {
+          from: start,
+          total: blocks.length,
+          previous: start > 0 ? blocks[start - 1] : undefined,
+        })
+      : config.script(blocks, past)
   } else {
     userPrompt = config.user(String(topic ?? '').trim(), past)
   }
@@ -152,6 +172,10 @@ export async function POST(request: Request) {
 
       const parser = config.parser()
 
+      // Told before anything is drawn, so the player can offer the rest of a
+      // script it has only been given the first scene of.
+      if (planned) send({ type: 'plan', total: planned })
+
       try {
         for await (const delta of completion) {
           if (delta) for (const event of parser.push(delta)) send(event)
@@ -179,6 +203,10 @@ export async function POST(request: Request) {
       'x-accel-buffering': 'no',
     },
   })
+}
+
+function num(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
 /** Puts an already-pulled chunk back at the front of a stream. */

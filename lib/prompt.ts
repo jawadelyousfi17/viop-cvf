@@ -320,14 +320,49 @@ ${lesson.scenes.map((scene) => scene.narration).join(' ').slice(0, 2500)}`
  * Scene count comes from the script, not from the guidance — a fourteen-block
  * script is a fourteen-scene lesson.
  */
-export function scriptPrompt(blocks: string[], history: TaughtLesson[] = []) {
+/**
+ * Which part of a longer script this request covers.
+ *
+ * A fifteen-scene script drawn in one call is fifteen scenes' worth of tokens
+ * spent before you have seen whether the first one is any good. Drawing them one
+ * at a time costs the same in total and nothing at all if you stop after two.
+ */
+export interface ScriptWindow {
+  /** Index of the first block in this request, within the whole script. */
+  from: number
+  /** How many blocks the whole script has. */
+  total: number
+  /** The block just before this one — context, and not to be drawn again. */
+  previous?: string
+}
+
+export function scriptPrompt(
+  blocks: string[],
+  history: TaughtLesson[] = [],
+  window?: ScriptWindow
+) {
+  const first = window ? window.from : 0
   const scenes = blocks
-    .map((block, index) => `--- SCENE ${index + 1} ---\n${block}`)
+    .map((block, index) => `--- SCENE ${first + index + 1} ---\n${block}`)
     .join('\n\n')
 
-  return `${historyPreamble(history)}Below is a finished script, already written and already timed by whoever wrote it. Your job is only to draw the board for it.
+  // Continuity, cheaply: one block of context rather than the whole script
+  // again. It is enough for the model to avoid re-introducing what has just
+  // been said, and it is the only part of the script that immediately matters.
+  const preceding =
+    window?.previous
+      ? `\nThe scene before this one has already been drawn. It is here only so you know what has just been said — **do not draw it again**:\n\n--- ALREADY DRAWN: SCENE ${window.from} ---\n${window.previous}\n`
+      : ''
 
-**Produce exactly ${blocks.length} scenes**, one per block, in this order. Not five to seven — ${blocks.length}.
+  const count = window
+    ? `**Produce exactly ${blocks.length === 1 ? 'one scene' : `${blocks.length} scenes`}**, for the block${blocks.length === 1 ? '' : 's'} below — ${
+        blocks.length === 1 ? `scene ${first + 1}` : `scenes ${first + 1} to ${first + blocks.length}`
+      } of a ${window.total}-scene script. Draw only what is below. The rest of the script is being drawn separately.`
+    : `**Produce exactly ${blocks.length} scenes**, one per block, in this order. Not five to seven — ${blocks.length}.`
+
+  return `${historyPreamble(history)}Below is a finished script, already written and already timed by whoever wrote it. Your job is only to draw the board for it.
+${preceding}
+${count}
 
 **Copy each block into its scene's "narration" character for character.** Do not rewrite it, shorten it, expand it, fix its punctuation or change a single word. Every "anchor" you write has to appear verbatim inside it, so any edit you make to the narration breaks the timing of the shapes you drew for it.
 
