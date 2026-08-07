@@ -14,6 +14,11 @@ export default function Board({ onEditor }: { onEditor: (editor: Editor) => void
       <Tldraw
         hideUi
         onMount={(editor) => {
+          // Said explicitly, not assumed. tldraw's colour scheme is a *user*
+          // preference kept in the browser, so the IT engine setting it to dark
+          // turns every other board dark too — and it stays that way until
+          // something says otherwise. This is that something.
+          editor.user.updateUserPreferences({ colorScheme: 'light' })
           // The grid gives the board a surface. Without it the shapes float on
           // white and the hand-drawn styling has nothing to sit against.
           editor.updateInstanceState({ isGridMode: true })

@@ -179,7 +179,10 @@ export default function AuthorStudio() {
   const onMount = useCallback(
     (editor: Editor) => {
       editorRef.current = editor
-      editor.user.updateUserPreferences({ isSnapMode: false })
+      // Light explicitly: the colour scheme is a browser-wide user preference,
+      // so a board that does not claim one inherits whatever the last board
+      // set — and the IT engine sets dark.
+      editor.user.updateUserPreferences({ isSnapMode: false, colorScheme: 'light' })
 
       editor.sideEffects.registerAfterCreateHandler('shape', (shape, source) => {
         // Only what a person draws. Loading a snapshot creates shapes too, and

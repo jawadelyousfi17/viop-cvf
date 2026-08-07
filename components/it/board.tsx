@@ -15,6 +15,12 @@ import 'tldraw/tldraw.css'
  *
  * The background is forced past tldraw's own near-black to true black, which
  * is what the saturated actor colours are pitched against.
+ *
+ * Note that the colour scheme is a browser-wide *user* preference rather than
+ * a property of this canvas, so setting it here changes every other board too
+ * until one of them sets it back. Each of the others now claims light on
+ * mount; this comment is here so that stays deliberate rather than looking
+ * like belt and braces someone could tidy away.
  */
 export default function ITBoard({ onEditor }: { onEditor: (editor: Editor) => void }) {
   return (
