@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from 'tldraw'
 import {
   estimateNarrationSeconds,
+  finishEachBox,
   holdInsideParents,
   normalizeLesson,
   oneAtATime,
@@ -540,7 +541,10 @@ export default function Studio({
     // canvas showing a single shape until the audio landed.
     let duration = estimateNarrationSeconds(scene.narration)
     let schedule = oneAtATime(
-      holdInsideParents(scene.shapes.map((shape) => ({ shape, time: shape.at * duration }))),
+      finishEachBox(
+        holdInsideParents(scene.shapes.map((shape) => ({ shape, time: shape.at * duration }))),
+        duration
+      ),
       duration
     )
 
@@ -554,11 +558,14 @@ export default function Studio({
 
       // Re-time against the real clip: anchored shapes now land on their words.
       schedule = oneAtATime(
-        holdInsideParents(
-          scene.shapes.map((shape) => {
-            const anchored = shape.anchor ? narration.timeOf(shape.anchor) : null
-            return { shape, time: anchored ?? shape.at * narration.duration }
-          })
+        finishEachBox(
+          holdInsideParents(
+            scene.shapes.map((shape) => {
+              const anchored = shape.anchor ? narration.timeOf(shape.anchor) : null
+              return { shape, time: anchored ?? shape.at * narration.duration }
+            })
+          ),
+          narration.duration
         ),
         narration.duration
       )

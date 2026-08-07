@@ -1246,6 +1246,81 @@ export function oneAtATime<T extends { shape: BoardShape; time: number }>(
 }
 
 /**
+ * Fills each container in one go, and keeps everything else out of the way
+ * while it does.
+ *
+ * A container's children are anchored to the words that name them, and those
+ * words are scattered through the narration with other things said between
+ * them. Timed literally, the board draws the box, puts one thing in it, wanders
+ * off to draw a symbol somewhere else, comes back for the second thing, leaves
+ * again. It is the right order for the sentences and the wrong order for
+ * watching: you cannot follow a box being filled if the filling keeps stopping.
+ *
+ * So a family is drawn as a run — parent, then everything inside it, depth
+ * first, a beat apart — and anything else due while that is happening is moved
+ * to after it. The run starts when the first part is named, so the box is still
+ * drawn empty and still fills as the narration reaches it.
+ *
+ * @param duration how long the scene's narration runs, in seconds.
+ */
+export function finishEachBox<T extends { shape: BoardShape; time: number }>(
+  schedule: T[],
+  duration: number
+): T[] {
+  const inside = new Map<string, T[]>()
+  for (const entry of schedule) {
+    if (!entry.shape.parent) continue
+    const list = inside.get(entry.shape.parent) ?? []
+    list.push(entry)
+    inside.set(entry.shape.parent, list)
+  }
+  if (!inside.size) return schedule
+
+  const byId = new Map(schedule.map((entry) => [entry.shape.id, entry]))
+
+  /** Everything under this one, deepest branch first, each level in time order. */
+  const family = (id: string): T[] => {
+    const out: T[] = []
+    for (const child of [...(inside.get(id) ?? [])].sort((a, b) => a.time - b.time)) {
+      out.push(child, ...family(child.shape.id))
+    }
+    return out
+  }
+
+  // Outermost containers only: a nested one is part of its parent's run, and
+  // laying it out separately would take it back out again.
+  const roots = [...inside.keys()]
+    .map((id) => byId.get(id))
+    .filter((entry): entry is T => Boolean(entry) && !entry!.shape.parent)
+    .sort((a, b) => a.time - b.time)
+
+  for (const root of roots) {
+    const members = family(root.shape.id)
+    if (!members.length) continue
+
+    // Held to whatever is left of the scene, so a container named late still
+    // gets its contents in before the narration runs out.
+    const opens = Math.max(root.time + 0.2, members[0].time)
+    const beat = Math.min(DRAW_BEAT, Math.max(0.15, (duration - opens) / (members.length + 1)))
+
+    for (const [index, member] of members.entries()) member.time = opens + index * beat
+    const closes = opens + (members.length - 1) * beat
+
+    const held = new Set(members.map((member) => member.shape.id))
+    for (const entry of schedule) {
+      if (entry === root || held.has(entry.shape.id)) continue
+      // Only what would land mid-fill. The gap between an empty box appearing
+      // and its first item arriving interrupts nothing, so whatever falls there
+      // is left where it is — including the label on the arrow that pointed at
+      // the box in the first place.
+      if (entry.time > opens - 0.001 && entry.time < closes) entry.time = closes + beat
+    }
+  }
+
+  return schedule
+}
+
+/**
  * Holds every shape back until whatever contains it has been drawn.
  *
  * Nesting decides the order in `at`, but the player retimes anchored shapes
