@@ -127,15 +127,23 @@
   stroke: var(--chalk-soft);
   stroke-dasharray: 6 5;
 }
-.slate .wire > text {
+.slate .wirelabels {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  /* Over the shapes. Its line is behind them; its words are not. */
+  z-index: 2;
+}
+.slate .wirelabels > text {
   font-family: var(--font-hand), ui-rounded, system-ui, sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   fill: var(--chalk-soft);
   text-anchor: middle;
-  /* A halo in the paper's own colour, so a label crossing a line stays
-     readable without a box drawn round it. */
+  /* A halo in the paper's own colour, so a label crossing a line or a box
+     stays readable without a panel drawn round it. */
   stroke: var(--slate);
-  stroke-width: 6px;
+  stroke-width: 7px;
   paint-order: stroke fill;
 }
 .slate .row {

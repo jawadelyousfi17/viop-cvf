@@ -547,12 +547,21 @@ export function drawScene(
   const wires = document.createElementNS(SVG, 'svg')
   wires.setAttribute('class', 'wires')
   wires.setAttribute('aria-hidden', 'true')
+  // A second layer, over the shapes. The line belongs behind them — it should
+  // disappear under a box it crosses — but its label does not: a connector
+  // between two boxes has only the gap between them to write in, and any label
+  // longer than that gap was being painted over at both ends.
+  const wireLabels = document.createElementNS(SVG, 'svg')
+  wireLabels.setAttribute('class', 'wirelabels')
+  wireLabels.setAttribute('aria-hidden', 'true')
+  let wireIndex = 0
   for (const node of allNodesOf(scene)) {
     if (node.kind === 'arrow' || node.kind === 'rel') {
       const ends = node.names ?? []
       for (let i = 0; i + 1 < ends.length; i++) {
         const wire = document.createElementNS(SVG, 'g')
         wire.setAttribute('class', 'wire' + (node.kind === 'rel' ? ' rel' : ''))
+        wire.dataset.i = String(wireIndex++)
         wire.dataset.from = ends[i]
         wire.dataset.to = ends[i + 1]
         wire.dataset.beat = String(node.beat)
@@ -563,14 +572,20 @@ export function drawScene(
         const said = i === 0 ? [node.rel, node.text].filter(Boolean).join(' · ') : ''
         wire.appendChild(document.createElementNS(SVG, 'path'))
         wire.appendChild(document.createElementNS(SVG, 'path'))
-        const text = document.createElementNS(SVG, 'text')
-        text.textContent = said
-        wire.appendChild(text)
         wires.appendChild(wire)
+
+        if (said) {
+          const text = document.createElementNS(SVG, 'text')
+          text.textContent = said
+          text.dataset.i = wire.dataset.i
+          text.dataset.beat = String(node.beat)
+          wireLabels.appendChild(text)
+        }
       }
     }
   }
   if (wires.childNodes.length) fragment.appendChild(wires)
+  if (wireLabels.childNodes.length) fragment.appendChild(wireLabels)
 
   // Taken here, between the drawing and the changing: everything the scene
   // defines, as it was defined, before a mark or a morph touched it.
@@ -751,9 +766,13 @@ export function wireBoard(board: HTMLElement) {
 
   const zoom = Number(sheet.dataset.zoom) || 1
   const origin = sheet.getBoundingClientRect()
-  wires.setAttribute('viewBox', `0 0 ${sheet.offsetWidth} ${sheet.offsetHeight}`)
-  wires.setAttribute('width', String(sheet.offsetWidth))
-  wires.setAttribute('height', String(sheet.offsetHeight))
+  const labels = sheet.querySelector<SVGSVGElement>(':scope > svg.wirelabels')
+  for (const layer of [wires, labels]) {
+    if (!layer) continue
+    layer.setAttribute('viewBox', `0 0 ${sheet.offsetWidth} ${sheet.offsetHeight}`)
+    layer.setAttribute('width', String(sheet.offsetWidth))
+    layer.setAttribute('height', String(sheet.offsetHeight))
+  }
 
   /** Anything in sheet coordinates, with the zoom taken back out. */
   const boxFor = (node: Element): Box | null => {
@@ -788,17 +807,39 @@ export function wireBoard(board: HTMLElement) {
     const toEl = elementFor(wire.dataset.to ?? '')
     const from = fromEl && boxFor(fromEl)
     const to = toEl && boxFor(toEl)
-    const [line, head, label] = Array.from(wire.children) as [SVGPathElement, SVGPathElement, SVGTextElement]
+    const [line, head] = Array.from(wire.children) as [SVGPathElement, SVGPathElement]
+    const label = labels?.querySelector<SVGTextElement>(`[data-i="${wire.dataset.i}"]`) ?? null
 
     // An end that is not on the board yet leaves nothing to join.
     if (!from || !to || !fromEl || !toEl) {
       wire.setAttribute('display', 'none')
+      label?.setAttribute('display', 'none')
       continue
     }
     wire.removeAttribute('display')
+    label?.removeAttribute('display')
 
-    const a = edgePoint(from, to.x + to.w / 2, to.y + to.h / 2)
-    const b = edgePoint(to, from.x + from.w / 2, from.y + from.h / 2)
+    // A connector stops at the outermost thing its end is *inside*.
+    //
+    // `shares container kernel`, where the kernel is drawn inside the host, was
+    // being aimed at the kernel — so the line ran under the host box, which is
+    // opaque, and came out as a stub in the gap with the rest of it missing.
+    // An arrow that touches the host and points at the kernel within it is both
+    // the honest picture and the one every diagram tool draws.
+    const outermost = (el: HTMLElement, other: HTMLElement) => {
+      let box: HTMLElement = el
+      for (const solid of solids) {
+        if (solid.contains(el) && !solid.contains(other) && solid.contains(box)) box = solid
+      }
+      return boxFor(box) ?? (el === fromEl ? from : to)
+    }
+    const fromEdge = outermost(fromEl, toEl)
+    const toEdge = outermost(toEl, fromEl)
+
+    // Clipped to the outer box, but still aimed at the real target's middle, so
+    // the line leans towards the thing it is about.
+    const a = edgePoint(fromEdge, to.x + to.w / 2, to.y + to.h / 2)
+    const b = edgePoint(toEdge, from.x + from.w / 2, from.y + from.h / 2)
     const style = wire.dataset.style ?? '->'
 
     // Everything except the two it is joining — a connector is not obstructed
@@ -831,26 +872,59 @@ export function wireBoard(board: HTMLElement) {
             (style === '<->' ? arrowHead(a.x, a.y, Math.atan2(a.y - first.y, a.x - first.x)) : '')
     )
 
-    // On the longest leg, nudged clear of whatever the route was avoiding. The
-    // geometric midpoint of a detour is usually the point *behind* the obstacle
-    // that caused it, which is the one place the label cannot be read.
-    let best = { at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, run: -1, vertical: false }
+    // Somewhere along the route where the words can actually be read.
+    //
+    // Tested against *every* shape, not against the obstacles the route was
+    // avoiding: the two ends and their parents are excluded from routing by
+    // definition, and those are exactly the boxes a short connector's midpoint
+    // tends to land behind. The label used to be placed under one of them and
+    // reported as clear.
+    const allBoxes = solids.map(boxFor).filter((box): box is Box => box !== null)
+    const candidates: { x: number; y: number }[] = []
     for (let i = 0; i + 1 < path.length; i++) {
-      const run = Math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
-      if (run <= best.run) continue
-      best = {
-        at: { x: (path[i].x + path[i + 1].x) / 2, y: (path[i].y + path[i + 1].y) / 2 },
-        run,
-        vertical: Math.abs(path[i + 1].y - path[i].y) > Math.abs(path[i + 1].x - path[i].x),
+      const from_ = path[i]
+      const to_ = path[i + 1]
+      const vertical = Math.abs(to_.y - from_.y) > Math.abs(to_.x - from_.x)
+      // Along each leg, and progressively further off it. A short connector
+      // between two boxes has no clear room in the gap at all, and the only
+      // honest answer is to step away from the line until there is some.
+      for (const t of [0.5, 0.35, 0.65]) {
+        const on = { x: from_.x + (to_.x - from_.x) * t, y: from_.y + (to_.y - from_.y) * t }
+        for (const off of vertical ? [18, -18, 44, -44] : [-16, 26, -46, 56, -76]) {
+          candidates.push(vertical ? { x: on.x + off, y: on.y } : { x: on.x, y: on.y + off })
+        }
       }
     }
-    const covered = (p: { x: number; y: number }) =>
-      obstacles.some((o) => p.x > o.x && p.x < o.x + o.w && p.y > o.y && p.y < o.y + o.h)
-    const above = { x: best.at.x, y: best.at.y - 12 }
-    const clearOf = covered(above) ? { x: best.at.x, y: best.at.y + 20 } : above
-    label.setAttribute('x', String(best.vertical ? best.at.x + 6 : clearOf.x))
-    label.setAttribute('y', String(best.vertical ? best.at.y : clearOf.y))
-    label.setAttribute('text-anchor', best.vertical ? 'start' : 'middle')
+
+    // Scored on the label's real extent, not on its anchor. A fifty-character
+    // sentence centred in a thirty-pixel gap has an anchor that is perfectly
+    // clear and a body lying across both boxes, which is exactly what happened.
+    if (label) {
+      label.setAttribute('text-anchor', 'middle')
+      const size = label.getBBox()
+      const overlap = (p: { x: number; y: number }) => {
+        const box = { x: p.x - size.width / 2, y: p.y - size.height, w: size.width, h: size.height }
+        let area = 0
+        for (const o of allBoxes) {
+          const across = Math.min(box.x + box.w, o.x + o.w) - Math.max(box.x, o.x)
+          const down = Math.min(box.y + box.h, o.y + o.h) - Math.max(box.y, o.y)
+          if (across > 0 && down > 0) area += across * down
+        }
+        return area
+      }
+      let at = candidates[0] ?? a
+      let least = Infinity
+      for (const p of candidates) {
+        const area = overlap(p)
+        if (area < least) {
+          least = area
+          at = p
+          if (area === 0) break
+        }
+      }
+      label.setAttribute('x', String(at.x))
+      label.setAttribute('y', String(at.y))
+    }
   }
 }
 
