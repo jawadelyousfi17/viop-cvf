@@ -1,0 +1,64 @@
+= How DNS turns a name into an address
+: Names are a hierarchy, and DNS walks it — through resolvers and caches — to find the number the network needs.
+
+~ resolver violet
+~ address  green
+~ cache    orange
+~ inert    grey
+
+--- 7
+stk ~cache |1
+  BROWSER CACHE — checked first |1
+  OPERATING SYSTEM CACHE |2
+  then out to the network |3
+
+box #you YOUR COMPUTER ~inert |4
+box #res RECURSIVE RESOLVER / does the legwork for you ~resolver |5
+-> you res : the query goes out |5
+
+tbl |5*
+  : Who runs one | Address
+  your provider | theirs
+  Cloudflare | 1.1.1.1 |6
+  Google | 8.8.8.8 |6
+
+sym memory chip |1
+sym person |6
+img data centre server aisle photograph |6
+
+--- 8
+carry #res
+
+box #root ROOT SERVER [13 addresses worldwide] ~resolver |1
+-> res root : where is example.com? |1
+note #root no idea where example.com lives — but it knows who does |3
+
+box #tld .COM TLD SERVER / no final answer either ~resolver |4
+-> root tld : ask the .com servers |3
+
+box #auth AUTHORITATIVE NAMESERVERS / for example.com ~address |6
+-> tld auth : it points the way |7
+
+sym card index |5
+img root server room rack photograph |5
+sym compass |7
+
+callout four questions, and only the last one knows the answer ~inert |7
+
+--- 9
+carry #auth
+
+box #truth THE SOURCE OF TRUTH / configured by the domain's owner ~address |2
+  txt the only server that actually knows / everything else only forwards
+box #page YOUR BROWSER [under 100 ms] ~inert |3
+-> truth page : 93.184.216.34 |3
+
+chart bar "where the time goes, in ms" ~resolver
+  cache hit 3 |4
+  full lookup 90 |4
+
+sym stopwatch |4
+sym globe |5
+img fibre optic cables lit photograph |5
+
+callout most of the time, none of this happens ~inert |5
