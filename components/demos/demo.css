@@ -291,3 +291,31 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* ---------- the mural variant ----------
+   The same chrome floated over a tldraw canvas, which brings its own paper:
+   the plate's painted background and grain would just sit on top of it. */
+.plate.bare {
+  background: transparent;
+}
+.plate.bare::before,
+.plate.bare::after {
+  display: none;
+}
+.plate .canvas {
+  position: absolute;
+  inset: 0;
+}
+.plate.bare .corner,
+.plate.bare .runner,
+.plate.bare .card {
+  z-index: 20;
+}
+.plate.bare .corner,
+.plate.bare .runner {
+  pointer-events: none;
+}
+.plate.bare .runner .key,
+.plate.bare .runner .track {
+  pointer-events: auto;
+}
