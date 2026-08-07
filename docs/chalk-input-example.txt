@@ -1,0 +1,140 @@
+================ SYSTEM MESSAGE ================
+
+You draw boards. You write them in Chalk, a small line-based language. Output Chalk and nothing else — no prose, no code fences, no explanation.
+
+# The language
+
+    = lesson title
+    : one-sentence summary of what the learner comes away with
+
+    ---                          starts a scene
+    say <words>                  the narration. Repeat the line to continue it.
+    <kind> <text> @colour | anchor
+    -> from to : label | anchor  an arrow between two named shapes
+    (blank line)                 ends a row
+
+Everything after the kind is optional:
+- `@blue` colours it. One of: blue green red violet yellow orange grey.
+- `| words` at the END of the line is the ANCHOR — see below.
+- `#name` right after the kind gives it a name, so an arrow can point at it: `box #cpu CORE`
+- ` / ` inside text is a line break: `box CORE / 0.3 ns`
+- `= a 1, b 2` is chart data. Only `bar`, `plot` and `pie` read it, so any other
+  line can contain an equals sign: `txt z = Wx + b` is fine.
+
+# Kinds
+
+box oval ell dia hex star cloud   containers. `box` is the normal one.
+lab                                a heading, lettering with a rule under it
+txt                                plain lettering — a note, a formula, a remark
+num                                a number or unit, set large. Use these constantly.
+note                               a sticky note, for an aside
+img <search query>                 a PHOTOGRAPH of a real thing. Query ends in "photograph".
+sym <thing>                        a line-art symbol, fetched by name: router, kidney, turbine
+ico <emoji>                        one emoji
+tbl Op, Avg / Lookup, O(1)         a table. Commas are columns, ` / ` is a new row.
+                                   The first row is the header.
+arr 42, 17, 8, 99                  a row of cells with indices drawn under them —
+                                   arrays, memory, buffers, a tape
+stk top / next / bottom            stacked layers
+bar plot pie                       charts. Put the numbers in `= label value, ...`
+ring                               circles whatever was written on the line before it
+hl                                 highlights whatever was written on the line before it
+
+# Anchors
+
+`| words` names the exact phrase in THIS scene's narration that the shape illustrates. When the voice reaches those words, the shape is drawn. Two to five words, copied exactly.
+
+**Anchor about half your lines, not all of them.** A shape with no anchor is placed between its anchored neighbours, so a line written between two anchored ones already lands in the right place. Anchor the first shape of each row and the one carrying the row's point; leave the rest bare. An anchor on every single line is wasted effort — those shapes were going to land there anyway.
+
+# Rows
+
+A blank line ends a row. Shapes written together sit side by side; a blank line starts the next band down the board. Three or four to a row.
+
+Positions are worked out for you. Never write coordinates.
+
+# What makes it good
+
+- 12 to 16 shapes a scene, in 4 or 5 rows.
+- Every scene has one `img`, and two to four `sym`.
+- Numbers on the board, not just in the narration. `num` is cheap — use it.
+- Colour means something: pick a colour for a thing and keep it for the whole lesson.
+- Say it, then show it. Anything in the narration that is a number, a name, a comparison or a step should be on the board.
+- 2 to 4 sentences a scene, 35 to 70 words, plain spoken prose. No markdown, no symbols the voice would read out. Spell out numbers: "a hundred nanoseconds", not "100ns".
+
+# Example
+
+    = Why your CPU has a cache
+    : Memory is a hundred times slower than the processor, so it keeps a copy nearby.
+
+    ---
+    say Your processor does something every third of a nanosecond. Main memory takes
+    say about a hundred nanoseconds to answer. In that time the core could have run
+    say three hundred more steps. It is not thinking. It is waiting.
+
+    box #cpu PROCESSOR / 0.3 ns per step @blue | processor does something
+    box #ram MAIN MEMORY / 100 ns per fetch @yellow | hundred nanoseconds
+    -> cpu ram : one value / three hundred steps wasted | three hundred more steps
+
+    sym processor | every third of a nanosecond
+    sym memory chip | Main memory takes
+    img computer processor die close up photograph | It is waiting
+
+    bar nanoseconds to answer @blue = one step 0.3, L1 1, memory 100 | In that time
+    num 300x @red | three hundred more steps
+    txt this gap is the whole problem @red | It is waiting
+    hl | It is waiting
+
+================ USER MESSAGE ================
+
+Below is a finished script. Draw the board for it.
+
+**Exactly 15 scenes**, one per block, in order.
+
+**Do not write any `say` lines.** The narration below is already attached to each scene — writing it out again would only be a chance to get it wrong. Start each scene with `---` and go straight to the shapes.
+
+Read each block, work out what it is actually claiming, and draw that. Your anchors are phrases from the block, copied exactly.
+
+--- SCENE 1 ---
+Every website you've ever visited has a name. But the internet doesn't actually understand names. It understands numbers. Type "wikipedia dot org" into your browser and hit enter. In the fraction of a second before the page appears, your computer has to answer one critical question: where, exactly, is that? Not the name — the address. Something like two-oh-eight dot eighty dot one-fifty-four dot two-twenty-four. That's an IP address, and it's the only thing routers and servers on the internet really know how to work with.
+
+--- SCENE 2 ---
+Here's the problem. There are billions of devices online, and IP addresses change constantly. Websites move to new servers. Companies switch hosting providers. Nobody is memorizing that. Imagine if your contacts app stored only phone numbers, and you had to remember which twelve-digit string belonged to your mother.
+
+--- SCENE 3 ---
+So we built a translation layer — a system that takes the human-friendly names we type and turns them into the machine-friendly numbers the network needs. Automatically. Invisibly. Billions of times per second, all day, every day. That system is DNS: the Domain Name System. And it's arguably the most important piece of internet infrastructure most people have never heard of.
+
+--- SCENE 4 ---
+Before we follow a DNS lookup, you need to be able to read a domain name — because a domain name isn't one flat label. It's a hierarchy. And you read it backwards, from right to left. Take blog dot example dot co dot uk. At the far right, invisible but always there, is the root. The silent dot at the end of every domain. That's the top of the tree.
+
+--- SCENE 5 ---
+Next comes the top-level domain, or TLD — dot uk, in this case. You know the common ones: dot com, dot org, dot net, country codes like dot jp and dot de, and newer additions like dot dev and dot app. Then the second-level domain: dot co, marking a commercial entity in the UK. Then the part someone actually registered and paid for — "example." This is the domain name in the everyday sense.
+
+--- SCENE 6 ---
+And finally, at the far left: "blog." A subdomain. Whoever owns example dot co dot uk controls this space and can create as many as they want — blog, shop, mail, api. All of it together is called a fully qualified domain name. And that hierarchy isn't decoration. It's the exact path DNS walks to find your answer. So let's actually make a request. You type example dot com. Here's the relay race that follows.
+
+--- SCENE 7 ---
+Step one: your computer checks its own memory. Browser cache first, then the operating system's. If it looked this up recently, we're done in microseconds. Let's assume it didn't. Step two: the query goes to a recursive resolver — usually run by your internet provider, or a public one like Cloudflare's one dot one dot one dot one, or Google's eight dot eight dot eight dot eight. The resolver's job is to do the legwork on your behalf.
+
+--- SCENE 8 ---
+Step three: the resolver asks a root server. There are thirteen root server addresses worldwide. The root doesn't know where example dot com lives — but it knows who handles dot com, and it says so. Step four: the resolver asks the dot com TLD server. That server doesn't have the final answer either, but it knows which nameservers are authoritative for example dot com. It points the way.
+
+--- SCENE 9 ---
+Step five: the resolver asks the authoritative nameserver. This is the source of truth — the server the domain's owner actually configured. It replies with the IP address. The resolver hands that back to your computer, your browser opens a connection, and the page loads. Four questions. Typically under a hundred milliseconds. That relay race sounds like a lot of work. So here's the honest truth: most of the time, it doesn't happen.
+
+--- SCENE 10 ---
+If every device ran a full lookup for every request, the root servers would collapse under the load within seconds. What saves the system is caching — storing answers close to where they're needed. And caching happens at every layer. Your browser keeps a small cache. Your operating system keeps one. Your router might keep one. And your recursive resolver keeps a very large one, serving thousands or millions of users at once.
+
+--- SCENE 11 ---
+So when you visit a popular site, the answer is almost certainly sitting in a cache a few milliseconds away, and the whole journey gets skipped. But cached data goes stale. What happens when a site moves to a new server? That's what TTL solves — Time To Live. Every DNS record carries a number, in seconds, saying how long it's allowed to be cached. Three hundred seconds means five minutes. Eighty-six thousand four hundred means a full day.
+
+--- SCENE 12 ---
+Long TTLs mean speed and less load. Short TTLs mean faster updates when things change. That's the tradeoff — and it's why administrators lower their TTLs before a planned migration, then raise them again afterward. One last piece. DNS doesn't only store addresses — it stores several kinds of records, each with a job.
+
+--- SCENE 13 ---
+An A record maps a name to an IPv4 address. A quad-A record does the same for IPv6. A CNAME is an alias, pointing one name at another. MX records tell the world where to deliver your email. TXT records hold arbitrary text, and get used for things like domain ownership verification and anti-spoofing rules such as SPF and DKIM. NS records declare which nameservers are authoritative. Together, all of a domain's records make up its zone file.
+
+--- SCENE 14 ---
+Now, the uncomfortable part. DNS was designed in the early nineteen-eighties, when the network was small and everyone on it was trusted. It was not built with security in mind. Queries traditionally travel unencrypted, and answers can be forged — an attack called cache poisoning, which quietly sends users to a fake site.
+
+--- SCENE 15 ---
+The industry's answers: DNSSEC, which cryptographically signs records so forgeries can be detected. And DNS over HTTPS and DNS over TLS, which encrypt the queries themselves, so nobody in between can read or tamper with them. So: DNS turns names into addresses, through a hierarchy, using resolvers and caches. Invisible when it works — and very obvious when it doesn't.
