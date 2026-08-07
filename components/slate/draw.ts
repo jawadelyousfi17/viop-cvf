@@ -658,12 +658,38 @@ export function drawScene(
       continue
     }
     if (mark.kind === 'focus') {
-      target.dataset.focus = `${mark.beat}:${mark.beatEnd}`
+      target.dataset.focus = `${mark.beat}:${mark.beatEnd || focusEnds(mark, target)}`
+      // Pointing at something carried makes it the subject of this scene, not
+      // a memory of the last one.
+      if (target.classList.contains('ghost')) target.dataset.unghost = String(mark.beat)
       continue
     }
     target.dataset.mark = mark.kind
     target.dataset.markBeat = String(mark.beat)
     if (mark.beatEnd) target.dataset.markEnd = String(mark.beatEnd)
+  }
+
+  /**
+   * When an unbounded focus lets go.
+   *
+   * A focus with no range used to run to the end of the scene, which meant a
+   * board that pointed at something on beat one drew everything from beat two
+   * onward already pushed back — a whole scene at a quarter opacity because the
+   * author said "look at this" once. You cannot be looking at one thing while
+   * another is being drawn, so the spotlight lifts the moment new ink lands
+   * anywhere outside it, or when the next focus takes over.
+   */
+  function focusEnds(mark: (typeof scene.marks)[number], target: HTMLElement): number {
+    let end = Infinity
+    for (const other of scene.marks) {
+      if (other.kind === 'focus' && other.beat > mark.beat) end = Math.min(end, other.beat - 1)
+    }
+    for (const node of Array.from(fragment.querySelectorAll<HTMLElement>('[data-beat]'))) {
+      const beat = Number(node.dataset.beat)
+      if (beat <= mark.beat || beat - 1 >= end) continue
+      if (!target.contains(node)) end = beat - 1
+    }
+    return Number.isFinite(end) ? end : 0
   }
 
   return { fragment, byName, pristine }

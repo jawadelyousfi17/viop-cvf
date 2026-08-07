@@ -195,6 +195,11 @@
 .slate .focused > .ink path {
   stroke-width: calc(var(--stroke) * 1.7);
 }
+/* The thing being pointed at is never the dim one, even when it was carried
+   in from an earlier scene. */
+.slate .ghost.focused.on {
+  opacity: 1;
+}
 .slate .row > .node,
 .slate .compare > .side,
 .slate .flow > .fstep,
