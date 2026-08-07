@@ -120,6 +120,51 @@ export function roughStroke(
   return out.join('')
 }
 
+/**
+ * A filled arrowhead at `tip`, pointing along `angle`.
+ *
+ * Slightly lopsided on purpose — the two barbs are not the same length, which
+ * is what a hand does and what stops a row of connectors looking stamped.
+ */
+export function arrowHead(tipX: number, tipY: number, angle: number, size = 13): string {
+  const spread = 0.42
+  const ax = tipX - Math.cos(angle - spread) * size
+  const ay = tipY - Math.sin(angle - spread) * size
+  const bx = tipX - Math.cos(angle + spread) * size * 0.82
+  const by = tipY - Math.sin(angle + spread) * size * 0.82
+  return `M${r(tipX)} ${r(tipY)}L${r(ax)} ${r(ay)}L${r(bx)} ${r(by)}Z`
+}
+
+/**
+ * Where a line from `from` to `to` leaves a box centred on `from`.
+ *
+ * A connector that starts at a shape's centre is drawn under the shape; one
+ * that starts at a fixed offset misses as soon as the shape is a different
+ * size. Clipping the centre line to the border is the only version that is
+ * right for every pair of boxes, at every size, in every direction.
+ */
+export function edgePoint(
+  box: { x: number; y: number; w: number; h: number },
+  towardsX: number,
+  towardsY: number,
+  gap = 6
+): { x: number; y: number } {
+  const cx = box.x + box.w / 2
+  const cy = box.y + box.h / 2
+  const dx = towardsX - cx
+  const dy = towardsY - cy
+  const length = Math.hypot(dx, dy) || 1
+  const ux = dx / length
+  const uy = dy / length
+
+  // How far along the ray the box's own edge is, whichever side it leaves by.
+  const tx = ux === 0 ? Infinity : Math.abs(box.w / 2 / ux)
+  const ty = uy === 0 ? Infinity : Math.abs(box.h / 2 / uy)
+  const t = Math.min(tx, ty) + gap
+
+  return { x: cx + ux * t, y: cy + uy * t }
+}
+
 /** Which generator a shape wants, by the class the renderer gave it. */
 export type RoughShape = 'rect' | 'ellipse' | 'diamond' | 'underline'
 

@@ -149,6 +149,9 @@ Six rows landing on one beat while the voice is still on the first is the worst 
 
     - { arrow: [browser, resolver], says: 'the query goes out', at: 3 }
     - { dashed: [cache, origin], says: 'only on a miss', at: 5 }
+    - { both: [client, server], says: 'they talk both ways', at: 6 }
+
+A connector is drawn from the edge of one shape to the edge of the other, wherever the two end up — so name the ends and never think about where the line goes.
 
 Not every relationship is a flow. When one thing is not *becoming* another, name what it is — \`depends\`, \`contains\`, \`shares\`, \`maps\`, \`mounts\`, \`uses\`:
 
@@ -216,7 +219,54 @@ Given a \`says:\`, a symbol becomes a line in a list — glyph left, words right
 - One structure that fits the idea — layers, a flow, a comparison, a table — and a little detail around it. One photograph somewhere in the lesson.
 - Every beat should have something happening. Three beats in a row with nothing is the voice talking to a still picture; five things at once is the board running ahead of it.
 - If the narration returns to something already drawn, \`focus\` it or \`transform\` it. Drawing it twice is the commonest way a board gets crowded.
-- Read it back and cut. For each entry, ask what it says that nothing else already says. Space is not waste.`
+- Read it back and cut. For each entry, ask what it says that nothing else already says. Space is not waste.
+
+# A finished board
+
+    title: What a container actually is
+    takeaway: A container is a process with a restricted view — not a small computer.
+    roles: { package: green, problem: red }
+
+    scenes:
+      - n: 1
+        title: Two ways to ship software
+        beats: 5
+        board:
+          - comparison:
+            at: 1
+            in:
+              - group: Virtual machine
+                id: vm
+                role: problem
+                in:
+                  - { box: Your app }
+                  - { box: 'Guest OS / its own kernel, its own drivers' }
+                  - { sym: stopwatch, says: 'About a minute to boot', at: 3 }
+              - group: Container
+                id: unit
+                role: package
+                in:
+                  - { box: Your app }
+                  - { sym: stopwatch, says: 'Under a second', at: 4 }
+
+          - { img: shipping containers on a dock photograph, at: 2 }
+          - { focus: vm, at: 3 }
+          - { focus: unit, at: 4 }
+          - { callout: 'The difference is what a container never brought with it', role: package, at: 5 }
+
+      - n: 2
+        title: Where a container comes from
+        beats: 4
+        carry: [unit]
+        board:
+          - { box: Source code, id: source, at: 1 }
+          - { transform: source, to: 'Docker image', stat: read-only, at: 2 }
+          - { sym: layers, says: 'Frozen, and shared by every container', role: package, at: 2 }
+          - { arrow: [source, unit], says: 'one image, many containers', at: 3 }
+          - { sym: warehouse, says: 'Pushed to a registry', role: package, at: 3 }
+          - { callout: 'The same bytes on your laptop and in production', role: package, at: 4 }
+
+Note what that board does *not* do: it never draws the container twice. Scene one weighs two things with \`comparison\` and moves the attention between them with \`focus\`; scene two carries one of them forward and changes the other with \`transform\`. That is the difference between a lesson and fifteen posters of the same diagram.`
 
 /** The board for a script that is already written and already recorded. */
 export function slateYamlScriptPrompt(blocks: { n: number; sentences: string[] }[]) {

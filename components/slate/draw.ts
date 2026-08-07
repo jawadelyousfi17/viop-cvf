@@ -3,6 +3,7 @@
 import {
   COLOURS,
   LAYOUT_KINDS,
+  allNodes as allNodesOf,
   rowIndex,
   splitCaption,
   splitTarget,
@@ -11,7 +12,7 @@ import {
   type SlateScene,
 } from '@/lib/slate'
 import { resolveSymbol } from '@/lib/slate-symbols'
-import { roughPath, type RoughShape } from '@/lib/slate-rough'
+import { arrowHead, edgePoint, roughPath, roughStroke, type RoughShape } from '@/lib/slate-rough'
 import { highlight } from '@/lib/slate-code'
 
 /**
@@ -29,6 +30,8 @@ import { highlight } from '@/lib/slate-code'
  * animates; `showBeat` decides what is true at beat n and the stylesheet does
  * the moving.
  */
+
+const SVG = 'http://www.w3.org/2000/svg'
 
 const el = (tag: string, cls?: string | null, text?: string | null) => {
   const node = document.createElement(tag)
@@ -105,34 +108,9 @@ function joiner(cycle = false) {
 export function drawShape(lesson: SlateLesson, node: SlateNode): HTMLElement {
   const colour = roleClass(lesson, node)
 
-  if (node.kind === 'arrow') {
-    const wrap = el('div', 'arrow' + (node.style === '-->' ? ' dashed' : ''))
-    if (node.text) wrap.appendChild(el('span', 'alabel', node.text))
-    wrap.insertAdjacentHTML(
-      'beforeend',
-      `<svg viewBox="0 0 120 12" aria-hidden="true">${
-        node.style === '<->' ? '<path d="M16 1 L8 6 L16 11"/>' : ''
-      }<line x1="${node.style === '<->' ? 10 : 0}" y1="6" x2="110" y2="6"/><path d="M104 1 L112 6 L104 11"/></svg>`
-    )
-    wrap.dataset.beat = String(node.beat)
-    return wrap
-  }
-
-  // A relationship that is not a flow. Drawn as a brace rather than an arrow,
-  // because "shares" and "mounts" have no direction of travel and an arrowhead
-  // asserts one — which is how every system diagram ended up looking like a
-  // pipeline.
-  if (node.kind === 'rel') {
-    const wrap = el('div', 'rel')
-    wrap.appendChild(el('span', 'rword', node.rel ?? ''))
-    wrap.insertAdjacentHTML(
-      'beforeend',
-      '<svg viewBox="0 0 120 14" aria-hidden="true"><path d="M2 3 v4 a4 4 0 0 0 4 4 h48 a6 6 0 0 1 6 4 a6 6 0 0 1 6 -4 h48 a4 4 0 0 0 4 -4 v-4"/></svg>'
-    )
-    if (node.text) wrap.appendChild(el('span', 'alabel', node.text))
-    wrap.dataset.beat = String(node.beat)
-    return wrap
-  }
+  // `arrow` and `rel` never reach here: connectors are not laid out among the
+  // shapes, they are drawn over the finished sheet by `wireBoard` so each one
+  // can start and end on a real border.
 
   // A symbol, and what it is there to say. Given a caption it becomes a line
   // in a list — icon left, words right — which is how a property of a thing is
@@ -518,6 +496,11 @@ export function drawScene(
       delete stale.dataset.markEnd
       delete stale.dataset.focus
       stale.classList.remove('gone', 'focused', 'unfocused')
+      // Everything inside it arrived in the scene it came from, so it is here
+      // from beat zero too. Leaving the old numbers on the parts meant a
+      // carried box drew its border immediately and stayed *empty* until the
+      // beat its label had happened to use in the previous scene.
+      if (stale.dataset.beat) stale.dataset.beat = '0'
     }
     const wrap = el('div', 'node')
     wrap.appendChild(clone)
@@ -552,19 +535,41 @@ export function drawScene(
       row.appendChild(wrap)
     }
 
-    // Connectors are slotted between their ends rather than appended, which is
-    // what makes "a leads to b" read left to right without anyone writing a
-    // position. Wrapped like everything else so focus can dim them too.
-    for (const link of nodes.filter((node) => node.kind === 'arrow' || node.kind === 'rel')) {
-      const wrap = el('div', 'node link')
-      wrap.appendChild(drawShape(lesson, link))
-      const to = placed[link.names?.[1] ?? '']
-      if (to) row.insertBefore(wrap, to)
-      else row.appendChild(wrap)
-    }
-
     fragment.appendChild(row)
   })
+
+  // Connectors are not laid out at all. They are drawn over the finished sheet,
+  // from the edge of one shape to the edge of the other, once everything has a
+  // position — which is the only way a line can actually touch the two things
+  // it joins. Slotting a fixed-width stub between them, as this used to, gave a
+  // connector that pointed at nothing and could only ever join neighbours.
+  const wires = document.createElementNS(SVG, 'svg')
+  wires.setAttribute('class', 'wires')
+  wires.setAttribute('aria-hidden', 'true')
+  for (const node of allNodesOf(scene)) {
+    if (node.kind === 'arrow' || node.kind === 'rel') {
+      const ends = node.names ?? []
+      for (let i = 0; i + 1 < ends.length; i++) {
+        const wire = document.createElementNS(SVG, 'g')
+        wire.setAttribute('class', 'wire' + (node.kind === 'rel' ? ' rel' : ''))
+        wire.dataset.from = ends[i]
+        wire.dataset.to = ends[i + 1]
+        wire.dataset.beat = String(node.beat)
+        wire.dataset.style = node.kind === 'rel' ? 'rel' : (node.style ?? '->')
+        wire.dataset.seed = `${node.line}:${i}`
+        // Only the first link of a chain carries the label; repeating it on
+        // every hop is the same sentence written three times.
+        const said = i === 0 ? [node.rel, node.text].filter(Boolean).join(' · ') : ''
+        wire.appendChild(document.createElementNS(SVG, 'path'))
+        wire.appendChild(document.createElementNS(SVG, 'path'))
+        const text = document.createElementNS(SVG, 'text')
+        text.textContent = said
+        wire.appendChild(text)
+        wires.appendChild(wire)
+      }
+    }
+  }
+  if (wires.childNodes.length) fragment.appendChild(wires)
 
   // Taken here, between the drawing and the changing: everything the scene
   // defines, as it was defined, before a mark or a morph touched it.
@@ -700,6 +705,77 @@ function register(dom: HTMLElement, byName: Record<string, HTMLElement>) {
 }
 
 /**
+ * Draws every connector from the edge of one shape to the edge of the other.
+ *
+ * Run last, after the fit has chosen a page width and the ink has been drawn,
+ * because a line between two shapes cannot be worked out until both shapes have
+ * finished deciding where they are and how big they are.
+ *
+ * Geometry is in the sheet's own unscaled pixels. `getBoundingClientRect` is
+ * measured after the zoom, so every reading is divided back out by it — the
+ * overlay is inside the sheet and gets scaled along with everything else, and
+ * dividing twice would draw the lines at the wrong size on any board that was
+ * not at 1:1.
+ */
+export function wireBoard(board: HTMLElement) {
+  const sheet = board.querySelector<HTMLElement>(':scope > .sheet')
+  const wires = sheet?.querySelector<SVGSVGElement>(':scope > svg.wires')
+  if (!sheet || !wires) return
+
+  const zoom = Number(sheet.dataset.zoom) || 1
+  const origin = sheet.getBoundingClientRect()
+  wires.setAttribute('viewBox', `0 0 ${sheet.offsetWidth} ${sheet.offsetHeight}`)
+  wires.setAttribute('width', String(sheet.offsetWidth))
+  wires.setAttribute('height', String(sheet.offsetHeight))
+
+  /** A shape's box in sheet coordinates, with the zoom taken back out. */
+  const boxOf = (name: string) => {
+    const node = sheet.querySelector<HTMLElement>(`[data-name="${CSS.escape(name)}"]`)
+    if (!node) return null
+    const rect = node.getBoundingClientRect()
+    if (!rect.width || !rect.height) return null
+    return {
+      x: (rect.left - origin.left) / zoom,
+      y: (rect.top - origin.top) / zoom,
+      w: rect.width / zoom,
+      h: rect.height / zoom,
+    }
+  }
+
+  for (const wire of Array.from(wires.querySelectorAll<SVGGElement>('g.wire'))) {
+    const from = boxOf(wire.dataset.from ?? '')
+    const to = boxOf(wire.dataset.to ?? '')
+    const [line, head, label] = Array.from(wire.children) as [SVGPathElement, SVGPathElement, SVGTextElement]
+
+    // An end that is not on the board yet leaves nothing to join.
+    if (!from || !to) {
+      wire.setAttribute('display', 'none')
+      continue
+    }
+    wire.removeAttribute('display')
+
+    const a = edgePoint(from, to.x + to.w / 2, to.y + to.h / 2)
+    const b = edgePoint(to, from.x + from.w / 2, from.y + from.h / 2)
+    const style = wire.dataset.style ?? '->'
+
+    line.setAttribute('d', roughStroke(a.x, a.y, b.x, b.y, wire.dataset.seed ?? 'w'))
+
+    // A relation has no direction of travel, so it gets no head — that is the
+    // whole distinction between `shares` and `->`.
+    const angle = Math.atan2(b.y - a.y, b.x - a.x)
+    head.setAttribute(
+      'd',
+      style === 'rel'
+        ? ''
+        : arrowHead(b.x, b.y, angle) + (style === '<->' ? arrowHead(a.x, a.y, angle + Math.PI) : '')
+    )
+
+    label.setAttribute('x', String((a.x + b.x) / 2))
+    label.setAttribute('y', String((a.y + b.y) / 2 - 8))
+  }
+}
+
+/**
  * What is true at beat n.
  *
  * Everything the language can say about time resolves here, in one pass: what
@@ -818,7 +894,9 @@ export function fitBoard(board: HTMLElement) {
   }
 
   sheet.style.width = `${best.width}px`
-  sheet.style.transform = best.zoom === 1 ? '' : `scale(${Math.round(best.zoom * 1000) / 1000})`
+  const zoom = Math.round(best.zoom * 1000) / 1000
+  sheet.dataset.zoom = String(zoom)
+  sheet.style.transform = zoom === 1 ? '' : `scale(${zoom})`
 }
 
 /**

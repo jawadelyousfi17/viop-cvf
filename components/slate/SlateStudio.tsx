@@ -12,7 +12,7 @@ import { SLATE_YAML_SYSTEM, slateYamlScriptPrompt } from '@/lib/slate-yaml-promp
 import { narrationScenes, parseLesson, splitSentences, type SlateLesson } from '@/lib/slate'
 import { looksLikeYaml, parseYamlLesson } from '@/lib/slate-yaml'
 import { lint } from '@/lib/slate-lint'
-import { drawScene, fitBoard, roughen, showBeat } from './draw'
+import { drawScene, fitBoard, roughen, showBeat, wireBoard } from './draw'
 import './slate.css'
 
 /**
@@ -252,9 +252,13 @@ export default function SlateStudio({
     // people out: the board is laid out in the fallback face, every box is
     // sized to it, and then the real hand arrives and every box is a different
     // width with a straight-edged border still pinned to the old one.
+    // Order matters: the page width decides how rows wrap, wrapping decides
+    // every shape's size, and a connector cannot be aimed until both of its
+    // ends have stopped moving.
     const redraw = () => {
       fitBoard(board)
       roughen(board)
+      wireBoard(board)
     }
     redraw()
     void document.fonts?.ready.then(redraw)
