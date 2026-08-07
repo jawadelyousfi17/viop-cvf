@@ -614,12 +614,63 @@ export default function SlateStudio({
             <VoicePicker value={voiceId} onChange={setVoiceId} />
           </div>
 
+          {/* Boards already written, kept on disk and read back over the API —
+              so editing one is editing a file, not a string in a bundle. */}
+          <div className="mt-6">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
+              Open a board
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {EXAMPLES.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setExample(entry.id)}
+                  className="flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-zinc-400"
+                >
+                  <span className="text-sm font-medium text-zinc-800">{entry.label}</span>
+                  <span className="text-xs text-zinc-400">{entry.note}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-8">
+            <label
+              htmlFor="slate-topic"
+              className="mb-2 block text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400"
+            >
+              Or name a topic
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="slate-topic"
+                value={topic}
+                onChange={(event) => {
+                  setTopic(event.target.value)
+                  if (event.target.value) setPicked(null)
+                }}
+                onKeyDown={(event) => event.key === 'Enter' && void write()}
+                placeholder="how a CPU cache works"
+                disabled={writing}
+                className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 disabled:animate-pulse"
+              />
+              <button
+                type="button"
+                onClick={() => void write()}
+                disabled={!topic.trim() || writing}
+                className="shrink-0 rounded-xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {writing ? 'Writing…' : 'Write the board'}
+              </button>
+            </div>
+          </div>
+
           {/* Scripts already written, and already recorded. The board is the
               only thing missing, and the words must come back byte for byte. */}
           {saved.length > 0 && (
             <div className="mt-8">
               <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
-                A written script
+                Or draw a script you have written
               </p>
               <div className="flex flex-wrap gap-2">
                 {saved.map((entry) => (
@@ -720,57 +771,6 @@ export default function SlateStudio({
             </div>
           )}
 
-          <div className="mt-8">
-            <label
-              htmlFor="slate-topic"
-              className="mb-2 block text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400"
-            >
-              Or just a topic
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="slate-topic"
-                value={topic}
-                onChange={(event) => {
-                  setTopic(event.target.value)
-                  if (event.target.value) setPicked(null)
-                }}
-                onKeyDown={(event) => event.key === 'Enter' && void write()}
-                placeholder="how a CPU cache works"
-                disabled={writing}
-                className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 disabled:animate-pulse"
-              />
-              <button
-                type="button"
-                onClick={() => void write()}
-                disabled={!topic.trim() || writing}
-                className="shrink-0 rounded-xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {writing ? 'Writing…' : 'Write the board'}
-              </button>
-            </div>
-          </div>
-
-          {/* Boards already written, kept on disk and read back over the API —
-              so editing one is editing a file, not a string in a bundle. */}
-          <div className="mt-6">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
-              Or open a finished board
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {EXAMPLES.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => setExample(entry.id)}
-                  className="flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-zinc-400"
-                >
-                  <span className="text-sm font-medium text-zinc-800">{entry.label}</span>
-                  <span className="text-xs text-zinc-400">{entry.note}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </main>
     )
