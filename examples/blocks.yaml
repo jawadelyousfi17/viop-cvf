@@ -1,0 +1,49 @@
+title: Every block Slate has
+takeaway: A scratch board that draws one of each, so a change to the renderer has something to break.
+roles: { hot: red, cold: blue, ok: green }
+
+scenes:
+  - n: 1
+    title: Blocks
+    beats: 6
+    say:
+      - A stack shows layers.
+      - An array shows indexed cells.
+      - A table compares values.
+      - A chart shows magnitude.
+      - Code shows the actual thing.
+      - And a flow shows a sequence.
+    board:
+      - stk:
+        id: layers
+        role: cold
+        rows:
+          - { text: 'Application', at: 1 }
+          - { text: 'Transport — TCP', at: 1 }
+          - { text: 'Internet — IP', at: 1 }
+      - arr: [42, 17, 8, 99, '-', '-']
+        id: buf
+        role: ok
+        at: 2
+      - tbl:
+        id: ops
+        at: 3
+        rows:
+          - { cells: [Operation, Average, Worst], header: true }
+          - { cells: [Lookup, 'O(1)', 'O(n)'] }
+          - { cells: [Insert, 'O(1)', 'O(n)'] }
+      - chart: 'bar "nanoseconds to answer"'
+        id: cost
+        role: hot
+        rows:
+          - { text: 'L1 cache 1', at: 4 }
+          - { text: 'main memory 100', at: 4 }
+      - code: 'def find(xs, k): / for i, x in enumerate(xs): / if x == k: return i  < / return -1'
+        at: 5
+      - flow:
+        layout: horizontal
+        in:
+          - { step: Parse, at: 6 }
+          - { step: Plan, at: '6*' }
+          - { step: Execute, at: '6*' }
+      - { img: a photograph of a server, at: 6 }

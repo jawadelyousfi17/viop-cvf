@@ -67,6 +67,13 @@ const EXAMPLES = [
     script: 'dns.script.md',
   },
   {
+    id: 'blocks',
+    label: 'Every block Slate has',
+    note: '1 scene · a scratch board',
+    board: 'blocks.yaml',
+    script: 'blocks.yaml',
+  },
+  {
     id: 'three-ways',
     label: 'Three ways to ship',
     note: '1 scene · a three-part comparison',

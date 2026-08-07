@@ -267,6 +267,21 @@
 .slate .node:has(> .flow) {
   max-width: min(1060px, 96vw);
 }
+/* So can a block. A table, an array or a chart is sized by its contents, and
+   clamping it to a shape's width made it overflow its own slot and get drawn
+   over by whatever came next. */
+.slate .node:has(> .arr),
+.slate .node:has(> table.tbl),
+.slate .node:has(> .chart),
+.slate .node:has(> .stk),
+.slate .node:has(> pre.code) {
+  max-width: none;
+  width: max-content;
+  max-inline-size: min(760px, 92vw);
+}
+.slate .node:has(> .arr) {
+  max-inline-size: none;
+}
 
 .slate .shape {
   padding: 17px 19px;
@@ -586,7 +601,9 @@
 .slate .arr {
   display: flex;
   gap: 5px;
-  flex-wrap: wrap;
+  /* An array does not wrap. Cell 5 appearing under cell 0 is not a long array,
+     it is a different data structure — the zoom shrinks the page instead. */
+  flex-wrap: nowrap;
 }
 .slate .arr .cell {
   padding: 13px 16px;
