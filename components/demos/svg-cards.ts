@@ -39,6 +39,15 @@ const EXTRA: Record<string, string> = {
     '<path d="M8 34a16 16 0 1 1 32 0"/><path d="M24 34 33 22"/><circle cx="24" cy="34" r="2.4"/><path d="M10 28l3 2M38 28l-3 2M24 16v4"/>',
   check: '<path d="M10 26l9 10L38 12"/>',
   tree: '<path d="M14 8v32M14 14h10M14 24h16M14 34h10M30 24v10h8"/>',
+  trophy:
+    '<path d="M15 8h18v10a9 9 0 0 1-18 0Z"/><path d="M15 11H8a7 7 0 0 0 7 9M33 11h7a7 7 0 0 1-7 9"/><path d="M24 27v7M17 40h14M20 34h8v6"/>',
+  bolt: '<path d="M27 5 12 27h9l-2 16 15-22h-9z"/>',
+  camera:
+    '<rect x="6" y="14" width="36" height="26" rx="3"/><circle cx="24" cy="27" r="8"/><path d="M17 14l3-5h8l3 5M35 20h2"/>',
+  fork: '<circle cx="24" cy="9" r="4"/><circle cx="12" cy="39" r="4"/><circle cx="36" cy="39" r="4"/><path d="M24 13v8M24 21c0 8-12 6-12 14M24 21c0 8 12 6 12 14"/>',
+  pages:
+    '<path d="M10 6h18l6 6v22H10z"/><path d="M28 6v6h6"/><path d="M16 40h20V18" fill="none"/>',
+  plug: '<path d="M18 6v10M30 6v10M14 16h20v8a10 10 0 0 1-20 0Z"/><path d="M24 34v8"/>',
 }
 
 const seedOf = (name: string) => {

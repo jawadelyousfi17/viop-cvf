@@ -1,0 +1,238 @@
+[00:00:00] Most developers start using Redis when
+[00:00:01] their database gets slow and the API
+[00:00:03] starts showing higher latency.
+[00:00:05] In that case, someone will probably tell
+[00:00:07] you to use cache. So, you set up Redis,
+[00:00:09] store some data in it, and suddenly
+[00:00:11] latency drops and everything is fine.
+[00:00:13] For a lot of us, the mental model of
+[00:00:15] Redis stops right there. We think of it
+[00:00:17] as a temporary box for key-value pairs,
+[00:00:20] a simple hash map running in memory that
+[00:00:21] loses all its data the moment the server
+[00:00:23] reboots. But if Redis is just a
+[00:00:25] temporary dumb cache, why do modern tech
+[00:00:28] stacks use it for a lot of stuff like,
+[00:00:30] for example, message brokering,
+[00:00:32] real-time analytics, geospatial
+[00:00:34] tracking, or even as a primary
+[00:00:36] persistent database? The truth is,
+[00:00:38] saying that Redis is only for caching is
+[00:00:40] like saying a phone is only for ringing.
+[00:00:42] It's technically true, but it misses a
+[00:00:43] lot of things. So, in this video, we
+[00:00:45] will look at what's happening under the
+[00:00:47] hood of Redis to understand how it
+[00:00:48] actually works, why it's
+[00:00:50] single-threaded, and how it manages to
+[00:00:52] be both insanely fast and persistent at
+[00:00:54] the same time. Let's start with the most
+[00:00:56] obvious question. Why is Redis so much
+[00:00:58] faster than a traditional database? If
+[00:01:00] you query a relational database, the
+[00:01:02] engine has to do a lot of work. It
+[00:01:04] parses the SQL query,
+[00:01:06] plans the execution, traverses a B-tree
+[00:01:09] index, and eventually reads the data.
+[00:01:12] But the biggest bottleneck is that data
+[00:01:13] lives in the disk. Even with modern NVMe
+[00:01:17] SSDs, disk access is measured in
+[00:01:19] microseconds. As you probably know,
+[00:01:22] Redis takes a different approach. It is
+[00:01:24] in-memory data structure store, so it
+[00:01:25] bypasses the disk for read and write
+[00:01:27] operations. The data lives in RAM, and
+[00:01:30] reading from it takes nanoseconds. The
+[00:01:32] operations done on RAM are a lot faster
+[00:01:34] compared to disk operations.
+[00:01:36] But raw speed isn't enough. If you just
+[00:01:39] wanted to store data in RAM, you could
+[00:01:40] declare a global variable in your Node
+[00:01:42] or Python back end, and it would do the
+[00:01:44] same job.
+[00:01:45] What makes Redis powerful is the second
+[00:01:47] part of its definition, data structure
+[00:01:50] store.
+[00:01:51] Traditional caches only understand
+[00:01:52] strings. You give them a key, and they
+[00:01:54] store a massive blob of text. If you
+[00:01:56] want to update one field in cached JSON
+[00:01:58] object, you have to retrieve the entire
+[00:02:00] string, then parse it, then update the
+[00:02:02] data, then stringify it, and finally,
+[00:02:05] you can save the updated JSON. One of
+[00:02:07] Redis's advantages is that it natively
+[00:02:09] understands various data structures. Out
+[00:02:11] of the box, it supports lists, sets,
+[00:02:14] hashes, and sorted sets. Each one comes
+[00:02:16] with operations built specifically for
+[00:02:18] it, so you can change the data in place
+[00:02:20] without pulling the whole thing back to
+[00:02:22] your app. Let's say you're building a
+[00:02:24] real-time gaming leaderboard. In a
+[00:02:26] traditional database, you'd have to sort
+[00:02:28] all the rows by score from highest to
+[00:02:30] lowest on every single request.
+[00:02:32] Doing that on millions of rows for every
+[00:02:34] page refresh is just really slow. In
+[00:02:37] Redis, you use a sorted set. Under the
+[00:02:39] hood, a sorted set is implemented using
+[00:02:41] a hash table and a skip list. When you
+[00:02:44] insert a player's score, Redis does the
+[00:02:46] sorting right then in memory. When you
+[00:02:48] need the top 10 players, there is no
+[00:02:49] sorting left to do.
+[00:02:51] You aren't just storing data. You are
+[00:02:53] shifting the computation from your
+[00:02:54] application layer directly into the
+[00:02:56] memory layer. Now, this brings us to one
+[00:02:58] of the most counterintuitive aspects of
+[00:03:00] Redis.
+[00:03:01] How does it handle thousands of
+[00:03:02] concurrent client connections? If you
+[00:03:04] have 10,000 users hitting your API, and
+[00:03:07] that API is hitting Redis, you might
+[00:03:08] assume Redis spins up thousands of
+[00:03:10] threads to handle them, just like a
+[00:03:12] traditional web server would, but it
+[00:03:13] doesn't. It's single-threaded. When
+[00:03:16] people hear this, they assume it must be
+[00:03:18] slow. How can a single thread process
+[00:03:20] 100,000 requests per second? To
+[00:03:22] understand this, we have to look at what
+[00:03:24] actually makes a multi-threaded
+[00:03:25] application slow. When multiple threads
+[00:03:28] try to access the same piece of memory,
+[00:03:30] you have to use locks or mutexes to
+[00:03:31] prevent data corruption. Thread A locks
+[00:03:34] the data, thread B waits. The CPU wastes
+[00:03:37] valuable cycles just switching between
+[00:03:39] threads and managing who has access to
+[00:03:41] what. Redis avoids this entirely because
+[00:03:44] all the data is in RAM, reading or
+[00:03:45] writing a value takes almost zero time.
+[00:03:48] The real bottleneck is the network,
+[00:03:49] waiting for the data packets to travel
+[00:03:51] from the client to the server. So, Redis
+[00:03:54] uses a technique called IO multiplexing.
+[00:03:57] Specifically, it uses system calls like
+[00:03:59] epoll on Linux. Instead of assigning one
+[00:04:02] thread to wait for one network
+[00:04:03] connection, a single thread monitors
+[00:04:05] thousands of connections simultaneously.
+[00:04:07] When a network socket has a command
+[00:04:09] ready to execute, Redis takes that
+[00:04:11] command, puts it in a queue, and
+[00:04:13] executes it. Because it's
+[00:04:14] single-threaded, commands are executed
+[00:04:16] strictly one after the other. This
+[00:04:18] guarantees atomic operations. You never
+[00:04:20] have to worry about race conditions. If
+[00:04:22] two users try to decrement an inventory
+[00:04:24] counter at the exact same millisecond,
+[00:04:27] Redis guarantees one will execute fully
+[00:04:29] before the other begins. There is no
+[00:04:31] need for locks.
+[00:04:32] One thing worth mentioning is that
+[00:04:33] modern versions of Redis use additional
+[00:04:35] threads, but only for parsing network
+[00:04:37] stuff.
+[00:04:38] The actual execution of commands, the
+[00:04:40] part that touches the data, remains
+[00:04:42] strictly single-threaded to preserve
+[00:04:44] this lock-free speed. So, we have an
+[00:04:46] incredibly fast single-threaded
+[00:04:48] execution loop running entirely in RAM.
+[00:04:51] But, RAM is volatile. If the server
+[00:04:53] loses power, the RAM is cleared, so it
+[00:04:55] means that your data is gone. If you are
+[00:04:57] using Redis purely as a temporary cache,
+[00:04:59] maybe you don't care. But, if you are
+[00:05:01] using it to store user sessions or
+[00:05:03] shopping carts, data loss can be a
+[00:05:05] problem.
+[00:05:06] This is where the hidden complexity of
+[00:05:07] Redis persistence comes in.
+[00:05:09] Redis solves this problem using two
+[00:05:11] completely different mechanisms, RDB and
+[00:05:14] AOF. RDB stands for Redis database. It
+[00:05:18] takes point-in-time snapshots of your
+[00:05:20] entire data set and saves them to disk.
+[00:05:22] But, if Redis is single-threaded and
+[00:05:24] writing 10 GB of data to an SSD takes
+[00:05:26] several seconds, wouldn't taking a
+[00:05:28] snapshot freeze the entire database and
+[00:05:30] block all incoming requests?
+[00:05:32] It would if Redis didn't use a brilliant
+[00:05:34] operating system trick. When it's time
+[00:05:36] to take a snapshot, Redis asks the Linux
+[00:05:38] kernel to execute a fork system call.
+[00:05:41] This creates a child process that is an
+[00:05:43] exact duplicate of the Redis parent
+[00:05:45] process.
+[00:05:46] At the moment of the fork, both the
+[00:05:47] parent and the child point to the exact
+[00:05:49] same memory addresses.
+[00:05:51] The child process then begins slowly
+[00:05:53] writing that memory to disk.
+[00:05:55] But, what if the parent process receives
+[00:05:57] a write command and needs to modify that
+[00:05:59] memory while the child is still saving
+[00:06:01] it? The kernel handles this using a
+[00:06:03] mechanism called copy-on-write. If the
+[00:06:05] parent tries to modify a page of memory,
+[00:06:07] the OS intercepts it, creates a
+[00:06:09] duplicate of just that specific page,
+[00:06:11] and lets the parent modify the new one.
+[00:06:13] The child process remains completely
+[00:06:15] undisturbed, seeing the memory exactly
+[00:06:17] as it was at the exact millisecond the
+[00:06:19] fork occurred. The main thread never
+[00:06:21] blocks, and the snapshot gets safely
+[00:06:23] saved to disk. The second persistence
+[00:06:25] method is AOF, or append-only file.
+[00:06:28] While RDB takes snapshots every few
+[00:06:30] minutes, AOF is a continuous log. Every
+[00:06:33] time a write command is executed, like
+[00:06:35] set key value, Redis appends that exact
+[00:06:37] command to a file on disk. If the server
+[00:06:40] crashes, Redis can perfectly reconstruct
+[00:06:42] the data set by reading the AOF file
+[00:06:44] from top to bottom and replaying every
+[00:06:46] single command. In production, these two
+[00:06:48] methods are often used together. RDB
+[00:06:50] gives you fast restarts and compact
+[00:06:52] backups, while AOF guarantees you won't
+[00:06:54] lose the last few minutes of data if the
+[00:06:56] power goes out. When you put all these
+[00:06:58] pieces together, the in-memory
+[00:07:00] architecture, the rich data structures,
+[00:07:02] the lock-free single-threaded event
+[00:07:04] loop, and the background persistence
+[00:07:06] mechanisms, you realize why Redis is so
+[00:07:08] ubiquitous. It's not just a cache, it's
+[00:07:11] a highly optimized system for solving
+[00:07:13] distributed architecture problems. If
+[00:07:15] you need to enforce API rate limiting,
+[00:07:17] use Redis string with an expiration
+[00:07:19] timer. If you need to pass messages
+[00:07:21] between microservices, use Redis pub/sub
+[00:07:23] or Redis streams.
+[00:07:25] And if you need to prevent users from
+[00:07:26] booking the same seat simultaneously,
+[00:07:28] use Redis atomic transaction. Redis
+[00:07:31] forces you to think differently about
+[00:07:33] how you store data. Instead of dumping
+[00:07:35] everything into rigid relational tables
+[00:07:37] and relying on slow disk reads, it gives
+[00:07:39] you low-level data structures optimized
+[00:07:41] for the speed of RAM wrapped in a
+[00:07:43] network interface. So, the next time you
+[00:07:45] type docker run Redis, you aren't just
+[00:07:47] spinning up a temporary bucket for cache
+[00:07:49] misses, you're spinning up one of the
+[00:07:51] most elegantly engineered pieces of
+[00:07:53] software in the modern stack. If you
+[00:07:55] enjoyed this video, drop a like and
+[00:07:57] subscribe, and tell me in the comments
+[00:07:59] what you want me to break down next.
