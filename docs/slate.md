@@ -376,6 +376,34 @@ compare |4
 
 `compare VM vs CONTAINER |4` works for the case with nothing inside the sides.
 
+**Any number of parts.** `comparison` is the same construct spelled out, and it
+splits the board into equal shares — one per part, dividers drawn for you, each
+part holding as much as it needs. `layout: column` stacks the parts into bands
+instead of columns. Two parts get a `vs` between them; more get a plain rule,
+because "vs" between five things is noise.
+
+```yaml
+- comparison:
+  at: 1
+  in:
+    - group: Bare metal
+      role: system
+      in:
+        - { box: Your app }
+        - { sym: server, says: 'One machine, one app', at: 2 }
+    - group: Virtual machine
+      role: problem
+      in:
+        - { box: Your app }
+        - { box: Guest OS }
+    - group: Container
+      role: package
+      in:
+        - { box: Your app }
+```
+
+A comparison of one is a warning; a comparison of three is the point.
+
 **A sequence** draws its own connectors. `-> a b c d` still exists and still
 means the same thing; `flow` is for when the sequence *is* the scene and naming
 four shapes to join three arrows is all ceremony:
@@ -740,7 +768,7 @@ kind #name TEXT [stat] ~role |beat
 box actor step choice store      containers
 group                            belonging — a dashed boundary
 row column grid split center     arrangement, nothing more
-compare                          two things weighed, balanced for you
+compare / comparison             N things weighed, balanced for you
 flow [horizontal|vertical|cycle] a sequence, connectors drawn for you
 branch #x TEXT                   a fork; arms written inside it
 stk arr tbl chart code           structures — block form, one beat per row

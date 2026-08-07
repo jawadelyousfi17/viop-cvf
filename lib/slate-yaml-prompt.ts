@@ -63,7 +63,8 @@ Walk the beats from one to the last and give each entry the beat where it is act
     stk  arr  tbl  chart  code            structures
     img  sym  ico  label  callout         media and lettering
     txt  item                             attached text, inside a shape only
-    group  compare  flow  branch          structures that arrange themselves
+    group  compare  comparison            structures that arrange themselves
+    flow  branch
     row  column  grid  split  center      arrangement, and nothing more
 
 Numbers go in \`stat:\`, inside the shape they describe — never floating beside it.
@@ -93,6 +94,32 @@ A comparison and a sequence draw themselves. Do not arrange one by hand:
       in:
         - { box: 'Virtual machine', stat: 'GB · ~60s', role: problem }
         - { box: 'Container', stat: 'MB · <1s', role: package }
+
+\`comparison\` is the same thing with **any number of parts** — it splits the board into equal shares, one per entry in \`in:\`, with the dividers drawn for you. Each part holds as much as it needs, so use a \`group\` when a part is several things under a heading. \`layout: column\` splits into stacked bands instead of columns.
+
+    - comparison:
+      at: 1
+      in:
+        - group: 'Bare metal'
+          role: system
+          in:
+            - { box: 'Your app' }
+            - { sym: server, says: 'One machine, one app', at: 2 }
+        - group: 'Virtual machine'
+          role: problem
+          in:
+            - { box: 'Your app' }
+            - { box: 'Guest OS' }
+            - { sym: stopwatch, says: 'About a minute', at: 3 }
+        - group: Container
+          role: package
+          in:
+            - { box: 'Your app' }
+            - { sym: stopwatch, says: 'Under a second', at: 4 }
+
+Reach for it whenever a scene weighs three or four options against each other — it is the difference between a board that argues and a board that lists.
+
+A sequence draws its own arrows. Use it whenever the scene *is* the sequence:
 
     - flow:
       id: build

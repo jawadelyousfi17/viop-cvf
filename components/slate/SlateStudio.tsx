@@ -66,6 +66,13 @@ const EXAMPLES = [
     board: 'dns.slate',
     script: 'dns.script.md',
   },
+  {
+    id: 'three-ways',
+    label: 'Three ways to ship',
+    note: '1 scene · a three-part comparison',
+    board: 'three-ways.yaml',
+    script: 'three-ways.yaml',
+  },
 ] as const
 
 type ExampleId = (typeof EXAMPLES)[number]['id']

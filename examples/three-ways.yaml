@@ -1,0 +1,34 @@
+title: Three ways to ship
+takeaway: Bare metal, a virtual machine and a container are three answers to the same question.
+roles: { package: green, problem: red, system: blue }
+
+scenes:
+  - n: 1
+    title: Three ways to ship
+    beats: 4
+    say:
+      - There are three answers, and they differ in what they carry.
+      - Bare metal carries nothing and shares everything.
+      - A virtual machine carries an entire operating system.
+      - A container carries only what your program needs.
+    board:
+      - comparison:
+        at: 1
+        in:
+          - group: Bare metal
+            role: system
+            in:
+              - { box: Your app }
+              - { sym: server, says: 'One machine, one app', at: 2 }
+          - group: Virtual machine
+            role: problem
+            in:
+              - { box: Your app }
+              - { box: Guest OS }
+              - { sym: stopwatch, says: 'About a minute', at: 3 }
+          - group: Container
+            role: package
+            in:
+              - { box: Your app }
+              - { sym: stopwatch, says: 'Under a second', at: 4 }
+      - { img: shipping containers on a dock photograph, at: 4 }

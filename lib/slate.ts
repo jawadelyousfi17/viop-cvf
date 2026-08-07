@@ -31,6 +31,7 @@ export const CONTAINERS = [
   'group',
   'branch',
   'compare',
+  'comparison',
 ] as const
 
 /**
@@ -354,7 +355,7 @@ function parseShapeLine(line: string, lineNo: number, implicit?: string): SlateN
     rest = rest.slice(first.length).trim()
   }
 
-  const node = blankNode(kind === 'col' ? 'column' : kind, lineNo)
+  const node = blankNode(canonicalKind(kind), lineNo)
 
   ;[rest, node.beatTok] = stripBeat(rest)
 
@@ -393,6 +394,13 @@ function parseShapeLine(line: string, lineNo: number, implicit?: string): SlateN
 
   node.text = rest.replace(/\s{2,}/g, ' ').trim()
   return node
+}
+
+/** The one spelling of a kind that everything downstream sees. */
+export function canonicalKind(kind: string): string {
+  if (kind === 'col') return 'column'
+  if (kind === 'comparison') return 'compare'
+  return kind
 }
 
 export function normaliseLayout(word: string): SlateLayout {

@@ -12,6 +12,7 @@ import {
 } from '@/lib/slate'
 import { resolveSymbol } from '@/lib/slate-symbols'
 import { roughPath, type RoughShape } from '@/lib/slate-rough'
+import { highlight } from '@/lib/slate-code'
 
 /**
  * Slate's renderer: a scene in, DOM out.
@@ -219,12 +220,16 @@ export function drawShape(lesson: SlateLesson, node: SlateNode): HTMLElement {
     const block = ink(el('pre', 'code'), 'rect', seedOf(node))
     String(node.text)
       .split(' / ')
-      .forEach((line) => {
-        const focus = / <$/.test(line)
-        block.appendChild(el('span', focus ? 'hlline' : null, line.replace(/ <$/, '')))
-        block.appendChild(document.createTextNode('\n'))
+      .forEach((source) => {
+        const focus = / <$/.test(source)
+        const line = el('span', focus ? 'line hlline' : 'line')
+        for (const token of highlight(source.replace(/ <$/, ''))) {
+          line.appendChild(token.kind ? el('span', 't-' + token.kind, token.text) : document.createTextNode(token.text))
+        }
+        block.appendChild(line)
       })
     block.dataset.beat = String(node.beat)
+    if (node.name) block.dataset.name = node.name
     return block
   }
 
@@ -257,11 +262,14 @@ export function drawShape(lesson: SlateLesson, node: SlateNode): HTMLElement {
     return wrap
   }
 
-  // Two things, weighed. The renderer knows what a comparison looks like —
-  // balanced columns and a divider — so the author does not arrange one.
+  // Things weighed against each other. The renderer knows what a comparison
+  // looks like — equal parts, balanced, divided — so the author never arranges
+  // one. Two is the common case and the one `vs` is written for; any number
+  // works, and each part holds as much as it needs to.
   if (node.kind === 'compare') {
-    const wrap = el('div', 'compare ' + colour)
-    const sides = node.children.length
+    const down = node.layout === 'column'
+    const wrap = el('div', `compare ${down ? 'lay-column' : 'lay-row'} ${colour}`)
+    const parts = node.children.length
       ? node.children.map((child) => drawShape(lesson, child))
       : node.text.split(/\s+vs\.?\s+/i).map((text) => {
           const side = el('div', 'shape k-box')
@@ -270,10 +278,12 @@ export function drawShape(lesson: SlateLesson, node: SlateNode): HTMLElement {
           return side
         })
 
-    sides.forEach((side, i) => {
-      if (i) wrap.appendChild(el('div', 'vs', 'vs'))
+    parts.forEach((part, i) => {
+      // "vs" between two things reads as a comparison. Between five it reads
+      // as noise, so past a pair the divider is just a rule.
+      if (i) wrap.appendChild(el('div', 'vs', parts.length === 2 ? 'vs' : ''))
       const cell = el('div', 'side')
-      cell.appendChild(side)
+      cell.appendChild(part)
       wrap.appendChild(cell)
     })
     wrap.dataset.beat = String(node.beat)
@@ -796,10 +806,14 @@ export function fitBoard(board: HTMLElement) {
   let best = { width: PAGE_WIDTHS[PAGE_WIDTHS.length - 1], zoom: 0, area: -1 }
   for (const width of PAGE_WIDTHS) {
     sheet.style.width = `${width}px`
-    const height = sheet.offsetHeight
+    // scrollWidth, not offsetWidth: a `code` block does not wrap, so a long
+    // line is wider than the page it sits on. Measuring the page would zoom
+    // until that line ran off the glass.
+    const shown = Math.max(width, sheet.scrollWidth)
+    const height = Math.max(sheet.offsetHeight, sheet.scrollHeight)
     if (!height) continue
-    const zoom = Math.min(availableWidth / width, availableHeight / height, MAX_ZOOM)
-    const area = zoom * zoom * width * height
+    const zoom = Math.min(availableWidth / shown, availableHeight / height, MAX_ZOOM)
+    const area = zoom * zoom * shown * height
     if (area > best.area) best = { width, zoom, area }
   }
 

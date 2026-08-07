@@ -2,6 +2,7 @@ import { parseDocument, isMap, isSeq, isScalar, type Node as YamlNode } from 'ya
 import {
   RELATIONS,
   blankNode,
+  canonicalKind,
   isKind,
   normaliseLayout,
   resolveBeats,
@@ -331,7 +332,7 @@ function readEntry(
     })
   }
 
-  const node = blankNode(kind === 'col' ? 'column' : kind, line)
+  const node = blankNode(canonicalKind(kind), line)
   node.name = entry.id == null ? null : String(entry.id).replace(/^#/, '')
   node.role = entry.role == null ? null : String(entry.role)
   node.colour = (entry.colour ?? entry.color) == null ? null : String(entry.colour ?? entry.color)

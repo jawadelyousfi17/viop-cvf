@@ -287,11 +287,13 @@ export function lint(lesson: SlateLesson): SlateProblem[] {
     }
 
     for (const node of nodes) {
-      if (node.kind === 'compare' && node.children.length !== 2) {
+      // Any number of parts, but one part is not a comparison. The inline
+      // `compare A vs B` form has no children at all and is fine.
+      if (node.kind === 'compare' && node.children.length === 1) {
         out.push({
           level: 'warn',
           line: node.line,
-          msg: `compare holds ${node.children.length} sides — a comparison is two`,
+          msg: 'compare holds one part — a comparison weighs at least two',
         })
       }
       if (node.kind === 'flow' && node.children.length < 2) {
