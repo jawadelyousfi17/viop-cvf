@@ -645,6 +645,15 @@ const GAP_Y = 56
 const MIN_GAP_Y = 28
 /** How far rows may be pushed apart to fill a tall board before it reads as sparse. */
 const MAX_GAP_Y = 130
+/**
+ * Room between two shapes an arrow runs between, across and down.
+ *
+ * A connector needs a run. Packed at the ordinary gap, two boxes joined by an
+ * arrow read as two boxes touching, and whatever the arrow was labelled with
+ * has nowhere to sit.
+ */
+const LINK_GAP_X = 128
+const LINK_GAP_Y = 112
 
 /**
  * The height a shape will actually occupy once its label has wrapped.
@@ -680,8 +689,15 @@ function occupiedWidth(shape: BoardShape) {
  * whatever it put side by side stays side by side — but turns it into bands
  * that stack downward, with real gaps, so a scene reads the way a page does.
  *
- * Connectors are left alone: tldraw binds them to the shapes they join, so
- * they re-route themselves once those have moved.
+ * It also reads the arrows. A connector is the one thing in a scene that states
+ * a relationship outright, and packing by coordinates alone threw that away:
+ * two boxes joined by a short arrow could land in different rows with unrelated
+ * shapes between them, leaving a diagonal across the board. So the ties are
+ * worked out first, and then they decide which units share a row, in what
+ * order, and how much room is left between them.
+ *
+ * Connectors themselves are never placed: tldraw binds them to the shapes they
+ * join, so they re-route once those have moved.
  */
 function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
   const loose = shapes.filter((shape) => !FLOATING.has(shape.kind) && !shape.group)
@@ -704,6 +720,16 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
   if (!units.length) return shapes
 
   const available = SCENE_W - MARGIN * 2
+  const ix = new Map<Unit, number>(units.map((unit, index) => [unit, index]))
+  const at = (unit: Unit) => ix.get(unit)!
+  const ties = tiesBetween(shapes, units)
+
+  /** Do these two rows have an arrow running between them? */
+  const bridges = (a: Unit[], b: Unit[], within: Set<string>) =>
+    a.some((one) => b.some((other) => within.has(tieKey(at(one), at(other)))))
+
+  const gapAfter = (a: Unit, b: Unit) =>
+    ties.joined.has(tieKey(at(a), at(b))) ? LINK_GAP_X : GAP_X
 
   // Band by vertical overlap: anything that starts before the current band ends
   // was meant to sit beside what's already in it.
@@ -723,6 +749,23 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
   }
   if (band.length) bands.push(band)
 
+  // An arrow drawn across the board means the two ends were meant to sit beside
+  // each other. The model rarely writes them at exactly the same y, so banding
+  // on y alone splits them into separate rows — and a step that was meant to
+  // read left-to-right becomes a diagonal. Pull those bands back together while
+  // the board is still wide enough to hold them.
+  for (let i = 0; i < bands.length - 1; ) {
+    const together = [...bands[i], ...bands[i + 1]]
+    const width =
+      together.reduce((sum, unit) => sum + unitW(unit), 0) + GAP_X * (together.length - 1)
+
+    if (bridges(bands[i], bands[i + 1], ties.across) && width <= available) {
+      bands.splice(i, 2, together)
+    } else {
+      i++
+    }
+  }
+
   // A band too wide for the board wraps rather than being squeezed.
   const rows: Unit[][] = []
   for (const source of bands) {
@@ -732,18 +775,21 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
 
     for (const unit of byX) {
       const next = unitW(unit)
+      // Measured with the gap this pair will actually get, so a row of linked
+      // boxes wraps on the width it needs rather than overflowing the board.
+      const gap = row.length ? gapAfter(row[row.length - 1], unit) : 0
       // A wide diagram gets a row to itself; a tall narrow one does not. A
       // vertical chain is ~280 wide and ~600 tall, and giving that its own row
       // wastes three quarters of the board's width and makes the scene tall
       // enough that height, not width, decides the zoom.
       const alone = Boolean(unit.bounds) && next > available * 0.55
-      if (row.length && (alone || width + GAP_X + next > available)) {
+      if (row.length && (alone || width + gap + next > available)) {
         rows.push(row)
         row = []
         width = 0
       }
       row.push(unit)
-      width += (row.length > 1 ? GAP_X : 0) + next
+      width += (row.length > 1 ? gap : 0) + next
       if (alone) {
         rows.push(row)
         row = []
@@ -766,51 +812,80 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
 
     // A diagram keeps its own row, and four across is the legibility floor.
     const rigid = together.some((unit) => unit.bounds)
-    if (!rigid && together.length <= 4 && width <= available) {
+    // An arrow drawn downward is saying "and then, below". Merging those two
+    // rows lays the sequence out sideways instead and the step is lost — the
+    // one case where a shorter scene is the wrong trade.
+    const stacked = bridges(a, b, ties.down)
+    if (!rigid && !stacked && together.length <= 4 && width <= available) {
       rows.splice(i, 2, together)
     } else {
       i++
     }
   }
 
-  const heights = rows.map((row) => Math.max(...row.map(unitH)))
+  // Left to right by where the model put things, except that whatever a unit
+  // points at follows it — so a chain of arrows reads as a chain and nothing
+  // unrelated is dealt between the two ends of a connector.
+  const laid = rows.map((row) => orderRow(row, at, ties))
+
+  const heights = laid.map((row) => Math.max(...row.map(unitH)))
   const content = heights.reduce((sum, height) => sum + height, 0)
 
-  // Squeeze the gaps before shrinking anything: whitespace is the cheapest
-  // thing to give up.
+  // Every gap is asked for separately, because two rows an arrow crosses need
+  // more room than two rows that merely follow one another.
   const room = SCENE_H - MARGIN * 2
-  let gap = GAP_Y
-  if (content + gap * (rows.length - 1) > room && rows.length > 1) {
-    gap = Math.max(MIN_GAP_Y, (room - content) / (rows.length - 1))
+  const gaps: number[] = laid
+    .slice(1)
+    .map((row, index) => (bridges(laid[index], row, ties.down) ? LINK_GAP_Y : GAP_Y))
+  let spacing = gaps.reduce((sum, gap) => sum + gap, 0)
+
+  // Squeeze the gaps before shrinking anything: whitespace is the cheapest
+  // thing to give up. Proportionally, so the rows an arrow crosses keep the
+  // larger share of whatever is left.
+  if (content + spacing > room && spacing > 0) {
+    const scale = Math.max(0, room - content) / spacing
+    for (const [index, gap] of gaps.entries()) gaps[index] = Math.max(MIN_GAP_Y, gap * scale)
+    spacing = gaps.reduce((sum, gap) => sum + gap, 0)
   }
 
   // Spread whatever is left over into the gaps rather than banking it as a
   // margin. A board with its content bunched in the middle reads as mostly
   // empty, which is the most common complaint about a generated scene.
-  const slack = room - content - gap * (rows.length - 1)
-  if (slack > 0 && rows.length > 1) {
-    gap += Math.min(slack / (rows.length - 1), MAX_GAP_Y - gap)
+  const slack = room - content - spacing
+  if (slack > 0 && gaps.length) {
+    const share = slack / gaps.length
+    for (const [index, gap] of gaps.entries()) {
+      gaps[index] = gap + Math.min(share, Math.max(0, MAX_GAP_Y - gap))
+    }
+    spacing = gaps.reduce((sum, gap) => sum + gap, 0)
   }
 
-  const used = content + gap * (rows.length - 1)
-  let y = MARGIN + Math.max(0, (room - used) / 2)
+  let y = MARGIN + Math.max(0, (room - content - spacing) / 2)
 
-  for (const [index, row] of rows.entries()) {
+  for (const [index, row] of laid.entries()) {
     const height = heights[index]
-    const natural = row.reduce((sum, unit) => sum + unitW(unit), 0) + GAP_X * (row.length - 1)
+    const across: number[] = row.slice(1).map((unit, i) => gapAfter(row[i], unit))
+    let natural =
+      row.reduce((sum, unit) => sum + unitW(unit), 0) + across.reduce((sum, gap) => sum + gap, 0)
+
+    // The wider link gaps can push a row past the board's edge. Give the room
+    // back rather than overflowing — the arrows still have more than the
+    // ordinary gap to run in.
+    if (natural > available && across.length) {
+      const over = (natural - available) / across.length
+      for (const [i, gap] of across.entries()) across[i] = Math.max(GAP_X / 2, gap - over)
+      natural =
+        row.reduce((sum, unit) => sum + unitW(unit), 0) + across.reduce((sum, gap) => sum + gap, 0)
+    }
 
     // A row that nearly spans the board is stretched to span it properly;
     // a genuinely narrow row stays centred rather than being pulled apart.
     const stretch = row.length > 1 && natural > available * 0.55
-    const spacing = stretch
-      ? GAP_X + (available - natural) / (row.length - 1)
-      : GAP_X
-    const width = stretch
-      ? available
-      : natural
+    const extra = stretch ? Math.max(0, available - natural) / across.length : 0
+    const width = stretch ? Math.max(natural, available) : natural
 
     let x = MARGIN + Math.max(0, (available - width) / 2)
-    for (const unit of row) {
+    for (const [i, unit] of row.entries()) {
       // Every shape in a unit shifts by the same amount, which is what keeps a
       // diagram's internal arrangement intact.
       const dx = x - unitX(unit)
@@ -825,12 +900,98 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
           point.y += dy
         }
       }
-      x += unitW(unit) + spacing
+      x += unitW(unit) + (across[i] ?? 0) + (i < across.length ? extra : 0)
     }
-    y += height + gap
+    y += height + (gaps[index] ?? 0)
   }
 
   return shapes
+}
+
+/**
+ * What the arrows in a scene say about which shapes belong together.
+ *
+ * `across` and `down` are separated because they mean different things to a
+ * layout: an arrow drawn sideways asks for its ends to share a row, one drawn
+ * downward asks for them not to. `flow` keeps the direction, so a chain is laid
+ * out the way it is meant to be read rather than merely kept adjacent.
+ */
+interface Ties {
+  joined: Set<string>
+  across: Set<string>
+  down: Set<string>
+  flow: Set<string>
+}
+
+const tieKey = (a: number, b: number) => (a < b ? `${a}|${b}` : `${b}|${a}`)
+
+function tiesBetween(shapes: BoardShape[], units: Unit[]): Ties {
+  const ties: Ties = { joined: new Set(), across: new Set(), down: new Set(), flow: new Set() }
+
+  const owner = new Map<string, number>()
+  for (const [index, unit] of units.entries()) {
+    for (const shape of unit.shapes) owner.set(shape.id, index)
+  }
+  const byId = new Map(shapes.map((shape) => [shape.id, shape]))
+
+  for (const shape of shapes) {
+    if (shape.kind !== 'arrow' && shape.kind !== 'elbow') continue
+    const from = shape.from ? byId.get(shape.from) : undefined
+    const to = shape.to ? byId.get(shape.to) : undefined
+    if (!from || !to) continue
+
+    const a = owner.get(from.id)
+    const b = owner.get(to.id)
+    // Both ends inside one diagram is dagre's business, not the row layout's.
+    if (a === undefined || b === undefined || a === b) continue
+
+    const dx = to.x + occupiedWidth(to) / 2 - (from.x + occupiedWidth(from) / 2)
+    const dy = to.y + occupiedHeight(to) / 2 - (from.y + occupiedHeight(from) / 2)
+
+    const key = tieKey(a, b)
+    ties.joined.add(key)
+    // Sideways unless it is clearly a step down: a connector at forty-five
+    // degrees was drawn by a model that had no strong opinion, and a row is the
+    // more useful reading of it.
+    if (Math.abs(dy) > Math.abs(dx) * 1.2) ties.down.add(key)
+    else {
+      ties.across.add(key)
+      ties.flow.add(`${a}>${b}`)
+    }
+  }
+
+  return ties
+}
+
+/**
+ * Orders one row so the ends of an arrow end up side by side.
+ *
+ * Starts from the leftmost unit and then takes whatever that one points at,
+ * falling back to anything else tied to it, and only then to the next unit
+ * along. Sorting by x alone was enough while scenes were simple, but it puts an
+ * unrelated caption between two boxes as readily as not.
+ */
+function orderRow(row: Unit[], at: (unit: Unit) => number, ties: Ties): Unit[] {
+  if (row.length < 3 || !ties.joined.size) {
+    return [...row].sort((a, b) => unitX(a) - unitX(b))
+  }
+
+  const rest = [...row].sort((a, b) => unitX(a) - unitX(b))
+  const out: Unit[] = []
+
+  while (rest.length) {
+    let pick = 0
+    if (out.length) {
+      const last = at(out[out.length - 1])
+      const points = rest.findIndex((unit) => ties.flow.has(`${last}>${at(unit)}`))
+      const tied = rest.findIndex((unit) => ties.joined.has(tieKey(last, at(unit))))
+      if (points >= 0) pick = points
+      else if (tied >= 0) pick = tied
+    }
+    out.push(...rest.splice(pick, 1))
+  }
+
+  return out
 }
 
 /**
@@ -923,6 +1084,8 @@ const NEST_PAD = 26
 const NEST_HEADER = 58
 /** Gap between children inside a container. */
 const NEST_GAP = 20
+/** How long a container waits between one child and the next. */
+const NEST_BEAT = 0.05
 
 /**
  * Lays out everything that sits inside something else, and sizes the container
@@ -997,8 +1160,34 @@ function nestChildren(shapes: BoardShape[]): BoardShape[] {
         inner.y += dy
       }
 
-      // Never before the thing that contains it.
-      child.at = Math.min(0.95, Math.max(child.at, parent.at + 0.02))
+    }
+  }
+
+  // Children need not arrive together — and mostly should not. The container is
+  // drawn at its full size with nothing in it and fills as the narration names
+  // each part, which is half the reason its size is worked out up front. So a
+  // child given no time of its own falls a beat behind the one before it,
+  // rather than the whole contents landing in a single stroke.
+  //
+  // Outermost first, the opposite order to sizing: a container's own moment has
+  // to be final before the things inside it are spaced out behind it.
+  for (const parent of [...parents].sort((a, b) => depth(a.id, byId) - depth(b.id, byId))) {
+    const inside = children.get(parent.id)!
+    // Squeezed if the container appears late, so a box named near the end of a
+    // scene still gets all of its contents in before the narration runs out.
+    const beat = Math.min(NEST_BEAT, Math.max(0, 0.95 - parent.at) / (inside.length + 1))
+    let previous = parent.at
+
+    for (const child of inside) {
+      // A child with an anchor keeps its word — the player times it against the
+      // audio, and this number is only the fallback.
+      child.at = Math.min(
+        0.95,
+        child.anchor.trim()
+          ? Math.max(child.at, parent.at + 0.02)
+          : Math.max(child.at, previous + beat)
+      )
+      previous = child.at
     }
   }
 
@@ -1011,6 +1200,35 @@ function nestChildren(shapes: BoardShape[]): BoardShape[] {
   }
 
   return shapes
+}
+
+/**
+ * Holds every shape back until whatever contains it has been drawn.
+ *
+ * Nesting decides the order in `at`, but the player retimes anchored shapes
+ * against the real audio, and nothing stops a child's word from being spoken
+ * before its container's. When that happens the child is drawn into thin air
+ * and the box materialises around it a second later. A container is cheap to
+ * wait for, so the child waits.
+ */
+export function holdInsideParents<T extends { shape: BoardShape; time: number }>(
+  schedule: T[]
+): T[] {
+  if (!schedule.some((entry) => entry.shape.parent)) return schedule
+
+  const byId = new Map(schedule.map((entry) => [entry.shape.id, entry]))
+  const shapes = new Map(schedule.map((entry) => [entry.shape.id, entry.shape]))
+
+  // Outermost first, so a container's own time has already settled by the time
+  // anything inside it is measured against it.
+  for (const entry of [...schedule].sort(
+    (a, b) => depth(a.shape.id, shapes) - depth(b.shape.id, shapes)
+  )) {
+    const container = entry.shape.parent ? byId.get(entry.shape.parent) : undefined
+    if (container) entry.time = Math.max(entry.time, container.time + 0.2)
+  }
+
+  return schedule
 }
 
 /** Every shape under this one, at any depth. */

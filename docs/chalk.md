@@ -97,6 +97,10 @@ box HARDWARE @grey | underneath it all
 Two spaces to a level, and it nests as deep as it needs to. A container's text
 is its heading, so name it.
 
+The container is drawn empty at its full size and fills as its parts are named,
+so an indented line takes its own `| anchor` like any other. Children given no
+anchor of their own fall a beat apart rather than landing together.
+
 ## Rows
 
 A blank line ends a row. Shapes written together sit side by side; the next

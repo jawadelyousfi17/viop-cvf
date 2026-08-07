@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from 'tldraw'
-import { estimateNarrationSeconds, type Lesson } from '@/lib/lesson'
+import { estimateNarrationSeconds, holdInsideParents, type Lesson } from '@/lib/lesson'
 import type { LessonEvent } from '@/lib/lesson-stream'
 import type { Engine } from '@/lib/engines'
 import type { Provider } from '@/lib/providers'
@@ -370,7 +370,9 @@ export default function Studio({
     // of audio and images are in flight — and gating the board on it left the
     // canvas showing a single shape until the audio landed.
     let duration = estimateNarrationSeconds(scene.narration)
-    let schedule = scene.shapes.map((shape) => ({ shape, time: shape.at * duration }))
+    let schedule = holdInsideParents(
+      scene.shapes.map((shape) => ({ shape, time: shape.at * duration }))
+    )
 
     void narrator.get(sceneIndex, scene.narration).then((narration) => {
       if (cancelled) return
@@ -381,10 +383,12 @@ export default function Studio({
       setHasVoice(narrator.hasVoice)
 
       // Re-time against the real clip: anchored shapes now land on their words.
-      schedule = scene.shapes.map((shape) => {
-        const anchored = shape.anchor ? narration.timeOf(shape.anchor) : null
-        return { shape, time: anchored ?? shape.at * narration.duration }
-      })
+      schedule = holdInsideParents(
+        scene.shapes.map((shape) => {
+          const anchored = shape.anchor ? narration.timeOf(shape.anchor) : null
+          return { shape, time: anchored ?? shape.at * narration.duration }
+        })
+      )
 
       const next = lessonRef.current?.scenes[sceneIndex + 1]
       if (next) narrator.prefetch(sceneIndex + 1, next.narration)

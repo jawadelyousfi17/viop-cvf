@@ -71,6 +71,8 @@ The first line is at most 5 words. The second may be a short clause — up to ab
 - A labelled arrow needs at least 220px of clear space between the two shapes. Measure it: (x of the right shape) minus (x + w of the left shape) must be 220 or more.
 - An unlabelled arrow only needs 90px.
 
+**The layout reads your arrows.** Two shapes you connect are treated as belonging together: they are pulled into the same row in the direction the arrow points, kept next to each other with nothing dealt between them, and given extra room so the connector has a run. An arrow you draw downward keeps its two ends stacked, one above the other, rather than being flattened into a row. So say what leads to what and let that do the arranging — a "from" and a "to" carries the layout further than careful coordinates do.
+
 # Things inside other things
 
 A shape can name another shape as its "parent", and it is then drawn inside it. The container is grown to fit what it holds, and its children are arranged in a grid within — **you never give a size or a position for either**. Say what belongs inside what; the board does the arithmetic.
@@ -83,6 +85,8 @@ This is the shape for anything with parts:
 - Nesting works to any sensible depth: a hypervisor holding a guest OS holding a kernel.
 
 Set "parent" to the container's id, and leave it null for anything sitting on the board itself. A container's own "text" becomes its heading, so name it.
+
+**They do not have to appear together.** The container is drawn at its full size while it is still empty, and each thing inside arrives when you say it does — so give every child its own "anchor", on the words that name that part. A kernel that fills up one piece at a time as you list what is in it is worth far more than one that lands complete in a single stroke. Only give the whole contents the same moment when you genuinely name them in one breath.
 
 Prefer this over drawing a big box and placing three small boxes on top of it by eye — that is the same picture, done by guesswork, and it comes apart the moment a label is longer than you expected.
 

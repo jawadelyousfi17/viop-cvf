@@ -79,6 +79,10 @@ holding its headers and body, a packet holding a header and a payload. It
 nests as deep as it needs to — a hypervisor holding a guest OS holding a
 kernel. Two spaces to a level.
 
+The box is drawn empty at its full size and fills as you name each part, so
+give the indented lines their own anchors when you name them one at a time.
+They do not all arrive at once.
+
 Reach for this rather than drawing a big box and putting small ones on top of
 it: same picture, done by guesswork, and it falls apart the moment a label is
 longer than you expected.
