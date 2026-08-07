@@ -17,6 +17,7 @@ import {
   type SlateScene,
 } from './slate'
 import { lint } from './slate-lint'
+import { looksLikeYaml, parseYamlLesson } from './slate-yaml'
 import type { SlateProblem } from './slate'
 
 /**
@@ -173,7 +174,11 @@ export function compileSlate(source: string, options: SlateBoardOptions = {}): S
     script.set(n, parseScript(text).get(1) ?? [])
   }
 
-  const parsed = parseLesson(source, script)
+  // Either front end. They build the same board, so the only thing the choice
+  // can break is the parse — and that is decidable from the first line.
+  const parsed = looksLikeYaml(source)
+    ? parseYamlLesson(source, script)
+    : parseLesson(source, script)
   const problems = lint(parsed)
 
   const scenes: Scene[] = parsed.scenes.map((scene) => compileScene(parsed.roles, scene))
