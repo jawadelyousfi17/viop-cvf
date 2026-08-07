@@ -4,7 +4,7 @@
  * agnostic and shared.
  */
 
-export const ENGINES = ['whiteboard', 'canvas', 'slides', 'manim', 'it'] as const
+export const ENGINES = ['whiteboard', 'canvas', 'slides', 'manim', 'it', 'math'] as const
 export type Engine = (typeof ENGINES)[number]
 
 export const DEFAULT_ENGINE: Engine = 'slides'
@@ -33,5 +33,9 @@ export const ENGINE_LABELS: Record<Engine, { name: string; hint: string }> = {
   it: {
     name: 'IT explain',
     hint: 'Precise diagrams on black, built up piece by piece — for how computers actually work',
+  },
+  math: {
+    name: 'Notebook',
+    hint: 'A problem worked through on paper, a line at a time — for anything you solve rather than describe',
   },
 }

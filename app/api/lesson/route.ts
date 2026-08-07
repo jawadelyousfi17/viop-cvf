@@ -15,6 +15,13 @@ import { SYSTEM_PROMPT as SLIDES_PROMPT, userPrompt as slidesUser } from '@/lib/
 import { IT_LESSON_JSON_SCHEMA as IT_SCHEMA } from '@/lib/it-lesson'
 import { ITStreamParser } from '@/lib/it-stream'
 import { SYSTEM_PROMPT as IT_PROMPT, userPrompt as itUser } from '@/lib/it-prompt'
+import { MATH_LESSON_JSON_SCHEMA as MATH_SCHEMA } from '@/lib/math-lesson'
+import { MathStreamParser } from '@/lib/math-stream'
+import {
+  MATH_SYSTEM_PROMPT as MATH_PROMPT,
+  mathScriptPrompt as mathScript,
+  mathTopicPrompt as mathUser,
+} from '@/lib/math-prompt'
 import { MANIM_LESSON_JSON_SCHEMA as MANIM_SCHEMA } from '@/lib/manim-lesson'
 import { ManimStreamParser } from '@/lib/manim-stream'
 import { SYSTEM_PROMPT as MANIM_PROMPT, userPrompt as manimUser } from '@/lib/manim-prompt'
@@ -42,6 +49,17 @@ function engineConfig(engine: Engine) {
       user: itUser,
       schema: IT_SCHEMA,
       parser: () => new ITStreamParser(),
+    }
+  }
+  // A worked solution can be given a script, the same way a board can: the
+  // words are the lesson, and the page is what goes with them.
+  if (engine === 'math') {
+    return {
+      system: MATH_PROMPT,
+      user: mathUser,
+      script: mathScript,
+      schema: MATH_SCHEMA,
+      parser: () => new MathStreamParser(),
     }
   }
   if (engine === 'manim') {
