@@ -1,0 +1,293 @@
+/**
+ * The plate.
+ *
+ * A draughtsman's sheet: warm paper, a faint engineering grid, ink that is
+ * drawn rather than placed. Everything here serves one idea — that you are
+ * watching a technical drawing being made, at the speed someone is explaining
+ * it — so nothing fades in from nowhere and nothing is a rectangle with a
+ * border-radius.
+ *
+ * The whole surface is one aspect-locked stage, scaled to the window, so the
+ * composition an author placed at 1600×900 is the composition every viewer
+ * gets. Nothing reflows. That is the difference between a page and a plate.
+ */
+
+.plate {
+  --paper: #f4efe6;
+  --paper-deep: #ece5d9;
+  --ink: #1c1a17;
+  --graphite: #55504a;
+  --faint: #a79e91;
+  --rule: rgba(28, 26, 23, 0.09);
+  --hot: #c8442a;
+  --cool: #2d4a7c;
+  --good: #3f6b4a;
+  --amber: #b07d1a;
+
+  --display: var(--font-display), 'Iowan Old Style', Georgia, serif;
+  --technical: var(--font-technical), ui-monospace, monospace;
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--technical);
+  cursor: default;
+}
+
+/* Fine engineering grid, plus a heavier decade line. Two gradients rather than
+   an image so it stays crisp at any zoom. */
+.plate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--rule) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--rule) 1px, transparent 1px),
+    linear-gradient(to right, rgba(28, 26, 23, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(28, 26, 23, 0.05) 1px, transparent 1px);
+  background-size:
+    120px 120px,
+    120px 120px,
+    24px 24px,
+    24px 24px;
+  opacity: 0.55;
+}
+
+/* Paper tooth and a vignette, so the sheet has a surface and an edge. */
+.plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 100% at 50% 45%, transparent 55%, rgba(60, 48, 32, 0.16) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: cover, 160px 160px;
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+
+/* The stage: a fixed 1600×900 field, scaled to fit. Authored once, identical
+   everywhere. */
+.stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1600px;
+  height: 900px;
+  transform-origin: center center;
+}
+
+.plate svg {
+  overflow: visible;
+}
+
+/* ---------- ink ---------- */
+.plate .stroke {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.plate .hair {
+  stroke-width: 1.15;
+  stroke: var(--graphite);
+}
+.plate .heavy {
+  stroke-width: 3.2;
+}
+.plate .hot {
+  stroke: var(--hot);
+}
+.plate .cool {
+  stroke: var(--cool);
+}
+.plate .good {
+  stroke: var(--good);
+}
+.plate .amber {
+  stroke: var(--amber);
+}
+.plate .ghosted {
+  stroke: var(--faint);
+  stroke-dasharray: 5 6;
+}
+.plate .fillpaper {
+  fill: var(--paper);
+}
+.plate .fillhot {
+  fill: var(--hot);
+}
+.plate .fillink {
+  fill: var(--ink);
+}
+.plate .fillcool {
+  fill: var(--cool);
+}
+.plate .washhot {
+  fill: rgba(200, 68, 42, 0.09);
+}
+.plate .washcool {
+  fill: rgba(45, 74, 124, 0.09);
+}
+.plate .washgood {
+  fill: rgba(63, 107, 74, 0.1);
+}
+
+/* ---------- lettering ---------- */
+.plate .title {
+  font-family: var(--display);
+  font-variation-settings: 'SOFT' 30, 'WONK' 1, 'opsz' 72;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+.plate .tech {
+  font-family: var(--technical);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+.plate .micro {
+  font-family: var(--technical);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  fill: var(--faint);
+}
+
+/* ---------- chrome ---------- */
+.plate .runner {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 32px;
+  font-family: var(--technical);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  transition: opacity 500ms ease;
+}
+.plate .runner.away {
+  opacity: 0;
+}
+.plate .track {
+  position: relative;
+  flex: 1;
+  height: 2px;
+  background: rgba(28, 26, 23, 0.12);
+  cursor: pointer;
+}
+.plate .track .done {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--hot);
+}
+.plate .track .tick {
+  position: absolute;
+  top: -4px;
+  width: 1px;
+  height: 10px;
+  background: rgba(28, 26, 23, 0.22);
+}
+.plate .key {
+  border: 0;
+  background: none;
+  padding: 6px 2px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.plate .key:hover {
+  color: var(--hot);
+}
+
+.plate .corner {
+  position: absolute;
+  top: 26px;
+  font-family: var(--technical);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.plate .corner.left {
+  left: 32px;
+}
+.plate .corner.right {
+  right: 32px;
+  text-align: right;
+}
+
+/* The opening card, before a single stroke is drawn. */
+.plate .card {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 26px;
+  text-align: center;
+  padding: 40px;
+  background: var(--paper);
+  transition: opacity 700ms ease;
+}
+.plate .card.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+.plate .card h1 {
+  font-family: var(--display);
+  font-variation-settings: 'SOFT' 40, 'WONK' 1, 'opsz' 120;
+  font-weight: 400;
+  font-size: clamp(48px, 9vw, 132px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  margin: 0;
+  max-width: 14ch;
+}
+.plate .card p {
+  margin: 0;
+  max-width: 54ch;
+  font-family: var(--technical);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--graphite);
+}
+.plate .begin {
+  margin-top: 8px;
+  border: 1.5px solid var(--ink);
+  background: none;
+  padding: 16px 42px;
+  font-family: var(--technical);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background 220ms ease,
+    color 220ms ease;
+}
+.plate .begin:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate * {
+    transition-duration: 1ms !important;
+  }
+}

@@ -1,6 +1,27 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Patrick_Hand } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono, Martian_Mono, Patrick_Hand } from "next/font/google";
 import "./globals.css";
+
+/**
+ * The demo's two voices.
+ *
+ * Fraunces carries the titles — a serif with a wonk axis and real optical
+ * sizing, so a plate heading at 76px has character a screen font does not.
+ * Martian Mono is the technical layer: annotations, part numbers, code. The
+ * contrast between them *is* the design, which is why there are two and not
+ * five.
+ */
+const fraunces = Fraunces({
+  variable: "--font-display",
+  subsets: ["latin"],
+  axes: ["SOFT", "WONK", "opsz"],
+});
+
+const martian = Martian_Mono({
+  variable: "--font-technical",
+  subsets: ["latin"],
+  weight: ["300", "400", "600"],
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,7 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${hand.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${hand.variable} ${fraunces.variable} ${martian.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
