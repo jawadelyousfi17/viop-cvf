@@ -1,0 +1,305 @@
+title: Docker under the hood
+takeaway: A container is one ordinary Linux process, with the kernel lying to it about what exists and limiting what it may take.
+roles: { app: green, host: blue, kernel: violet, cost: red, inert: grey }
+symbols: { whale: container }
+
+scenes:
+  - n: 1
+    title: What happens behind docker run
+    beats: 7
+    board:
+      - { code: 'docker run myapp', id: cmd, role: app, at: 1 }
+      - box: Your container
+        id: unit
+        role: app
+        at: 2
+        in:
+          - { item: Its own file system, at: 4 }
+          - { item: Its own network interfaces, at: 4 }
+          - { item: Its own process tree, at: 4 }
+      - { note: unit, says: 'Cut off from the rest of the machine', at: 3 }
+      - { sym: happy face, says: 'The same on your laptop and in production', role: app, at: 5 }
+      - { sym: whale, says: 'Usually that is enough', role: inert, at: 6 }
+      - { img: an engine bay with the bonnet open photograph, at: 6 }
+      - { callout: 'But what actually happens behind that command?', at: 7 }
+
+  - n: 2
+    title: A virtual machine boots a whole computer
+    beats: 5
+    board:
+      - stk:
+        id: vm
+        role: cost
+        at: 1
+        rows:
+          - { text: 'Your application', at: 2 }
+          - { text: 'A complete operating system', at: 3 }
+          - { text: 'Hardware drivers', at: 3 }
+          - { text: 'Its own kernel', at: 3 }
+          - { text: 'Hypervisor', at: 2 }
+      - { box: 'Three virtual machines', id: three, role: cost, stat: 'Three separate kernels in memory', at: 4 }
+      - { sym: shield, says: 'Strong isolation', role: host, at: 5 }
+      - { sym: stopwatch, says: 'Enormous memory, and a long wait to boot', role: cost, at: 5 }
+      - { img: a rack of physical servers photograph, at: 4 }
+
+  - n: 3
+    title: A container is just a process
+    beats: 5
+    board:
+      - { box: 'A normal Linux process', id: proc, role: app, at: 1 }
+      - { note: proc, says: 'It never boots an operating system, and needs no kernel of its own', at: 2 }
+      - { box: 'The host kernel', id: kern, role: kernel, at: 4 }
+      - { shares: [proc, kern], says: 'every container on the machine shares it', at: 4 }
+      - { sym: stopwatch, says: 'No boot sequence, so it starts almost instantly', role: app, at: 5 }
+      - { sym: memory chip, says: 'Only the memory your application actually uses', role: app, at: 5 }
+      - { img: a single lightbulb switching on photograph, at: 3 }
+
+  - n: 4
+    title: But processes can see each other
+    beats: 6
+    board:
+      - { callout: 'If a container is just a process, we have a problem', role: cost, at: 1 }
+      - group: What every process shares by default
+        id: shared
+        role: cost
+        at: 2
+        in:
+          - { box: The same file system, at: 3 }
+          - { box: The same network interfaces, at: 3 }
+          - { box: The same hostname, at: 3 }
+      - { note: shared, says: 'The kernel has to block its view of all of it', at: 4 }
+      - { box: Namespaces, id: ns, role: kernel, stat: 'A Linux feature — they control what a process can see', at: 5 }
+      - { sym: padlock, says: 'Sight, not appetite', role: kernel, at: 6 }
+      - { img: a one way mirror photograph, at: 6 }
+
+  - n: 5
+    title: The PID namespace
+    beats: 9
+    carry: [ns]
+    board:
+      - { focus: ns, at: 1 }
+      - { box: 'One giant list of every running program', id: list, role: host, at: 2 }
+      - { box: 'Your web server', id: web, role: app, stat: 'process 4500', at: 3 }
+      - { contains: [list, web], says: 'it can look around and see everything', at: 4 }
+      - { box: 'A wall around it', id: wall, role: kernel, at: 5 }
+      - { note: wall, says: 'The kernel filters what it is told is running', at: 6 }
+      - comparison:
+        at: 7
+        in:
+          - group: What the process sees
+            role: app
+            in:
+              - { box: 'An empty system' }
+              - { box: 'I am process 1', at: 8 }
+          - group: What the host sees
+            role: host
+            in:
+              - { box: 'Everything else' }
+              - { box: 'It is process 4500', at: 8 }
+      - { sym: people, says: 'The same process, experiencing a different reality', role: kernel, at: 9 }
+      - { img: two people looking at the same painting photograph, at: 9 }
+
+  - n: 6
+    title: The other namespaces
+    beats: 9
+    board:
+      - tbl:
+        id: kinds
+        role: kernel
+        at: 1
+        rows:
+          - { cells: [Namespace, 'What it hides'], header: true }
+          - { cells: [mount, 'its own view of the file system'], at: 2 }
+          - { cells: [network, 'a private network stack'], at: 3 }
+          - { cells: [UTS, 'its own hostname'], at: 4 }
+          - { cells: ['IPC and user', 'interprocess communication, and user IDs'], at: 5 }
+      - { note: kinds, says: 'Root inside the container can be an unprivileged user outside it', at: 6 }
+      - { box: 'Completely isolated from the host', id: alone, role: app, at: 7 }
+      - { sym: globe, says: 'It believes it has the whole computer', role: app, at: 8 }
+      - { img: an astronaut alone in a capsule photograph, at: 9 }
+
+  - n: 7
+    title: Seeing is not consuming
+    beats: 5
+    board:
+      - { callout: 'Namespaces do nothing about resources', role: cost, at: 1 }
+      - { box: 'An isolated process', id: greedy, role: cost, stat: 'Can still eat every CPU and crash the machine', at: 2 }
+      - { box: 'Control groups — cgroups', id: cg, role: kernel, at: 3 }
+      - comparison:
+        at: 4
+        in:
+          - { box: Namespaces, stat: 'restrict what it can see', role: kernel }
+          - { box: cgroups, stat: 'restrict what it can use', role: kernel }
+      - { sym: scales, says: 'The memory and CPU flags configure exactly these', role: kernel, at: 5 }
+      - { img: a water meter photograph, at: 5 }
+
+  - n: 8
+    title: How a limit is actually set
+    beats: 8
+    carry: [cg]
+    board:
+      - { focus: cg, at: 1 }
+      - { box: 'A virtual file system', id: vfs, role: kernel, stat: 'The kernel manages cgroups through a directory tree', at: 2 }
+      - { code: 'echo 536870912 > memory.max', id: writeit, role: app, at: 3 }
+      - { note: writeit, says: 'You write a number into a file, and that is the limit', at: 4 }
+      - { box: 'The kernel now tracks every byte and every slice of CPU', id: watch, role: kernel, at: 5 }
+      - branch: 'Container asks for more than its limit?'
+        id: over
+        role: cost
+        at: 6
+        arms:
+          - { 'reclaim first': watch }
+          - { 'then kill it': vfs }
+      - { sym: shield, says: 'One runaway container cannot starve the server', role: host, at: 8 }
+      - { img: a circuit breaker panel photograph, at: 7 }
+
+  - n: 9
+    title: It still needs a root directory
+    beats: 7
+    board:
+      - { box: 'The mount namespace', id: mnt, role: kernel, stat: 'Gives it its own view — but a view of what?', at: 1 }
+      - { box: "We cannot lend it the host's", id: nope, role: cost, at: 2 }
+      - { box: chroot, id: chroot, role: inert, stat: 'Long before Docker existed', at: 3 }
+      - { note: chroot, says: 'Point a process at a folder and the kernel treats it as the top of the tree', at: 4 }
+      - { box: 'It was never a security boundary', id: leak, role: cost, at: 5 }
+      - { note: leak, says: 'A process running as root can break out and reach the host files', at: 6 }
+      - { sym: open padlock, says: 'Modern engines need something stronger', role: cost, at: 7 }
+      - { img: a door left ajar photograph, at: 7 }
+
+  - n: 10
+    title: pivot_root, and what has to be in it
+    beats: 7
+    board:
+      - { code: 'pivot_root(new, old)', id: pivot, role: kernel, at: 1 }
+      - comparison:
+        at: 2
+        in:
+          - { box: chroot, stat: 'restricts the view', role: inert }
+          - { box: pivot_root, stat: 'replaces the root entirely', role: kernel }
+      - { box: "The host's original tree is disconnected", id: cut, role: host, at: 3 }
+      - { box: 'But the new root cannot be empty', id: empty, role: cost, at: 5 }
+      - { note: empty, says: 'It has to arrive pre-filled with system libraries and your application', at: 6 }
+      - { box: 'A Docker image', id: image, role: app, stat: 'That is exactly what one provides', at: 7 }
+      - { sym: layers, says: 'A mechanism needs something to swap in', role: kernel, at: 4 }
+      - { img: an empty warehouse photograph, at: 5 }
+
+  - n: 11
+    title: An image is a stack of layers
+    beats: 9
+    carry: [image]
+    board:
+      - { focus: image, at: 1 }
+      - { box: 'overlayfs', id: overlay, role: kernel, stat: 'A union file system merges them into one', at: 2 }
+      - stk:
+        id: layers
+        role: app
+        at: 3
+        rows:
+          - { text: 'COPY — your source code', at: 6 }
+          - { text: 'RUN — install a dependency', at: 5 }
+          - { text: 'FROM — the base operating system', at: 4 }
+      - { note: layers, says: 'Each instruction that changes the file system makes a layer', at: 3 }
+      - { box: 'ENV and CMD add nothing', id: meta, role: inert, stat: 'They only attach settings', at: 7 }
+      - { sym: layers, says: 'Presented to the container as one file system', role: kernel, at: 8 }
+      - { img: sheets of glass stacked photograph, at: 9 }
+
+  - n: 12
+    title: Read-only, plus one thin writable layer
+    beats: 9
+    carry: [layers]
+    board:
+      - { box: 'Every image layer is read-only', id: ro, role: inert, at: 1 }
+      - { box: 'A thin writable layer on top', id: rw, role: app, at: 2 }
+      - { note: rw, says: 'Added when the container starts', at: 2 }
+      - { box: 'Editing a file never touches the original', id: cow, role: kernel, stat: 'copy-up: the file is copied into the writable layer and the copy changes', at: 3 }
+      - { note: cow, says: 'It stacked a new version on top and hid the old one underneath', at: 5 }
+      - { box: 'Ten containers, one image', id: ten, role: app, stat: 'The same read-only layers, shared on disk and in memory', at: 6 }
+      - { box: 'Which is why instruction order matters', id: order, role: cost, stat: 'Change a line near the top and everything below it rebuilds', at: 8 }
+      - { sym: disk, says: 'Enormous amounts of disk saved', role: app, at: 7 }
+      - { img: identical books on a library shelf photograph, at: 9 }
+
+  - n: 13
+    title: A virtual cable to a virtual switch
+    beats: 9
+    board:
+      - { box: 'The network namespace left it disconnected', id: cut13, role: cost, stat: 'Its own stack, and no interface at all', at: 2 }
+      - { box: 'A virtual Ethernet pair', id: veth, role: kernel, stat: 'Think of it as a cable', at: 4 }
+      - { box: 'The container end', id: inside, role: app, at: 5 }
+      - { box: 'docker0 — a bridge on the host', id: bridge, role: host, at: 6 }
+      - { arrow: [inside, bridge], says: 'traffic travels down the cable', at: 7 }
+      - { box: 'The physical adapter', id: nic, role: host, at: 8 }
+      - { arrow: [bridge, nic], says: 'and the host routes it out', at: 8 }
+      - { sym: cable, says: 'One end in each world', role: kernel, at: 4 }
+      - { img: a patch panel of network cables photograph, at: 9 }
+
+  - n: 14
+    title: To each other, and to the internet
+    beats: 5
+    carry: [bridge]
+    board:
+      - { box: 'Two containers on one bridge', id: pair, role: app, stat: 'They reach each other by internal IP', at: 1 }
+      - { box: 'Port mapping', id: ports, role: host, at: 2 }
+      - { code: 'docker run -p 8080:80 myapp', id: pmap, role: app, at: 3 }
+      - { maps: [ports, pair], says: 'host 8080 to container 80', at: 3 }
+      - { box: 'Network address translation', id: nat, role: kernel, stat: 'The host intercepts 8080 and forwards the packets down the cable', at: 4 }
+      - { sym: signpost, says: 'Across the bridge and into the container', role: kernel, at: 5 }
+      - { img: a harbour pilot boat guiding a ship photograph, at: 5 }
+
+  - n: 15
+    title: The command does not start the container
+    beats: 8
+    board:
+      - flow:
+        id: chain
+        layout: horizontal
+        role: kernel
+        in:
+          - { step: 'docker CLI', at: 3 }
+          - { step: 'The Docker daemon', at: 4 }
+          - { step: containerd, at: 6 }
+      - { note: chain, says: 'The CLI only makes an API call', at: 3 }
+      - { box: 'The daemon', id: daemon, role: host, stat: 'Manages images, networks and storage volumes', at: 5 }
+      - { box: containerd, id: ctrd, role: host, stat: 'Manages the life cycle — downloads the image, unpacks the layers', at: 7 }
+      - { callout: 'And even containerd does not create the process', role: cost, at: 8 }
+      - { sym: people, says: 'Each hands on to the next', role: kernel, at: 2 }
+      - { img: a relay race baton handover photograph, at: 1 }
+
+  - n: 16
+    title: runc builds it and walks away
+    beats: 10
+    carry: [ctrd]
+    board:
+      - { box: runc, id: runc, role: kernel, stat: 'A low-level tool whose only job is to talk to the kernel', at: 2 }
+      - group: What runc does, then stops
+        id: job
+        role: kernel
+        at: 4
+        in:
+          - { box: 'Sets up the namespaces' }
+          - { box: 'Configures the cgroups' }
+          - { box: 'Unpacks the root file system' }
+          - { box: 'Starts the process' }
+      - { note: runc, says: 'The moment the process is running, runc terminates', at: 5 }
+      - { box: 'Every process needs a parent', id: orphan, role: cost, at: 7 }
+      - { box: 'The shim', id: shim, role: host, stat: 'Adopts the container and stays for its whole life', at: 8 }
+      - { contains: [shim, orphan], says: 'it keeps the process alive even if containerd restarts', at: 9 }
+      - { sym: person, says: 'And it grabs the exit code when the container finally stops', role: host, at: 10 }
+      - { img: scaffolding coming down from a finished building photograph, at: 6 }
+
+  - n: 17
+    title: What a container is
+    beats: 5
+    board:
+      - { box: 'A regular Linux process', id: truth, role: app, at: 2 }
+      - tbl:
+        id: recap
+        role: kernel
+        at: 3
+        rows:
+          - { cells: [Namespaces, 'isolate what it can see'], header: false, at: 3 }
+          - { cells: [cgroups, 'restrict what it can consume'], at: 4 }
+          - { cells: ['overlayfs', 'stacks layers into its file system'], at: 5 }
+          - { cells: ['a virtual bridge', 'wires it to the host network'], at: 5 }
+      - { sym: whale, says: 'Nothing but that', role: app, at: 2 }
+      - { sym: processor, says: 'Everything else is the kernel telling it a story', role: kernel, at: 5 }
+      - { img: a shipping container on a quay at dusk photograph, at: 1 }

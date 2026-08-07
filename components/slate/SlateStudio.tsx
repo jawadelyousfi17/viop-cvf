@@ -67,6 +67,14 @@ const EXAMPLES = [
     script: 'dns.script.md',
   },
   {
+    id: 'docker-hood',
+    label: 'Docker under the hood',
+    note: '17 scenes · 9 min · real recording',
+    board: 'docker-hood.yaml',
+    script: 'docker-hood.script.md',
+    cues: 'docker-hood.cues.json',
+  },
+  {
     id: 'routing',
     label: 'Getting past things',
     note: '1 scene · connector routing',
@@ -90,6 +98,21 @@ const EXAMPLES = [
 ] as const
 
 type ExampleId = (typeof EXAMPLES)[number]['id']
+
+/**
+ * A recording, and when each beat is spoken in it.
+ *
+ * The usual path synthesises a clip per scene and hunts for each sentence in
+ * the provider's alignment. A cue sheet is the same information arrived at
+ * honestly: the words were recorded by a person, the timings came with the
+ * transcript, and `scripts/align-transcript.mjs` turned them into numbers once.
+ * No key, no network, no guessing.
+ */
+interface CueSheet {
+  audio: string
+  duration: number
+  scenes: { n: number; start: number; end: number; beats: number[] }[]
+}
 
 /** Enough of a sentence to be unambiguous, short enough to be found. */
 const opening = (sentence: string) => sentence.split(/\s+/).slice(0, 7).join(' ')
@@ -120,6 +143,7 @@ export default function SlateStudio({
   const [openingScript, setOpeningScript] = useState<string | null>(null)
   const [picked, setPicked] = useState<{ title: string; text: string } | null>(null)
   const [pasted, setPasted] = useState('')
+  const [sheet, setSheet] = useState<CueSheet | null>(null)
   const [copied, setCopied] = useState(false)
   // The board is not the first thing you see, for the same reason it is not the
   // first thing you see on the whiteboard tab: a player with nothing loaded is
@@ -161,12 +185,17 @@ export default function SlateStudio({
     if (!example) return
     let live = true
     const chosen = EXAMPLES.find((e) => e.id === example) ?? EXAMPLES[0]
+    const sheet = 'cues' in chosen && chosen.cues ? String(chosen.cues) : null
     void Promise.all([
       fetch(`/api/slate?name=${chosen.board}`).then((r) => r.text()),
       fetch(`/api/slate?name=${chosen.script}`).then((r) => r.text()),
+      sheet ? fetch(`/api/slate?name=${sheet}`).then((r) => r.json()) : Promise.resolve(null),
     ])
-      .then(([board, words]) => {
+      .then(([board, words, sheetJson]) => {
         if (!live) return
+        audioRef.current?.pause()
+        audioRef.current = null
+        setSheet(sheetJson as CueSheet | null)
         setSource(board)
         setScript(words)
         setSceneIndex(0)
@@ -207,11 +236,12 @@ export default function SlateStudio({
 
   // A voice change means a different recording, so the cached one has to go.
   useEffect(() => {
+    if (sheet) return
     narratorRef.current?.dispose()
     narratorRef.current = null
     audioRef.current?.pause()
     audioRef.current = null
-  }, [voiceId])
+  }, [voiceId, sheet])
 
   // The animation loop reads the lesson through a ref, so a keystroke in the
   // source does not restart the scene being played.
@@ -283,8 +313,64 @@ export default function SlateStudio({
   }, [lesson, scene, playing])
 
   // The voice, and the clock it puts the beats on.
+  /**
+   * A scene whose narration is already recorded.
+   *
+   * One long file, seeked rather than fetched per scene, and beats read
+   * straight off the cue sheet — so the board is on the word, not near it.
+   */
+  useEffect(() => {
+    const recorded = sheet?.scenes.find((s) => s.n === scene?.n)
+    if (!scene || !ready || !playing || !recorded) return
+
+    const audio = (audioRef.current ??= new Audio(sheet!.audio))
+    if (!audio.src.endsWith(encodeURI(sheet!.audio))) audio.src = sheet!.audio
+    audio.currentTime = recorded.start
+    cuesRef.current = recorded.beats.map((start, i) => ({
+      scene: scene.n,
+      beat: i + 1,
+      text: scene.beats[i] ?? '',
+      start,
+    }))
+    if (playingRef.current) void audio.play().catch(() => setIsPlaying(false))
+
+    let frame = 0
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (playingRef.current) {
+        const at = audio.currentTime
+        let current = 0
+        for (const cue of cuesRef.current) if (cue.start <= at) current = cue.beat
+        setBeat((was) => (was === current ? was : current))
+
+        // The scene is a stretch of one recording, so it ends at a timestamp
+        // rather than at the end of a file.
+        if (at >= recorded.end) {
+          const total = lessonRef.current?.scenes.length ?? 0
+          if (sceneIndex + 1 < total) setSceneIndex(sceneIndex + 1)
+          else {
+            audio.pause()
+            setIsPlaying(false)
+          }
+          return
+        }
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneIndex, ready, playing, sheet, scene?.n])
+
   useEffect(() => {
     if (!scene || !ready || !playing) return
+    // A recording needs no voice: the effect above is driving this scene.
+    if (sheet?.scenes.some((s) => s.n === scene.n)) return
 
     narratorRef.current ??= new Narrator(voiceId)
     const narrator = narratorRef.current
@@ -370,7 +456,7 @@ export default function SlateStudio({
       if (audioRef.current === audio) audioRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneIndex, ready, playing, voiceId, scene?.n])
+  }, [sceneIndex, ready, playing, voiceId, sheet, scene?.n])
 
   // Reveal, and keep the rail on the sentence being spoken.
   useEffect(() => {
@@ -395,6 +481,7 @@ export default function SlateStudio({
    */
   const write = useCallback(async () => {
     if ((!topic.trim() && !picked) || writing) return
+    setSheet(null)
     setWriting(true)
     setIsPlaying(false)
     setSceneIndex(0)

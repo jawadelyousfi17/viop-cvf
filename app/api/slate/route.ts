@@ -20,7 +20,7 @@ export const maxDuration = 300
  * path cannot read anything else the server can reach.
  */
 const DIRECTORY = 'examples'
-const ALLOWED = /^[\w.-]+\.(slate|ya?ml|script\.md|md)$/
+const ALLOWED = /^[\w.-]+\.(slate|ya?ml|json|script\.md|md)$/
 
 export async function GET(request: Request) {
   const wanted = new URL(request.url).searchParams.get('name') ?? ''
