@@ -436,7 +436,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
       kind: POINT_KINDS.has(kind) && !usable ? 'text' : kind,
       points: usable ? points : [],
       data,
-      text: typeof shape.text === 'string' ? shape.text : '',
+      text: bullets(typeof shape.text === 'string' ? shape.text : ''),
       anchor: typeof shape.anchor === 'string' ? shape.anchor.trim().slice(0, 60) : '',
       x,
       y,
@@ -668,10 +668,7 @@ function occupiedHeight(shape: BoardShape) {
   if (!shape.text) return shape.h
 
   const padding = shape.kind === 'text' || shape.kind === 'label' ? 8 : 36
-  const usable = Math.max(40, shape.w - padding)
-  const lines = shape.text
-    .split('\n')
-    .reduce((total, line) => total + Math.max(1, Math.ceil(labelWidth(line, shape.size) / usable)), 0)
+  const lines = textLines(shape.text, shape.w - padding, shape.size)
 
   const needed = lines * LINE_HEIGHT[shape.size] + padding
   return Math.max(shape.h, needed)
@@ -1021,8 +1018,27 @@ const unitY = (unit: Unit) => unit.bounds?.y ?? unit.lead.y
 const unitW = (unit: Unit) => unit.bounds?.w ?? occupiedWidth(unit.lead)
 const unitH = (unit: Unit) => unit.bounds?.h ?? occupiedHeight(unit.lead)
 
+/**
+ * Roughly how wide a string will be once tldraw draws it.
+ *
+ * Capitals run about a third wider than lower case in the draw font, and the
+ * prompt asks for a great many of them — headings, labels, the name of every
+ * box. Counting them the same as lower case underestimated a caps label by a
+ * third, which is enough to budget one line for something that renders as two.
+ * That is what put an arrow's grey caption on top of its own label.
+ */
 function labelWidth(text: string, size: BoardShape['size']) {
-  return text.length * CHAR_WIDTH[size]
+  let units = 0
+  for (const character of text) units += /[A-Z]/.test(character) ? 1.32 : 1
+  return units * CHAR_WIDTH[size]
+}
+
+/** How many lines a string wraps to in a column this wide. */
+function textLines(text: string, width: number, size: BoardShape['size']) {
+  const usable = Math.max(40, width)
+  return text
+    .split('\n')
+    .reduce((total, line) => total + Math.max(1, Math.ceil(labelWidth(line, size) / usable)), 0)
 }
 
 /**
@@ -1080,8 +1096,6 @@ function centreContent(shapes: BoardShape[]): BoardShape[] {
 
 /** Room a container keeps around what it holds. */
 const NEST_PAD = 26
-/** Space above the children for the container's own name. */
-const NEST_HEADER = 58
 /** Gap between children inside a container. */
 const NEST_GAP = 20
 /** How long a container waits between one child and the next. */
@@ -1125,21 +1139,72 @@ function nestChildren(shapes: BoardShape[]): BoardShape[] {
   for (const parent of parents) {
     const inside = children.get(parent.id)!
 
+    // Two ways to belong to a box. A thing inside it is a cell in a grid; a
+    // line written about it is a line, and lines are stacked underneath the
+    // grid at full width — which is what a list belonging to a box should look
+    // like, rather than three more rectangles.
+    const cells = inside.filter((child) => child.kind !== 'text' && child.kind !== 'label')
+    const notes = inside.filter((child) => child.kind === 'text' || child.kind === 'label')
+
     // A grid rather than a row: four things side by side inside a box makes
     // each of them a sliver, and two rows of two reads at any size.
-    const columns = Math.min(inside.length <= 3 ? inside.length : 3, Math.ceil(Math.sqrt(inside.length)) + 1)
-    const cellW = Math.max(...inside.map(occupiedWidth))
-    const cellH = Math.max(...inside.map(occupiedHeight))
-    const rows = Math.ceil(inside.length / columns)
+    const columns = cells.length
+      ? Math.min(cells.length <= 3 ? cells.length : 3, Math.ceil(Math.sqrt(cells.length)) + 1)
+      : 1
+    const cellW = cells.length ? Math.max(...cells.map(occupiedWidth)) : 0
+    const cellH = cells.length ? Math.max(...cells.map(occupiedHeight)) : 0
+    const rows = cells.length ? Math.ceil(cells.length / columns) : 0
 
-    const header = parent.text.trim() ? NEST_HEADER : NEST_PAD
-    parent.w = Math.max(parent.w, columns * cellW + (columns - 1) * NEST_GAP + NEST_PAD * 2)
-    parent.h = header + rows * cellH + (rows - 1) * NEST_GAP + NEST_PAD
+    // Wide enough for the grid, and for the longest line written under it.
+    const widest = notes.length
+      ? Math.max(...notes.flatMap((note) => note.text.split('\n').map((line) => labelWidth(line, note.size))))
+      : 0
+    parent.w = Math.max(
+      parent.w,
+      columns * cellW + (columns - 1) * NEST_GAP + NEST_PAD * 2,
+      Math.min(SCENE_W * 0.55, widest + 40) + NEST_PAD * 2
+    )
+
+    // Measured from the heading rather than assumed. A container's name is
+    // often two tiers — "IMAGE" and then "read-only template" underneath — and
+    // a fixed band sized for one line puts the second line through the top row
+    // of whatever is inside.
+    const header = parent.text.trim()
+      ? NEST_PAD + textLines(parent.text, parent.w - NEST_PAD * 2, parent.size) * LINE_HEIGHT[parent.size] + 14
+      : NEST_PAD
+    const gridH = rows ? rows * cellH + (rows - 1) * NEST_GAP : 0
+
+    // Every line takes the full inner width, so a list reads as a list.
+    const noteW = parent.w - NEST_PAD * 2
+    let notesH = 0
+    for (const note of notes) {
+      note.w = noteW
+      // Sized by its own text, not by whatever height it was written with: a
+      // three-line list should not claim the same space as a box.
+      note.h = textLines(note.text, noteW - 8, note.size) * LINE_HEIGHT[note.size] + 8
+      notesH += note.h + NEST_GAP
+    }
+
+    parent.h = header + gridH + notesH + NEST_PAD
 
     const gridW = columns * cellW + (columns - 1) * NEST_GAP
     const left = parent.x + (parent.w - gridW) / 2
 
-    for (const [index, child] of inside.entries()) {
+    // Under the grid, one after another, aligned to the left edge inside.
+    let noteY = parent.y + header + gridH + (notesH ? NEST_GAP : 0)
+    for (const note of notes) {
+      const dx = parent.x + NEST_PAD - note.x
+      const dy = noteY - note.y
+      note.x += dx
+      note.y += dy
+      for (const inner of descendants(note.id, children)) {
+        inner.x += dx
+        inner.y += dy
+      }
+      noteY += note.h + NEST_GAP
+    }
+
+    for (const [index, child] of cells.entries()) {
       const column = index % columns
       const row = Math.floor(index / columns)
       // Centred in its cell, so a narrow child in a wide grid still looks placed.
@@ -1622,7 +1687,7 @@ function edgeLabelBox(arrow: BoardShape) {
 
   const w = Math.max(
     90,
-    Math.min(EDGE_LABEL_W, Math.max(labelWidth(head, arrow.size), labelWidth(caption, 's')))
+    Math.min(EDGE_LABEL_W, Math.max(labelWidth(head, arrow.size), labelWidth(caption, 's')) + 14)
   )
   const headH = Math.ceil(labelWidth(head, arrow.size) / w) * LINE_HEIGHT[arrow.size]
   const capH = caption ? Math.ceil(labelWidth(caption, 's') / w) * LINE_HEIGHT.s : 0
@@ -1800,6 +1865,19 @@ export function normalizeLesson(raw: Lesson): Lesson {
     summary: raw.summary || '',
     scenes,
   }
+}
+
+/**
+ * Turns a written-out list into a drawn one.
+ *
+ * A model writes "- " because that is what markdown does, and a hyphen at the
+ * start of a line reads as a minus sign on a board. Only converted when there
+ * are two or more of them, so "- 40 degrees" on its own is left alone.
+ */
+function bullets(text: string) {
+  const lines = text.split('\n')
+  if (lines.filter((line) => /^\s*[-*]\s+\S/.test(line)).length < 2) return text
+  return lines.map((line) => line.replace(/^(\s*)[-*]\s+/, '$1· ')).join('\n')
 }
 
 function num(value: unknown, fallback: number) {

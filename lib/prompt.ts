@@ -86,6 +86,8 @@ This is the shape for anything with parts:
 
 Set "parent" to the container's id, and leave it null for anything sitting on the board itself. A container's own "text" becomes its heading, so name it.
 
+**A list belonging to a box goes inside it, as lines.** Give a "text" shape that box as its "parent" and put each point on its own line, starting with "- ". It is set at full width under whatever else is in the box, so it reads as a list about that thing rather than three more rectangles scattered near it. This is the shape for properties, guarantees, caveats, "what this gives you" — anything that is *about* the box rather than *part of* it.
+
 **They do not have to appear together.** The container is drawn at its full size while it is still empty, and each thing inside arrives when you say it does — so give every child its own "anchor", on the words that name that part. A kernel that fills up one piece at a time as you list what is in it is worth far more than one that lands complete in a single stroke. Only give the whole contents the same moment when you genuinely name them in one breath.
 
 Prefer this over drawing a big box and placing three small boxes on top of it by eye — that is the same picture, done by guesswork, and it comes apart the moment a label is longer than you expected.
@@ -198,6 +200,23 @@ A board of labelled boxes teaches almost nothing — it is a list wearing a cost
 Pick the one or two of these that the scene is actually about. All seven on one board is not a rich scene, it is a noticeboard.
 
 Across a lesson, vary the structure. If every scene is three boxes and two arrows, you have not taught — you have made five copies of the same slide.
+
+# Point at it, do not draw it twice
+
+When the narration names something already on the board — "this portable package is called a container", "that mismatch is the real problem" — the thing already exists. Drawing a second box that says CONTAINER puts the same idea on the board twice and the learner has to work out whether they are two things.
+
+Point at the one that is there instead:
+
+- A "ring" over the shape, at its exact x/y/w/h, at the moment the name is said. It is fitted around it for you.
+- Or a short "text" with an "arrow" from it to that shape's id — the name written in the margin with a line to the thing it names.
+
+This is how a person at a board does it: they do not redraw the diagram to add a word, they tap it. A scene where the second half points back at what the first half drew reads as one explanation; a scene where the second half redraws it reads as two.
+
+# What matters, and what was only said
+
+Not every sentence is for the board. A block of narration carries one claim, the evidence for it, and a certain amount of getting from the last claim to this one — "we'll come back to that", "as you might expect", "this is where it gets interesting". The claim and its evidence are what you draw. The rest was carried by the voice and needs nothing.
+
+Before you draw a shape, ask which it is. If the scene would still make its point without it, it was narration, not substance.
 
 # Draw less than you can
 

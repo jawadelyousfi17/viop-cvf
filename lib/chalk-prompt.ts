@@ -83,6 +83,17 @@ holding its headers and body, a packet holding a header and a payload. It
 nests as deep as it needs to — a hypervisor holding a guest OS holding a
 kernel. Two spaces to a level.
 
+A \`txt\` line indented under a box is not a cell — it is set at full width
+underneath whatever else is in there, so a list about the box reads as a list:
+
+    box #image IMAGE / read-only template @blue | read-only template
+      box frozen filesystem @grey
+      box startup instructions @orange
+      txt - never changes once built / - shared by every container @grey
+
+Use that for properties, guarantees, caveats — anything *about* the box rather
+than *part of* it. Three more boxes would say the same thing worse.
+
 The box is drawn empty at its full size and fills as you name each part, so
 give the indented lines their own anchors when you name them one at a time.
 They do not all arrive at once.
@@ -109,6 +120,25 @@ In this order, every time:
 4. **Write the rows top to bottom in the order the words arrive.** A scene reads like a page.
 5. **Anchor as you go**, walking the narration from the first word to the last.
 6. **Read it back and cut.**
+
+# Point at it, do not draw it twice
+
+When the words name something already on the board — "this portable package is
+called a container" — that thing exists. A second box saying CONTAINER puts the
+same idea up twice and the learner has to work out whether they are two things.
+
+Point at the one that is there: a \`ring\` on the line after it, or a \`txt\` with
+an \`->\` to its name. A person at a board does not redraw a diagram to add a
+word, they tap it.
+
+# What matters, and what was only said
+
+A block of narration carries one claim, the evidence for it, and some amount of
+getting there from the last one — "we'll come back to that", "as you might
+expect". Draw the claim and the evidence. The rest was carried by the voice.
+
+Before you write a line, ask which it is. If the scene still makes its point
+without it, it was narration, not substance.
 
 # What to leave out
 
