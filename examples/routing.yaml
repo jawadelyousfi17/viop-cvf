@@ -1,0 +1,21 @@
+title: Getting past things
+takeaway: A connector finds its way to the far shape without crossing what is between them.
+roles: { package: green, problem: red, system: blue }
+
+scenes:
+  - n: 1
+    title: Two ends with a wall between them
+    beats: 4
+    say:
+      - Here are two things that need joining.
+      - There is something standing between them.
+      - The connector goes around it.
+      - And the far one gets there too.
+    board:
+      - { box: Source, id: src, role: package, at: 1 }
+      - { box: 'In the way', id: wall, role: problem, stat: 'Not part of this', at: 2 }
+      - { box: Target, id: dst, role: system, at: '1*' }
+      - { box: 'Also in the way', id: wall2, role: problem, at: '2*' }
+      - { arrow: [src, dst], says: 'goes around', at: 3 }
+      - { sym: signpost, says: 'The route is worked out, never written', role: system, at: 4 }
+      - { img: a photograph of a maze, at: 4 }

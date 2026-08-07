@@ -13,6 +13,7 @@ import {
 } from '@/lib/slate'
 import { resolveSymbol } from '@/lib/slate-symbols'
 import { arrowHead, edgePoint, roughPath, roughStroke, type RoughShape } from '@/lib/slate-rough'
+import { route, type Box } from '@/lib/slate-route'
 import { highlight } from '@/lib/slate-code'
 
 /**
@@ -754,10 +755,8 @@ export function wireBoard(board: HTMLElement) {
   wires.setAttribute('width', String(sheet.offsetWidth))
   wires.setAttribute('height', String(sheet.offsetHeight))
 
-  /** A shape's box in sheet coordinates, with the zoom taken back out. */
-  const boxOf = (name: string) => {
-    const node = sheet.querySelector<HTMLElement>(`[data-name="${CSS.escape(name)}"]`)
-    if (!node) return null
+  /** Anything in sheet coordinates, with the zoom taken back out. */
+  const boxFor = (node: Element): Box | null => {
     const rect = node.getBoundingClientRect()
     if (!rect.width || !rect.height) return null
     return {
@@ -768,13 +767,31 @@ export function wireBoard(board: HTMLElement) {
     }
   }
 
+  const elementFor = (name: string) =>
+    sheet.querySelector<HTMLElement>(`[data-name="${CSS.escape(name)}"]`)
+
+  /**
+   * The things a connector has to get past.
+   *
+   * Only the outermost of any nest: a box and the three boxes inside it are one
+   * obstacle, and treating them as four leaves imaginary corridors between
+   * children that a route would happily thread and a reader would not.
+   */
+  const solids = Array.from(
+    sheet.querySelectorAll<HTMLElement>(
+      '.shape, .group, .stk, .arr, table.tbl, .chart, pre.code, .photo, .callout, .lab, .sym, .ico'
+    )
+  ).filter((node) => !node.parentElement?.closest('.shape, .group, .stk, .photo, .compare, .flow'))
+
   for (const wire of Array.from(wires.querySelectorAll<SVGGElement>('g.wire'))) {
-    const from = boxOf(wire.dataset.from ?? '')
-    const to = boxOf(wire.dataset.to ?? '')
+    const fromEl = elementFor(wire.dataset.from ?? '')
+    const toEl = elementFor(wire.dataset.to ?? '')
+    const from = fromEl && boxFor(fromEl)
+    const to = toEl && boxFor(toEl)
     const [line, head, label] = Array.from(wire.children) as [SVGPathElement, SVGPathElement, SVGTextElement]
 
     // An end that is not on the board yet leaves nothing to join.
-    if (!from || !to) {
+    if (!from || !to || !fromEl || !toEl) {
       wire.setAttribute('display', 'none')
       continue
     }
@@ -784,20 +801,56 @@ export function wireBoard(board: HTMLElement) {
     const b = edgePoint(to, from.x + from.w / 2, from.y + from.h / 2)
     const style = wire.dataset.style ?? '->'
 
-    line.setAttribute('d', roughStroke(a.x, a.y, b.x, b.y, wire.dataset.seed ?? 'w'))
+    // Everything except the two it is joining — a connector is not obstructed
+    // by the shapes it is for.
+    const obstacles = solids
+      .filter((node) => !fromEl.contains(node) && !toEl.contains(node))
+      .filter((node) => !node.contains(fromEl) && !node.contains(toEl))
+      .map(boxFor)
+      .filter((box): box is Box => box !== null)
+
+    const path = route(a, b, obstacles)
+    const seed = wire.dataset.seed ?? 'w'
+    let d = ''
+    for (let i = 0; i + 1 < path.length; i++) {
+      d += roughStroke(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y, `${seed}:${i}`, 1)
+    }
+    line.setAttribute('d', d)
 
     // A relation has no direction of travel, so it gets no head — that is the
-    // whole distinction between `shares` and `->`.
-    const angle = Math.atan2(b.y - a.y, b.x - a.x)
+    // whole distinction between `shares` and `->`. The head points along the
+    // last leg of the route, not at the shape, or a line that came round the
+    // back would arrive pointing the wrong way.
+    const last = path[path.length - 2] ?? a
+    const first = path[1] ?? b
     head.setAttribute(
       'd',
       style === 'rel'
         ? ''
-        : arrowHead(b.x, b.y, angle) + (style === '<->' ? arrowHead(a.x, a.y, angle + Math.PI) : '')
+        : arrowHead(b.x, b.y, Math.atan2(b.y - last.y, b.x - last.x)) +
+            (style === '<->' ? arrowHead(a.x, a.y, Math.atan2(a.y - first.y, a.x - first.x)) : '')
     )
 
-    label.setAttribute('x', String((a.x + b.x) / 2))
-    label.setAttribute('y', String((a.y + b.y) / 2 - 8))
+    // On the longest leg, nudged clear of whatever the route was avoiding. The
+    // geometric midpoint of a detour is usually the point *behind* the obstacle
+    // that caused it, which is the one place the label cannot be read.
+    let best = { at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, run: -1, vertical: false }
+    for (let i = 0; i + 1 < path.length; i++) {
+      const run = Math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y)
+      if (run <= best.run) continue
+      best = {
+        at: { x: (path[i].x + path[i + 1].x) / 2, y: (path[i].y + path[i + 1].y) / 2 },
+        run,
+        vertical: Math.abs(path[i + 1].y - path[i].y) > Math.abs(path[i + 1].x - path[i].x),
+      }
+    }
+    const covered = (p: { x: number; y: number }) =>
+      obstacles.some((o) => p.x > o.x && p.x < o.x + o.w && p.y > o.y && p.y < o.y + o.h)
+    const above = { x: best.at.x, y: best.at.y - 12 }
+    const clearOf = covered(above) ? { x: best.at.x, y: best.at.y + 20 } : above
+    label.setAttribute('x', String(best.vertical ? best.at.x + 6 : clearOf.x))
+    label.setAttribute('y', String(best.vertical ? best.at.y : clearOf.y))
+    label.setAttribute('text-anchor', best.vertical ? 'start' : 'middle')
   }
 }
 

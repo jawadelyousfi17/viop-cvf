@@ -67,6 +67,13 @@ const EXAMPLES = [
     script: 'dns.script.md',
   },
   {
+    id: 'routing',
+    label: 'Getting past things',
+    note: '1 scene · connector routing',
+    board: 'routing.yaml',
+    script: 'routing.yaml',
+  },
+  {
     id: 'blocks',
     label: 'Every block Slate has',
     note: '1 scene · a scratch board',
