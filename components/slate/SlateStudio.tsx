@@ -149,8 +149,12 @@ export default function SlateStudio({
         setSource(board)
         setScript(words)
         setSceneIndex(0)
-        setIsPlaying(false)
         setPlaying(true)
+        // Starts itself, the way the whiteboard does. A board that opens
+        // paused opens *blank* — beat zero has nothing drawn on it — so the
+        // first thing you saw was an empty page and silence, and the only cure
+        // was finding a button you had no reason to look for.
+        setIsPlaying(true)
       })
       .catch(() => {})
     return () => {
@@ -298,19 +302,22 @@ export default function SlateStudio({
       last = now
       if (playingRef.current) clockRef.current += delta
 
-      const running = audio ? !audio.paused : playingRef.current
       const seconds = audio && !audio.paused ? audio.currentTime : clockRef.current
 
       // Only the clock moves the board. A paused board stays where it was put:
       // the loop used to recompute the beat every frame regardless, so stepping
       // forward with the transport was undone before the next paint.
-      if (running) {
+      //
+      // The test is the transport, not `audio.paused` — an ended element
+      // reports itself paused, so asking the audio whether it is running means
+      // the scene that just finished can never be noticed as finished.
+      if (playingRef.current) {
         let current = 0
         for (const cue of cuesRef.current) if (cue.start <= seconds) current = cue.beat
         setBeat((was) => (was === current ? was : current))
       }
 
-      const ended = running && (audio ? audio.ended : seconds >= duration)
+      const ended = playingRef.current && (audio ? audio.ended : seconds >= duration)
       if (ended) {
         const total = lessonRef.current?.scenes.length ?? 0
         if (sceneIndex + 1 < total) setSceneIndex(sceneIndex + 1)
@@ -355,6 +362,7 @@ export default function SlateStudio({
     if ((!topic.trim() && !picked) || writing) return
     setWriting(true)
     setIsPlaying(false)
+    setSceneIndex(0)
     setSource('')
     setPlaying(true)
     setShowDesk(true)
@@ -383,6 +391,7 @@ export default function SlateStudio({
         text += decoder.decode(value, { stream: true })
         setSource(text)
       }
+      setIsPlaying(true)
     } finally {
       setWriting(false)
     }
@@ -442,6 +451,7 @@ export default function SlateStudio({
     setSceneIndex(0)
     setPlaying(true)
     setShowDesk(true)
+    setIsPlaying(true)
   }, [pasted])
 
   const goToBeat = useCallback((n: number) => {
