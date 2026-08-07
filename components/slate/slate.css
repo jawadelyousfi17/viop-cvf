@@ -58,15 +58,24 @@
 /* The chrome around the board keeps the app's own face: a control is not a
    thing on the whiteboard, and setting one in a marker hand makes it look like
    part of the drawing. */
+.slate button,
+.slate input,
+.slate textarea {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
 .slate .mono,
-.slate button {
+.slate code,
+.slate textarea.mono {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 /* ---------- the board ---------- */
 .slate-board {
   overflow: auto;
-  padding: 46px 44px 40px;
+  /* Clears the floating header and transport, which sit over the board rather
+     than beside it — so the first row is never under the title card and the
+     last is never under the play button. */
+  padding: 96px 44px 104px;
   background: var(--slate);
 }
 .slate .row {
@@ -671,6 +680,15 @@
   color: var(--chalk-faint);
   text-align: center;
 }
+/* A bare symbol names itself only while the source is open. On the finished
+   board the word "sad face" under a sad face is the drawing explaining the
+   drawing — a caption is for what the symbol is *saying*, not what it is. */
+.slate .sym:not(.said) figcaption {
+  display: none;
+}
+.slate.tagged .sym:not(.said) figcaption {
+  display: block;
+}
 /* Given something to say, a symbol becomes a line in a list: glyph on the left,
    words on the right, at reading size. This is the shape a property of a thing
    actually takes on a board. */
@@ -808,8 +826,6 @@
 .slate-rail {
   overflow: auto;
   padding: 14px 0;
-  background: var(--slate-deep);
-  border-right: 1px solid var(--rule);
 }
 .slate .railhead {
   font-family: var(--font-geist-mono), ui-monospace, monospace;

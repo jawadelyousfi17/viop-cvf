@@ -5,7 +5,11 @@ import type { Engine } from '@/lib/engines'
 import type { Provider } from '@/lib/providers'
 import { DEFAULT_VOICE_ID, type VoiceId } from '@/lib/voices'
 import { Narrator } from '../narrator'
-import { parseLesson, parseScript, type SlateLesson } from '@/lib/slate'
+import { VoicePicker } from '../VoicePicker'
+import type { SavedScript } from '@/app/api/scripts/route'
+import { parseScript as parseWrittenScript } from '@/lib/script-import'
+import { SLATE_YAML_SYSTEM, slateYamlScriptPrompt } from '@/lib/slate-yaml-prompt'
+import { parseLesson, parseScript, splitSentences, type SlateLesson } from '@/lib/slate'
 import { looksLikeYaml, parseYamlLesson } from '@/lib/slate-yaml'
 import { lint } from '@/lib/slate-lint'
 import { drawScene, roughen, showBeat } from './draw'
@@ -39,11 +43,29 @@ const WORDS_PER_SECOND = 2.6
  * only looks general until you try the other.
  */
 const EXAMPLES = [
-  { id: 'dns', label: 'dns', board: 'dns.slate', script: 'dns.script.md' },
-  { id: 'docker', label: 'docker', board: 'docker.slate', script: 'docker.script.md' },
+  {
+    id: 'docker-yaml',
+    label: 'What a container is',
+    note: '6 scenes · yaml',
+    board: 'docker.yaml',
+    script: 'docker.script.md',
+  },
   // The same board, written the other way. Shipped side by side because the
   // only useful way to judge a format is to read one document in both.
-  { id: 'docker-yaml', label: 'docker · yaml', board: 'docker.yaml', script: 'docker.script.md' },
+  {
+    id: 'docker',
+    label: 'What a container is',
+    note: '6 scenes · slate',
+    board: 'docker.slate',
+    script: 'docker.script.md',
+  },
+  {
+    id: 'dns',
+    label: 'How DNS finds an address',
+    note: '3 scenes · slate',
+    board: 'dns.slate',
+    script: 'dns.script.md',
+  },
 ] as const
 
 type ExampleId = (typeof EXAMPLES)[number]['id']
@@ -63,14 +85,25 @@ export default function SlateStudio({
 }) {
   const [source, setSource] = useState('')
   const [script, setScript] = useState('')
-  const [example, setExample] = useState<ExampleId>('docker-yaml')
+  const [example, setExample] = useState<ExampleId | null>(null)
   const [topic, setTopic] = useState('')
   const [writing, setWriting] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
   const [beat, setBeat] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showChecks, setShowChecks] = useState(false)
-  const [showDesk, setShowDesk] = useState(true)
+  const [showDesk, setShowDesk] = useState(false)
+  const [showRail, setShowRail] = useState(false)
+  const [voiceId, setVoiceId] = useState<VoiceId>(DEFAULT_VOICE_ID)
+  const [saved, setSaved] = useState<SavedScript[]>([])
+  const [openingScript, setOpeningScript] = useState<string | null>(null)
+  const [picked, setPicked] = useState<{ title: string; text: string } | null>(null)
+  const [pasted, setPasted] = useState('')
+  const [copied, setCopied] = useState(false)
+  // The board is not the first thing you see, for the same reason it is not the
+  // first thing you see on the whiteboard tab: a player with nothing loaded is
+  // a wall of controls for a thing that does not exist yet.
+  const [playing, setPlaying] = useState(false)
 
   // Which of the two front ends wrote this. Detected rather than configured:
   // the two produce the same board, so the only thing the choice can break is
@@ -95,6 +128,8 @@ export default function SlateStudio({
   const playingRef = useRef(false)
   const registryRef = useRef<Record<string, HTMLElement>>({})
   const cuesRef = useRef<Cue[]>([])
+  /** Where the board is on the clock, so a seek survives being paused. */
+  const clockRef = useRef(0)
   const lessonRef = useRef<SlateLesson | null>(null)
 
   const errors = problems.filter((p) => p.level === 'err')
@@ -102,6 +137,7 @@ export default function SlateStudio({
   // The examples ship with the engine: something has to be on screen before
   // anyone has written a line, or the first impression is an empty box.
   useEffect(() => {
+    if (!example) return
     let live = true
     const chosen = EXAMPLES.find((e) => e.id === example) ?? EXAMPLES[0]
     void Promise.all([
@@ -114,6 +150,7 @@ export default function SlateStudio({
         setScript(words)
         setSceneIndex(0)
         setIsPlaying(false)
+        setPlaying(true)
       })
       .catch(() => {})
     return () => {
@@ -128,6 +165,28 @@ export default function SlateStudio({
     },
     []
   )
+
+  // The scripts on disk, with whether their narration is already synthesised.
+  // Asked again when the voice changes, because "voice ready" is a fact about
+  // a script *and a voice*, not about a script.
+  useEffect(() => {
+    let live = true
+    void fetch(`/api/scripts?voice=${encodeURIComponent(voiceId)}`)
+      .then((r) => r.json())
+      .then((data: { scripts?: SavedScript[] }) => live && setSaved(data.scripts ?? []))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [voiceId])
+
+  // A voice change means a different recording, so the cached one has to go.
+  useEffect(() => {
+    narratorRef.current?.dispose()
+    narratorRef.current = null
+    audioRef.current?.pause()
+    audioRef.current = null
+  }, [voiceId])
 
   // The animation loop reads the lesson through a ref, so a keystroke in the
   // source does not restart the scene being played.
@@ -182,13 +241,13 @@ export default function SlateStudio({
     const observer = new ResizeObserver(() => roughen(board))
     observer.observe(board)
     return () => observer.disconnect()
-  }, [lesson, scene])
+  }, [lesson, scene, playing])
 
   // The voice, and the clock it puts the beats on.
   useEffect(() => {
-    if (!scene || !ready) return
+    if (!scene || !ready || !playing) return
 
-    narratorRef.current ??= new Narrator(DEFAULT_VOICE_ID as VoiceId)
+    narratorRef.current ??= new Narrator(voiceId)
     const narrator = narratorRef.current
     const narration = scene.beats.join(' ')
     if (!narration.trim()) return
@@ -198,7 +257,7 @@ export default function SlateStudio({
     let audio: HTMLAudioElement | null = null
 
     // Estimated first, so the board moves before the audio has landed.
-    let clock = 0
+    clockRef.current = 0
     let cues: Cue[] = []
     let at = 0
     for (const [i, sentence] of scene.beats.entries()) {
@@ -237,15 +296,21 @@ export default function SlateStudio({
       if (cancelled) return
       const delta = (now - last) / 1000
       last = now
-      if (playingRef.current) clock += delta
+      if (playingRef.current) clockRef.current += delta
 
-      const seconds = audio && !audio.paused ? audio.currentTime : clock
-      let current = 0
-      for (const cue of cuesRef.current) if (cue.start <= seconds) current = cue.beat
+      const running = audio ? !audio.paused : playingRef.current
+      const seconds = audio && !audio.paused ? audio.currentTime : clockRef.current
 
-      setBeat((was) => (was === current ? was : current))
+      // Only the clock moves the board. A paused board stays where it was put:
+      // the loop used to recompute the beat every frame regardless, so stepping
+      // forward with the transport was undone before the next paint.
+      if (running) {
+        let current = 0
+        for (const cue of cuesRef.current) if (cue.start <= seconds) current = cue.beat
+        setBeat((was) => (was === current ? was : current))
+      }
 
-      const ended = audio ? audio.ended : seconds >= duration
+      const ended = running && (audio ? audio.ended : seconds >= duration)
       if (ended) {
         const total = lessonRef.current?.scenes.length ?? 0
         if (sceneIndex + 1 < total) setSceneIndex(sceneIndex + 1)
@@ -263,7 +328,7 @@ export default function SlateStudio({
       if (audioRef.current === audio) audioRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneIndex, ready, scene?.n])
+  }, [sceneIndex, ready, playing, voiceId, scene?.n])
 
   // Reveal, and keep the rail on the sentence being spoken.
   useEffect(() => {
@@ -287,24 +352,28 @@ export default function SlateStudio({
    * a generated board usable.
    */
   const write = useCallback(async () => {
-    if (!topic.trim() || writing) return
+    if ((!topic.trim() && !picked) || writing) return
     setWriting(true)
     setIsPlaying(false)
     setSource('')
+    setPlaying(true)
+    setShowDesk(true)
     try {
       const response = await fetch('/api/slate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic, provider, model }),
+        body: JSON.stringify(
+          picked ? { script: picked.text, provider, model } : { topic, provider, model }
+        ),
       })
       if (!response.ok || !response.body) {
         const { error } = await response.json().catch(() => ({ error: 'Could not reach the model.' }))
         setSource(`# ${error}\n`)
         return
       }
-      // A board written by a script keeps that script; a board written from a
-      // topic brings its own narration, so the old words have to go.
-      setScript('')
+      // A board written *for* a script keeps that script — its words are
+      // already recorded. A board written from a topic brings its own.
+      if (!picked) setScript('')
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let text = ''
@@ -317,207 +386,478 @@ export default function SlateStudio({
     } finally {
       setWriting(false)
     }
-  }, [topic, writing, provider, model])
+  }, [topic, writing, picked, provider, model])
+
+  /** Opens a written script. Its words are fixed; only the board is missing. */
+  const openScript = useCallback(async (name: string, title: string) => {
+    setOpeningScript(name)
+    try {
+      const response = await fetch(`/api/scripts?name=${encodeURIComponent(name)}`)
+      if (!response.ok) throw new Error(String(response.status))
+      const { text } = (await response.json()) as { text: string }
+      setScript(text)
+      setPicked({ title, text })
+      setSource('')
+    } catch {
+      setPicked(null)
+    } finally {
+      setOpeningScript(null)
+    }
+  }, [])
+
+  /**
+   * The whole input for a model asked to write the board for the picked script.
+   *
+   * The sentences are numbered here rather than described, because those
+   * numbers ARE the beats — a model that can count to six can time a board, and
+   * cannot paraphrase an integer.
+   */
+  const promptForBoard = useMemo(
+    () =>
+      picked
+        ? `${SLATE_YAML_SYSTEM}\n\n${slateYamlScriptPrompt(
+            parseWrittenScript(picked.text).map((scene, i) => ({
+              n: i + 1,
+              sentences: splitSentences(scene.narration),
+            }))
+          )}`
+        : '',
+    [picked]
+  )
+
+  const copyPrompt = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(promptForBoard)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard blocked — the box below is still there to select from.
+    }
+  }, [promptForBoard])
+
+  /** Draws whatever was pasted back in, against the script it was written for. */
+  const drawPasted = useCallback(() => {
+    if (!pasted.trim()) return
+    setSource(pasted)
+    setSceneIndex(0)
+    setPlaying(true)
+    setShowDesk(true)
+  }, [pasted])
 
   const goToBeat = useCallback((n: number) => {
     setIsPlaying(false)
     const cue = cuesRef.current.find((c) => c.beat === n)
     const audio = audioRef.current
+    // Move the clock too, so resuming carries on from where you looked rather
+    // than snapping back to wherever the audio happened to be.
+    clockRef.current = cue?.start ?? 0
     if (cue && audio && Number.isFinite(audio.duration)) audio.currentTime = cue.start
     setBeat(n)
   }, [])
-
   const beats = scene?.beats ?? []
+  const chosen = EXAMPLES.find((e) => e.id === example)
 
-  return (
-    <main className={`slate flex h-dvh flex-col overflow-hidden${showDesk ? ' tagged' : ''}`}>
-      <header className="flex flex-wrap items-baseline gap-4 border-b border-[var(--rule)] bg-[var(--slate-deep)] px-4 py-3">
-        <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--chalk-faint)]">
-          slate <b className="font-medium text-[var(--c-violet)]">engine</b>
-        </span>
-        <div className="min-w-0">
-          <h1 className="m-0 truncate font-serif text-[22px] leading-tight">
-            {lesson?.title || '—'}
+  // ---- the topic screen ----------------------------------------------------
+  // The same shape as the whiteboard's: name a thing, or open one that is
+  // already written. Two ways in, side by side, because an example is the
+  // fastest way to see what the engine does and a topic is the reason you came.
+  if (!playing) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
+        <div className="w-full max-w-2xl">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-400">
+            viop · slate
+          </p>
+          <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl">
+            What should I teach you?
           </h1>
-          <p className="m-0 truncate text-[12.5px] text-[var(--chalk-faint)]">{lesson?.sub}</p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {chooser}
-          <Chip onClick={() => setShowDesk((v) => !v)}>{showDesk ? 'hide source' : 'source'}</Chip>
-          <Chip onClick={() => setShowChecks((v) => !v)} pressed={showChecks}>
-            checks{errors.length ? ` · ${errors.length}` : ''}
-          </Chip>
-        </div>
-      </header>
+          <p className="mt-4 text-lg leading-relaxed text-zinc-500">
+            Name a topic and I&rsquo;ll write the board as YAML, then draw it by hand — shapes
+            timed to the sentence that explains them. Or open one that is already written and
+            watch it play.
+          </p>
 
-      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: showDesk ? 'minmax(280px,360px) minmax(0,1fr)' : '0 minmax(0,1fr)' }}>
-        {showDesk && (
-          <section className="flex min-h-0 flex-col border-r border-[var(--rule)] bg-[var(--slate-deep)]">
-            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--rule)] px-3 py-2">
-              <span
-                className="mono rounded-sm border border-[var(--rule)] px-2 py-1 text-[10px] uppercase tracking-[0.16em]"
-                style={{ color: isYaml ? 'var(--c-violet)' : 'var(--chalk-faint)' }}
-                title="Which front end parsed this document"
-              >
-                {isYaml ? 'yaml' : 'slate'}
-              </span>
-              <p className="m-0 mr-auto text-[12px] text-[var(--chalk-faint)]">
-                Timed with <span className="mono">{isYaml ? 'at: 3' : '|3'}</span>.
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            {chooser}
+            <VoicePicker value={voiceId} onChange={setVoiceId} />
+          </div>
+
+          {/* Scripts already written, and already recorded. The board is the
+              only thing missing, and the words must come back byte for byte. */}
+          {saved.length > 0 && (
+            <div className="mt-8">
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
+                A written script
               </p>
-              {EXAMPLES.map((choice) => (
-                <Chip
-                  key={choice.id}
-                  onClick={() => setExample(choice.id)}
-                  pressed={example === choice.id}
-                >
-                  {choice.label}
-                </Chip>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2 border-b border-[var(--rule)] px-3 py-2">
-              <input
-                value={topic}
-                onChange={(event) => setTopic(event.target.value)}
-                onKeyDown={(event) => event.key === 'Enter' && void write()}
-                placeholder="a topic to teach…"
-                className="mono min-w-0 flex-1 rounded-sm border border-[var(--rule)] bg-[var(--slate-edge)] px-2 py-1.5 text-[12px] text-[var(--chalk)] outline-none placeholder:text-[var(--chalk-faint)]"
-              />
-              <Chip onClick={() => void write()} pressed={writing}>
-                {writing ? 'writing…' : 'write yaml'}
-              </Chip>
-            </div>
-            <textarea
-              value={source}
-              onChange={(event) => setSource(event.target.value)}
-              spellCheck={false}
-              className="mono min-h-0 flex-1 resize-none bg-[var(--slate-edge)] px-3 py-3 text-[12.5px] leading-[1.7] text-[var(--chalk-soft)] outline-none"
-            />
-            <p className="border-y border-[var(--rule)] px-3 py-2 text-[12px] text-[var(--chalk-faint)]">
-              The script. One sentence, one beat.
-            </p>
-            <textarea
-              value={script}
-              onChange={(event) => setScript(event.target.value)}
-              spellCheck={false}
-              className="mono h-40 shrink-0 resize-none bg-[var(--slate-edge)] px-3 py-3 text-[12.5px] leading-[1.7] text-[var(--chalk-soft)] outline-none"
-            />
-          </section>
-        )}
-
-        <section className="flex min-h-0 flex-col">
-          <nav className="flex shrink-0 overflow-x-auto border-b border-[var(--rule)] bg-[var(--slate-deep)]">
-            {(lesson?.scenes ?? []).map((s, i) => (
-              <button
-                key={s.n}
-                type="button"
-                onClick={() => {
-                  setIsPlaying(false)
-                  setSceneIndex(i)
-                }}
-                aria-current={i === sceneIndex}
-                className={`mono whitespace-nowrap border-b-2 px-4 py-2 text-[11px] tracking-[0.14em] ${
-                  i === sceneIndex
-                    ? 'border-[var(--c-violet)] text-[var(--chalk)]'
-                    : 'border-transparent text-[var(--chalk-faint)]'
-                }`}
-              >
-                scene {s.n}
-              </button>
-            ))}
-          </nav>
-
-          <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: '236px minmax(0,1fr)' }}>
-            <nav ref={railRef} className="slate-rail">
-              <p className="railhead">Scene {scene?.n ?? '–'}</p>
-              {beats.map((sentence, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  data-n={i + 1}
-                  onClick={() => goToBeat(i + 1)}
-                  className="beat"
-                >
-                  <span className="n">{i + 1}</span>
-                  <span>{sentence}</span>
-                </button>
-              ))}
-            </nav>
-            <div ref={boardRef} className="slate-board" />
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[var(--rule)] bg-[var(--slate-deep)] px-4 py-2">
-            <Chip onClick={() => setSceneIndex((i) => Math.max(0, i - 1))}>◀◀</Chip>
-            <Chip onClick={() => goToBeat(Math.max(0, beat - 1))}>◀</Chip>
-            <Chip onClick={() => setIsPlaying((v) => !v)} pressed={isPlaying}>
-              {isPlaying ? 'pause' : 'play'}
-            </Chip>
-            <Chip onClick={() => goToBeat(Math.min(beats.length, beat + 1))}>▶</Chip>
-            <Chip
-              onClick={() =>
-                setSceneIndex((i) => Math.min((lesson?.scenes.length ?? 1) - 1, i + 1))
-              }
-            >
-              ▶▶
-            </Chip>
-            <span className="mono ml-2 text-[10.5px] tracking-[0.14em] text-[var(--chalk-faint)]">
-              scene <b className="font-medium text-[var(--chalk)]">{scene?.n ?? '–'}</b> · beat{' '}
-              <b className="font-medium text-[var(--chalk)]">{beat}</b>/{beats.length}
-            </span>
-          </div>
-
-          {showChecks && (
-            <div className="max-h-40 shrink-0 overflow-auto border-t border-[var(--rule)] bg-[var(--slate-edge)] px-4 py-2">
-              {problems.length === 0 ? (
-                <p className="mono m-0 text-[11.5px] text-[var(--c-green)]">
-                  No problems. {lesson?.scenes.length ?? 0} scenes parsed.
-                </p>
-              ) : (
-                problems.slice(0, 60).map((problem, i) => (
-                  <p
-                    key={i}
-                    className="mono m-0 mb-1 text-[11.5px]"
-                    style={{
-                      color: problem.level === 'err' ? 'var(--c-red)' : 'var(--c-yellow)',
-                    }}
+              <div className="flex flex-wrap gap-2">
+                {saved.map((entry) => (
+                  <button
+                    key={entry.name}
+                    type="button"
+                    onClick={() => void openScript(entry.name, entry.title)}
+                    className={`flex items-baseline gap-2 rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-sm transition ${
+                      picked?.title === entry.title
+                        ? 'border-zinc-900'
+                        : 'border-zinc-200 hover:border-zinc-400'
+                    }`}
                   >
-                    {problem.level === 'err' ? 'error' : 'warning'}
-                    {problem.line ? `  line ${problem.line}` : ''} — {problem.msg}
+                    <span className="text-sm font-medium text-zinc-800">{entry.title}</span>
+                    <span className="text-xs text-zinc-400">
+                      {openingScript === entry.name ? 'opening…' : `${entry.scenes} scenes`}
+                    </span>
+                    {openingScript !== entry.name &&
+                      (entry.recorded >= entry.scenes ? (
+                        <span
+                          title="Narration already recorded"
+                          className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
+                        >
+                          voice ready
+                        </span>
+                      ) : entry.recorded > 0 ? (
+                        <span
+                          title="Some scenes still need synthesising"
+                          className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+                        >
+                          voice {entry.recorded}/{entry.scenes}
+                        </span>
+                      ) : null)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Two ways to get a board for it: let the model here write one,
+                  or take the prompt to a model somewhere else and bring the
+                  YAML back. The second exists because the best model available
+                  is not always the one with an API key in this repo. */}
+              {picked && (
+                <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                  <p className="text-sm text-zinc-800">
+                    <span className="font-medium">{picked.title}</span>
+                    <span className="text-zinc-400">
+                      {' '}
+                      · {parseWrittenScript(picked.text).length} scenes, words already written
+                    </span>
                   </p>
-                ))
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void write()}
+                      disabled={writing}
+                      className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-40"
+                    >
+                      {writing ? 'Writing…' : 'Write the YAML for it'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void copyPrompt()}
+                      className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-400"
+                    >
+                      {copied ? 'Copied' : 'Copy prompt'}
+                    </button>
+                    <span className="self-center text-xs text-zinc-400">
+                      {promptForBoard ? `${Math.round(promptForBoard.length / 3.7)} tokens` : ''}
+                    </span>
+                  </div>
+
+                  <label
+                    htmlFor="slate-paste"
+                    className="mt-4 mb-2 block text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400"
+                  >
+                    Paste the YAML back
+                  </label>
+                  <textarea
+                    id="slate-paste"
+                    value={pasted}
+                    onChange={(event) => setPasted(event.target.value)}
+                    spellCheck={false}
+                    rows={5}
+                    placeholder={'title: …\nscenes:\n  - n: 1'}
+                    className="w-full resize-y rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-[12px] leading-[1.6] text-zinc-700 outline-none transition focus:border-zinc-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={drawPasted}
+                    disabled={!pasted.trim()}
+                    className="mt-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-400 disabled:opacity-40"
+                  >
+                    Draw it
+                  </button>
+                </div>
               )}
             </div>
           )}
-        </section>
+
+          <div className="mt-8">
+            <label
+              htmlFor="slate-topic"
+              className="mb-2 block text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400"
+            >
+              Or just a topic
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="slate-topic"
+                value={topic}
+                onChange={(event) => {
+                  setTopic(event.target.value)
+                  if (event.target.value) setPicked(null)
+                }}
+                onKeyDown={(event) => event.key === 'Enter' && void write()}
+                placeholder="how a CPU cache works"
+                disabled={writing}
+                className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 disabled:animate-pulse"
+              />
+              <button
+                type="button"
+                onClick={() => void write()}
+                disabled={!topic.trim() || writing}
+                className="shrink-0 rounded-xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {writing ? 'Writing…' : 'Write the board'}
+              </button>
+            </div>
+          </div>
+
+          {/* Boards already written, kept on disk and read back over the API —
+              so editing one is editing a file, not a string in a bundle. */}
+          <div className="mt-6">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
+              Or open a finished board
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {EXAMPLES.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setExample(entry.id)}
+                  className="flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-zinc-400"
+                >
+                  <span className="text-sm font-medium text-zinc-800">{entry.label}</span>
+                  <span className="text-xs text-zinc-400">{entry.note}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  // ---- the player ----------------------------------------------------------
+  // Board, and a transport. Everything else — the source, the script, the
+  // checks — is a panel you ask for, because none of it is what you are here
+  // to look at.
+  return (
+    <div className={`slate fixed inset-0${showDesk ? ' tagged' : ''}`}>
+      <div ref={boardRef} className="slate-board absolute inset-0" />
+
+      <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start gap-3 p-4">
+        <div className="pointer-events-auto min-w-0 rounded-xl border border-black/10 bg-white/90 px-3.5 py-2 shadow-sm backdrop-blur">
+          <p className="m-0 truncate text-sm font-medium text-zinc-800">
+            {lesson?.title || 'Untitled'}
+          </p>
+          <p className="m-0 truncate text-xs text-zinc-400">
+            {chosen?.label ?? 'written just now'} · {isYaml ? 'yaml' : 'slate'}
+          </p>
+        </div>
+
+        <div className="pointer-events-auto ml-auto flex flex-wrap items-start justify-end gap-2">
+          <div className="pointer-events-auto"><VoicePicker value={voiceId} onChange={setVoiceId} /></div>
+          <Pill onClick={() => setShowRail((v) => !v)} pressed={showRail}>
+            Script
+          </Pill>
+          <Pill onClick={() => setShowDesk((v) => !v)} pressed={showDesk}>
+            Source
+          </Pill>
+          <Pill onClick={() => setShowChecks((v) => !v)} pressed={showChecks} alert={errors.length}>
+            Checks{errors.length ? ` · ${errors.length}` : ''}
+          </Pill>
+          <Pill
+            onClick={() => {
+              setIsPlaying(false)
+              setPlaying(false)
+              setExample(null)
+            }}
+          >
+            New topic
+          </Pill>
+        </div>
+      </header>
+
+      {/* The narration, one sentence a beat. Click one to seek to it. */}
+      {showRail && (
+        <aside
+          ref={railRef}
+          className="slate-rail absolute bottom-24 left-4 top-24 z-10 w-64 rounded-xl border border-black/10 bg-white/95 shadow-lg shadow-black/5 backdrop-blur"
+        >
+          <p className="railhead">Scene {scene?.n ?? '–'}</p>
+          {beats.map((sentence, i) => (
+            <button key={i} type="button" data-n={i + 1} onClick={() => goToBeat(i + 1)} className="beat">
+              <span className="n">{i + 1}</span>
+              <span>{sentence}</span>
+            </button>
+          ))}
+        </aside>
+      )}
+
+      {/* The document itself. Editable, and reparsed as you type. */}
+      {showDesk && (
+        <aside className="absolute bottom-24 right-4 top-24 z-10 flex w-[min(30rem,45vw)] flex-col overflow-hidden rounded-xl border border-black/10 bg-white/95 shadow-lg shadow-black/5 backdrop-blur">
+          <div className="flex items-center gap-2 border-b border-black/10 px-3 py-2">
+            <span className="rounded-md bg-zinc-100 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+              {isYaml ? 'yaml' : 'slate'}
+            </span>
+            <span className="text-xs text-zinc-400">
+              timed with <code className="font-mono">{isYaml ? 'at: 3' : '|3'}</code>
+            </span>
+          </div>
+          <textarea
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+            spellCheck={false}
+            className="mono min-h-0 flex-1 resize-none bg-transparent px-3 py-3 text-[12.5px] leading-[1.7] text-zinc-700 outline-none"
+          />
+          <div className="border-t border-black/10 px-3 py-2 text-xs text-zinc-400">The script</div>
+          <textarea
+            value={script}
+            onChange={(event) => setScript(event.target.value)}
+            spellCheck={false}
+            className="mono h-28 shrink-0 resize-none bg-transparent px-3 py-2 text-[12.5px] leading-[1.7] text-zinc-700 outline-none"
+          />
+        </aside>
+      )}
+
+      {showChecks && (
+        <div className="absolute inset-x-4 bottom-24 z-10 max-h-44 overflow-auto rounded-xl border border-black/10 bg-white/95 p-3 shadow-lg shadow-black/5 backdrop-blur">
+          {problems.length === 0 ? (
+            <p className="m-0 font-mono text-[11.5px] text-emerald-600">
+              No problems. {lesson?.scenes.length ?? 0} scenes parsed.
+            </p>
+          ) : (
+            problems.slice(0, 60).map((problem, i) => (
+              <p
+                key={i}
+                className={`m-0 mb-1 font-mono text-[11.5px] ${
+                  problem.level === 'err' ? 'text-red-600' : 'text-amber-600'
+                }`}
+              >
+                {problem.level === 'err' ? 'error' : 'warning'}
+                {problem.line ? `  line ${problem.line}` : ''} — {problem.msg}
+              </p>
+            ))
+          )}
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-5">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-black/10 bg-white/90 px-3 py-2 shadow-lg shadow-black/5 backdrop-blur">
+          <Step label="Previous scene" onClick={() => setSceneIndex((i) => Math.max(0, i - 1))} disabled={sceneIndex === 0}>
+            <path d="M14 5 8 10l6 5V5Z" />
+            <path d="M6 5v10" />
+          </Step>
+          <Step label="Previous beat" onClick={() => goToBeat(Math.max(0, beat - 1))} disabled={beat === 0}>
+            <path d="M12.5 5 7 10l5.5 5" />
+          </Step>
+
+          <button
+            type="button"
+            onClick={() => setIsPlaying((v) => !v)}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700"
+          >
+            {isPlaying ? (
+              <svg viewBox="0 0 20 20" className="size-5" fill="currentColor">
+                <rect x="5.5" y="4" width="3.5" height="12" rx="1" />
+                <rect x="11" y="4" width="3.5" height="12" rx="1" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" className="size-5" fill="currentColor">
+                <path d="M6.5 4.2v11.6a.6.6 0 0 0 .92.5l9-5.8a.6.6 0 0 0 0-1l-9-5.8a.6.6 0 0 0-.92.5Z" />
+              </svg>
+            )}
+          </button>
+
+          <Step label="Next beat" onClick={() => goToBeat(Math.min(beats.length, beat + 1))} disabled={beat >= beats.length}>
+            <path d="M7.5 5 13 10l-5.5 5" />
+          </Step>
+          <Step
+            label="Next scene"
+            onClick={() => setSceneIndex((i) => Math.min((lesson?.scenes.length ?? 1) - 1, i + 1))}
+            disabled={sceneIndex >= (lesson?.scenes.length ?? 1) - 1}
+          >
+            <path d="M6 5l6 5-6 5V5Z" />
+            <path d="M14 5v10" />
+          </Step>
+
+          <span className="mx-1 h-6 w-px bg-black/10" />
+          <span className="whitespace-nowrap px-1 text-xs tabular-nums text-zinc-400">
+            scene {scene?.n ?? '–'}/{lesson?.scenes.length ?? 0} · beat {beat}/{beats.length}
+          </span>
+        </div>
       </div>
+
       {/* Kept out of the tree above so switching scenes never remounts it. */}
       <audio hidden />
       <span hidden>{provider}{model}</span>
-    </main>
+    </div>
   )
 }
 
-function Chip({
+/** A control in the top bar. Same weight as the whiteboard's, same shape. */
+function Pill({
   children,
   onClick,
   pressed,
+  alert,
 }: {
   children: React.ReactNode
   onClick: () => void
   pressed?: boolean
+  alert?: number
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={pressed}
-      className={`mono rounded-sm border px-3 py-1.5 text-[10.5px] uppercase tracking-[0.13em] transition ${
+      className={`rounded-xl border px-3.5 py-2 text-sm font-medium shadow-sm backdrop-blur transition ${
         pressed
-          ? 'border-[var(--c-violet)] bg-[var(--c-violet)] text-[var(--slate-deep)]'
-          : 'border-[var(--rule)] text-[var(--chalk-soft)] hover:border-[var(--chalk-soft)] hover:text-[var(--chalk)]'
+          ? 'border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-700'
+          : alert
+            ? 'border-red-200 bg-white/90 text-red-600 hover:bg-white'
+            : 'border-black/10 bg-white/90 text-zinc-700 hover:bg-white hover:text-zinc-900'
       }`}
     >
       {children}
+    </button>
+  )
+}
+
+/** A transport step. Traced, not filled, so it reads as a control not a shape. */
+function Step({
+  children,
+  label,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex size-9 shrink-0 items-center justify-center rounded-full text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-30"
+    >
+      <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
     </button>
   )
 }

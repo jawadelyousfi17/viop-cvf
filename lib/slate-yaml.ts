@@ -187,13 +187,19 @@ export function parseYamlLesson(
       })
     }
 
-    // Every top-level entry starts its own row unless it is a connector, which
-    // the renderer slots between the shapes it joins. The line form uses blank
-    // lines for this; a list needs no such trick, so one entry is one row.
+    // One row, and the renderer wraps it.
+    //
+    // The line form breaks rows on blank lines, which is a good way to write
+    // and a bad way to think: an author separating two entries for legibility
+    // was silently stacking them down the page instead of across it. A scene is
+    // a set of things laid out together — say so, and let `row`, `column` and
+    // `group` be the only things that claim otherwise.
+    const row: SlateNode[] = []
     for (const entry of board) {
       const node = readEntry(lesson, scene, entry as Dict, lines, null)
-      if (node) scene.rows.push([node])
+      if (node) row.push(node)
     }
+    if (row.length) scene.rows.push(row)
 
     lesson.scenes.push(scene)
   })
