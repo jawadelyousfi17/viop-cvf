@@ -104,6 +104,7 @@ export function toBoardShape(
     anchor: options.anchor,
     points: [],
     data: [],
+    parent: null,
   }
 
   const label = props.richText

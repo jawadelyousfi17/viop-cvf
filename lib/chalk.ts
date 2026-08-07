@@ -130,6 +130,8 @@ export interface ChalkOptions {
 interface Pending {
   shape: BoardShape
   row: number
+  /** How far the line was indented — two spaces to a level. */
+  depth: number
 }
 
 /**
@@ -213,6 +215,7 @@ function blank(id: string, kind: ShapeKind): BoardShape {
     anchor: '',
     points: [],
     data: [],
+    parent: null,
   }
 }
 
@@ -255,6 +258,9 @@ export function compileChalk(source: string, options: ChalkOptions = {}): ChalkR
   for (const [index, raw] of lines.entries()) {
     const line = raw.trim()
     const number = index + 1
+    // Indentation is containment: a line set in from the one above it is
+    // inside that one. Two spaces to a level, and a tab counts as two.
+    const indent = Math.floor((raw.replace(/\t/g, '  ').length - raw.replace(/^\s+/, '').length) / 2)
 
     // Inside a flowchart, indentation is the block and a blank line ends it.
     if (inFlow) {
@@ -309,7 +315,7 @@ export function compileChalk(source: string, options: ChalkOptions = {}): ChalkR
         continue
       }
       // Arrows follow their ends, so they never claim a row of their own.
-      pending.push({ shape: arrow, row })
+      pending.push({ shape: arrow, row, depth: 0 })
       continue
     }
 
@@ -375,11 +381,12 @@ export function compileChalk(source: string, options: ChalkOptions = {}): ChalkR
         }
         if (!shape.anchor) shape.anchor = previous.shape.anchor
       }
-      pending.push({ shape, row })
+      pending.push({ shape, row, depth: indent })
       continue
     }
 
-    pending.push({ shape, row })
+    attach(shape, indent, pending)
+    pending.push({ shape, row, depth: indent })
   }
 
   flush()
@@ -446,6 +453,25 @@ function timeShapes(shapes: BoardShape[], narration: string) {
   }
 }
 
+/**
+ * Points a shape at whatever it was written underneath.
+ *
+ * The nearest line above it that is one level shallower is its container —
+ * which is how indentation reads to anyone looking at it, so it is what the
+ * language means by it.
+ */
+function attach(shape: BoardShape, indent: number, pending: Pending[]) {
+  if (indent < 1) return
+  for (let i = pending.length - 1; i >= 0; i--) {
+    const above = pending[i]
+    if (above.shape.kind === 'arrow') continue
+    if (above.depth < indent) {
+      shape.parent = above.shape.id
+      return
+    }
+  }
+}
+
 /** `-> from to : label | anchor` */
 function parseArrow(rest: string, index: number): BoardShape | null {
   let body = rest
@@ -490,6 +516,9 @@ function finishScene(index: number, narration: string, pending: Pending[], flow:
   const rows = new Map<number, Pending[]>()
   for (const item of pending) {
     if (item.shape.kind === 'arrow') continue
+    // A child is placed inside its container, not on the board — the row
+    // layout would otherwise deal it out beside the thing it belongs to.
+    if (item.shape.parent) continue
     const list = rows.get(item.row) ?? []
     list.push(item)
     rows.set(item.row, list)

@@ -61,6 +61,28 @@ hl                                 highlights whatever was written on the line b
 
 **Anchor about half your lines, not all of them.** A shape with no anchor is placed between its anchored neighbours, so a line written between two anchored ones already lands in the right place. Anchor the first shape of each row and the one carrying the row's point; leave the rest bare. An anchor on every single line is wasted effort — those shapes were going to land there anyway.
 
+# Things inside other things
+
+**Indent a line and it goes inside the line above it.** The container grows to
+fit what it holds and arranges it in a grid — you never write a size or a
+position for either.
+
+    box #os OPERATING SYSTEM @blue | the operating system
+      box Scheduler @green
+      box Memory manager @green
+      box Filesystem @green
+
+    box HARDWARE @grey | underneath it all
+
+Use it for anything with parts: an OS holding its subsystems, a request
+holding its headers and body, a packet holding a header and a payload. It
+nests as deep as it needs to — a hypervisor holding a guest OS holding a
+kernel. Two spaces to a level.
+
+Reach for this rather than drawing a big box and putting small ones on top of
+it: same picture, done by guesswork, and it falls apart the moment a label is
+longer than you expected.
+
 # Rows
 
 A blank line ends a row. Shapes written together sit side by side; a blank line starts the next band down the board. Three or four to a row.

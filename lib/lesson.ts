@@ -177,6 +177,15 @@ export interface BoardShape {
   /** Chart data. Only read by the chart kinds; empty for everything else. */
   data: { label: string; value: number }[]
   /**
+   * The id of the shape this one sits inside, or null for a shape on the board
+   * itself.
+   *
+   * Saying what contains what is a judgement — a scheduler belongs inside the
+   * kernel, not beside it — and saying how big that makes the kernel is
+   * arithmetic. This carries the judgement; the sizes are worked out from it.
+   */
+  parent: string | null
+  /**
    * Shapes sharing a group move as one rigid block through the layout pass.
    * Set internally when a Mermaid diagram is expanded — dagre has already
    * arranged those nodes relative to each other, and re-flowing them into rows
@@ -280,6 +289,7 @@ export const SCENE_JSON_SCHEMA = {
                 'anchor',
                 'points',
                 'data',
+                'parent',
               ],
               properties: {
                 id: { type: 'string' },
@@ -315,6 +325,7 @@ export const SCENE_JSON_SCHEMA = {
                     properties: { label: { type: 'string' }, value: { type: 'number' } },
                   },
                 },
+                parent: { type: ['string', 'null'] },
               },
             },
           },
@@ -433,6 +444,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
       h,
       from: shape.from || null,
       to: shape.to || null,
+      parent: shape.parent || null,
       color: COLORS.includes(shape.color) ? shape.color : 'black',
       fill: FILLS.includes(shape.fill) ? shape.fill : 'none',
       size: SIZES.includes(shape.size) ? shape.size : 'm',
@@ -445,6 +457,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
   for (const shape of shapes) {
     if (shape.from && !ids.has(shape.from)) shape.from = null
     if (shape.to && !ids.has(shape.to)) shape.to = null
+    if (shape.parent && (!ids.has(shape.parent) || shape.parent === shape.id)) shape.parent = null
   }
 
   // An arrow can never be drawn before the shapes it connects.
@@ -475,7 +488,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
   // reserved room between ranks for the diagram's edge labels, and pushing
   // those nodes apart afterwards just dismantles the layout — which showed up
   // as a diagram block wider than the board it was fitted to.
-  const spaced = fitFrames(spaceForArrowLabels(groupFrames(shapes)))
+  const spaced = fitFrames(spaceForArrowLabels(groupFrames(nestChildren(shapes))))
   const withDiagram = [...spaced, ...expandDiagram(scene, sceneIndex)]
 
   // Where the model put things, kept before the layout rewrites it — the only
@@ -567,6 +580,7 @@ function expandDiagram(scene: Scene, sceneIndex: number): BoardShape[] {
       anchor: typeof when?.anchor === 'string' ? when.anchor.trim().slice(0, 60) : '',
       points: [],
       data: [],
+      parent: null,
       group,
     })
   }
@@ -597,6 +611,7 @@ function expandDiagram(scene: Scene, sceneIndex: number): BoardShape[] {
       anchor: destination?.anchor ?? '',
       points: [],
       data: [],
+      parent: null,
       group,
     })
   }
@@ -900,6 +915,132 @@ function centreContent(shapes: BoardShape[]): BoardShape[] {
   }
 
   return shapes
+}
+
+/** Room a container keeps around what it holds. */
+const NEST_PAD = 26
+/** Space above the children for the container's own name. */
+const NEST_HEADER = 58
+/** Gap between children inside a container. */
+const NEST_GAP = 20
+
+/**
+ * Lays out everything that sits inside something else, and sizes the container
+ * to fit it.
+ *
+ * The division of labour is the point. Saying a scheduler belongs inside the
+ * kernel rather than beside it is a judgement about the subject; working out
+ * that this makes the kernel eight hundred units wide is arithmetic, and
+ * arithmetic done by guesswork is where boards go wrong. So the model says
+ * what contains what and nothing else, and every number comes from here.
+ *
+ * Deepest first, so a container holding containers is sized only once the
+ * things inside it already know how big they are.
+ */
+function nestChildren(shapes: BoardShape[]): BoardShape[] {
+  const byId = new Map(shapes.map((shape) => [shape.id, shape]))
+  const children = new Map<string, BoardShape[]>()
+
+  for (const shape of shapes) {
+    if (!shape.parent || FLOATING.has(shape.kind)) continue
+    // A cycle would make depth() spin; a shape cannot be its own ancestor.
+    if (ancestorOf(shape.id, shape.parent, byId)) {
+      shape.parent = null
+      continue
+    }
+    const list = children.get(shape.parent) ?? []
+    list.push(shape)
+    children.set(shape.parent, list)
+  }
+  if (!children.size) return shapes
+
+  const parents = [...children.keys()]
+    .map((id) => byId.get(id)!)
+    .filter(Boolean)
+    .sort((a, b) => depth(b.id, byId) - depth(a.id, byId))
+
+  for (const parent of parents) {
+    const inside = children.get(parent.id)!
+
+    // A grid rather than a row: four things side by side inside a box makes
+    // each of them a sliver, and two rows of two reads at any size.
+    const columns = Math.min(inside.length <= 3 ? inside.length : 3, Math.ceil(Math.sqrt(inside.length)) + 1)
+    const cellW = Math.max(...inside.map(occupiedWidth))
+    const cellH = Math.max(...inside.map(occupiedHeight))
+    const rows = Math.ceil(inside.length / columns)
+
+    const header = parent.text.trim() ? NEST_HEADER : NEST_PAD
+    parent.w = Math.max(parent.w, columns * cellW + (columns - 1) * NEST_GAP + NEST_PAD * 2)
+    parent.h = header + rows * cellH + (rows - 1) * NEST_GAP + NEST_PAD
+
+    const gridW = columns * cellW + (columns - 1) * NEST_GAP
+    const left = parent.x + (parent.w - gridW) / 2
+
+    for (const [index, child] of inside.entries()) {
+      const column = index % columns
+      const row = Math.floor(index / columns)
+      // Centred in its cell, so a narrow child in a wide grid still looks placed.
+      const x = left + column * (cellW + NEST_GAP) + (cellW - occupiedWidth(child)) / 2
+      const y = parent.y + header + row * (cellH + NEST_GAP)
+
+      // Whatever is already inside this child was placed while it sat
+      // somewhere else — deepest first means the grandchildren were arranged
+      // before their grandparent knew where anything was going. Move them by
+      // the same amount, or a container arrives at its place empty and its
+      // contents stay behind.
+      const dx = x - child.x
+      const dy = y - child.y
+      child.x = x
+      child.y = y
+      for (const inner of descendants(child.id, children)) {
+        inner.x += dx
+        inner.y += dy
+      }
+
+      // Never before the thing that contains it.
+      child.at = Math.min(0.95, Math.max(child.at, parent.at + 0.02))
+    }
+  }
+
+  // Parent and children travel as one block through the row layout, the way a
+  // diagram does — the arrangement inside has already been decided.
+  for (const parent of parents) {
+    const group = parent.group ?? `n${parent.id}`
+    parent.group = group
+    for (const child of descendants(parent.id, children)) child.group = group
+  }
+
+  return shapes
+}
+
+/** Every shape under this one, at any depth. */
+function descendants(id: string, children: Map<string, BoardShape[]>): BoardShape[] {
+  const out: BoardShape[] = []
+  for (const child of children.get(id) ?? []) {
+    out.push(child, ...descendants(child.id, children))
+  }
+  return out
+}
+
+/** How many containers deep a shape sits. */
+function depth(id: string, byId: Map<string, BoardShape>): number {
+  let n = 0
+  let at = byId.get(id)?.parent
+  while (at && n < 8) {
+    n++
+    at = byId.get(at)?.parent
+  }
+  return n
+}
+
+/** Is `id` already somewhere above `parent`? */
+function ancestorOf(id: string, parent: string, byId: Map<string, BoardShape>): boolean {
+  let at: string | null | undefined = parent
+  for (let i = 0; at && i < 8; i++) {
+    if (at === id) return true
+    at = byId.get(at)?.parent
+  }
+  return false
 }
 
 /** Breathing room a grouping frame keeps around the shapes it encloses. */

@@ -17,6 +17,7 @@ function s(shape: Partial<BoardShape> & Pick<BoardShape, 'id' | 'kind' | 'at'>):
     anchor: '',
     points: [],
     data: [],
+    parent: null,
     ...shape,
   }
 }

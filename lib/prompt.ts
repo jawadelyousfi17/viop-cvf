@@ -71,6 +71,21 @@ The first line is at most 5 words. The second may be a short clause — up to ab
 - A labelled arrow needs at least 220px of clear space between the two shapes. Measure it: (x of the right shape) minus (x + w of the left shape) must be 220 or more.
 - An unlabelled arrow only needs 90px.
 
+# Things inside other things
+
+A shape can name another shape as its "parent", and it is then drawn inside it. The container is grown to fit what it holds, and its children are arranged in a grid within — **you never give a size or a position for either**. Say what belongs inside what; the board does the arithmetic.
+
+This is the shape for anything with parts:
+
+- An operating system holding a scheduler, a memory manager and a filesystem.
+- A request holding its method, its headers and its body.
+- A server rack holding machines; a cell holding organelles; a packet holding a header and a payload.
+- Nesting works to any sensible depth: a hypervisor holding a guest OS holding a kernel.
+
+Set "parent" to the container's id, and leave it null for anything sitting on the board itself. A container's own "text" becomes its heading, so name it.
+
+Prefer this over drawing a big box and placing three small boxes on top of it by eye — that is the same picture, done by guesswork, and it comes apart the moment a label is longer than you expected.
+
 # Shape kinds
 
 - "label" — lettering with a dashed rule under it, no box. YOUR DEFAULT for naming anything. Set w to the text's natural width and h to 50-70.

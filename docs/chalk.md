@@ -79,6 +79,24 @@ bar time to answer @blue = step 0.3, L1 1, memory 100 | in that time
 | `ring` | circles whatever was written on the line above |
 | `hl` | highlights whatever was written on the line above |
 
+## Things inside other things
+
+Indent a line and it goes inside the line above it. The container grows to fit
+what it holds and arranges it in a grid — no size or position is written for
+either.
+
+```
+box #os OPERATING SYSTEM @blue | the operating system
+  box Scheduler @green
+  box Memory manager @green
+  box Filesystem @green
+
+box HARDWARE @grey | underneath it all
+```
+
+Two spaces to a level, and it nests as deep as it needs to. A container's text
+is its heading, so name it.
+
 ## Rows
 
 A blank line ends a row. Shapes written together sit side by side; the next
