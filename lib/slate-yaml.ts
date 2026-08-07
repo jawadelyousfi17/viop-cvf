@@ -339,12 +339,16 @@ function readEntry(
   node.beatTok = at
   if (entry.layout) node.layout = normaliseLayout(String(entry.layout))
 
-  // A symbol's caption rides in `says:`, which the shared splitter then reads
-  // back out — so one representation reaches the renderer whichever front end
-  // produced it.
+  // `says:` is a caption, and what a caption is depends on what it is under.
+  // On a symbol it is the line the glyph is there to say, joined with the
+  // separator the shared splitter reads back out. On anything else it is a
+  // second line of label. On an `img` it is neither: the text is a search
+  // query, and appending to it searches for the wrong thing.
   const caption = str(entry.says)
   const primary = Array.isArray(value) ? '' : str(value)
-  node.text = caption ? `${primary} : ${caption}` : primary
+  if (!caption || node.kind === 'img') node.text = primary
+  else if (node.kind === 'sym' || node.kind === 'ico') node.text = `${primary} : ${caption}`
+  else node.text = primary ? `${primary} / ${caption}` : caption
 
   // A block has two forms in both front ends, and they must mean the same
   // thing in each. `arr: [42, 17, 8]` is the compact one — one shape, one beat

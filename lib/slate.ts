@@ -19,6 +19,8 @@
  * lib/slate-lint.ts is what refuses to build.
  */
 
+import { parseScript as importScript } from './script-import'
+
 /** Containers: things that hold other things, each meaning something distinct. */
 export const CONTAINERS = [
   'box',
@@ -255,6 +257,27 @@ export function parseScript(source: string): Map<number, string[]> {
   }
 
   return scenes
+}
+
+/**
+ * The narration for a board, whichever way the script was written.
+ *
+ * There are two kinds in this repo and they are not interchangeable. The
+ * examples use `--- 7` headings, which carry explicit scene numbers — that
+ * matters, because a board may draw scenes seven to nine of a fifteen-scene
+ * script. The scripts in `scripts/` are prose: a title, then paragraphs, one
+ * scene each, parsed by `lib/script-import.ts`.
+ *
+ * Reading the second kind with the first parser puts the entire script into
+ * scene one, which is exactly what happened: a seventeen-scene lesson came back
+ * as "scene 1 declares 5 beats but its narration has 95", and every other scene
+ * silently had none.
+ */
+export function narrationScenes(source: string): Map<number, string[]> {
+  if (/^-{2,}\s*(?:SCENE\s*)?\d/im.test(source)) return parseScript(source)
+  return new Map(
+    importScript(source).map((scene, i) => [i + 1, splitSentences(scene.narration)])
+  )
 }
 
 /** A beat token: a number, a range, a walk, or a phrase from the old world. */
@@ -924,16 +947,16 @@ export function resolveBeats(lesson: SlateLesson) {
     }
 
     // An unanchored shape sits between its anchored neighbours, which is what
-    // makes anchoring every line unnecessary — unless it is being *arranged*
-    // rather than sequenced. The three sides of a `group`, or the two halves of
-    // a `compare`, are one arrival: giving them consecutive beats would deal
-    // them out one at a time, which is the opposite of what the author asked
-    // for by putting them in the same box.
+    // makes anchoring every line unnecessary — but only at the top level.
+    //
+    // A child with no beat of its own arrives with the thing that holds it.
+    // Interpolating them instead meant an unnumbered part drifted one beat past
+    // its container and collided with whatever the author *had* numbered: a box
+    // written inside another box, with no beat asked for and none wanted, was
+    // reported as "draws 3 shapes on beat 4".
     const together = new Set<SlateNode>()
     for (const [node, parent] of holder) {
-      if (!parent || node.beatTok != null) continue
-      if (parent.kind === 'compare' || parent.kind === 'group') together.add(node)
-      else if ((LAYOUT_KINDS as readonly string[]).includes(parent.kind)) together.add(node)
+      if (parent && node.beatTok == null) together.add(node)
     }
 
     const flat: SlateNode[] = []

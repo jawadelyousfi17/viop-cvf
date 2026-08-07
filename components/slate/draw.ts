@@ -180,17 +180,20 @@ export function drawShape(lesson: SlateLesson, node: SlateNode): HTMLElement {
     return figure
   }
 
-  if (node.kind === 'callout') {
-    const line = el('p', 'callout ' + colour)
-    line.appendChild(el('small', null, 'callout'))
-    line.appendChild(document.createTextNode(node.text))
-    line.dataset.beat = String(node.beat)
-    return line
-  }
-
-  if (node.kind === 'label' || node.kind === 'lab') {
-    const heading = ink(el('div', 'lab ' + colour, node.text), 'underline', seedOf(node))
+  // A callout and a heading each say one thing, so each can be made to say a
+  // different one. Their line lives in a `readings` stack like a shape's does,
+  // which is what makes `transform` work on them.
+  if (node.kind === 'callout' || node.kind === 'label' || node.kind === 'lab') {
+    const heading = node.kind === 'callout'
+      ? el('p', 'callout ' + colour)
+      : ink(el('div', 'lab ' + colour), 'underline', seedOf(node))
+    const readings = el('span', 'readings')
+    const reading = el('span', 'reading', node.text)
+    reading.dataset.beat = String(node.beat)
+    readings.appendChild(reading)
+    heading.appendChild(readings)
     heading.dataset.beat = String(node.beat)
+    if (node.name) heading.dataset.name = node.name
     return heading
   }
 

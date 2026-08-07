@@ -41,10 +41,13 @@ const CROWDED_BEAT = 5
 /** Containers whose contents are one arrival, not several. */
 const TOGETHER = new Set<string>(['compare', 'group', ...LAYOUT_KINDS])
 
-/** The kinds that carry one label, and so can be given a different one. */
-const MORPHABLE = new Set<string>(
-  CONTAINERS.filter((kind) => kind !== 'group' && kind !== 'compare')
-)
+/** The kinds that carry one line, and so can be made to say a different one. */
+const MORPHABLE = new Set<string>([
+  ...CONTAINERS.filter((kind) => kind !== 'group' && kind !== 'compare'),
+  'callout',
+  'label',
+  'lab',
+])
 
 /**
  * What refuses to build, and what only complains.
@@ -226,6 +229,10 @@ export function lint(lesson: SlateLesson): SlateProblem[] {
     for (const node of nodes) {
       if (!node.beat || node.shared || !ARGUES.has(node.kind)) continue
       if (TOGETHER.has(parents.get(node)?.kind ?? '')) continue
+      // A beat that was inherited was never claimed. The rule is about two
+      // *written* numbers colliding — a box and the list inside it arriving
+      // together is one thing with its contents, not the board running ahead.
+      if (node.beatTok == null && parents.get(node)) continue
       const list = claimed.get(node.beat) ?? []
       list.push(node)
       claimed.set(node.beat, list)
@@ -294,7 +301,10 @@ export function lint(lesson: SlateLesson): SlateProblem[] {
           msg: `flow has ${node.children.length} step${node.children.length === 1 ? '' : 's'} — a sequence is at least two`,
         })
       }
-      if (node.kind === 'group' && node.children.length < 2) {
+      // A group of one is usually a box with extra steps — unless the one is a
+      // block, where the group is how a table or a stack gets a heading.
+      const lone = node.children.length === 1 ? node.children[0] : null
+      if (node.kind === 'group' && node.children.length < 2 && !(lone && (BLOCKS as readonly string[]).includes(lone.kind))) {
         out.push({
           level: 'warn',
           line: node.line,

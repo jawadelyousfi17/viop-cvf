@@ -9,7 +9,7 @@ import { VoicePicker } from '../VoicePicker'
 import type { SavedScript } from '@/app/api/scripts/route'
 import { parseScript as parseWrittenScript } from '@/lib/script-import'
 import { SLATE_YAML_SYSTEM, slateYamlScriptPrompt } from '@/lib/slate-yaml-prompt'
-import { parseLesson, parseScript, splitSentences, type SlateLesson } from '@/lib/slate'
+import { narrationScenes, parseLesson, splitSentences, type SlateLesson } from '@/lib/slate'
 import { looksLikeYaml, parseYamlLesson } from '@/lib/slate-yaml'
 import { lint } from '@/lib/slate-lint'
 import { drawScene, roughen, showBeat } from './draw'
@@ -115,7 +115,7 @@ export default function SlateStudio({
   // whose errors arrive a second late is one you argue with.
   const lesson = useMemo<SlateLesson | null>(() => {
     if (!source.trim()) return null
-    const words = parseScript(script)
+    const words = narrationScenes(script)
     return isYaml ? parseYamlLesson(source, words) : parseLesson(source, words)
   }, [source, script, isYaml])
   const problems = useMemo(() => (lesson ? lint(lesson) : []), [lesson])
