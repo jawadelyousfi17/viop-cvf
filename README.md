@@ -10,28 +10,26 @@ through it — visuals and narration timed to each other.
 | **Whiteboard** (`?engine=whiteboard`) | Draws live on an infinite tldraw canvas with a visible pen, the way a teacher works at a board. Shapes stay grabbable afterwards |
 | **Canvas** (`?engine=canvas`) | The same lesson language painted straight onto a 2D canvas. No shape library, so layout is resolved *after* measuring the text — see below |
 | **Slides** (`?engine=slides`, default) | Fills twelve designed layouts — journey, timeline, steps, funnel, pillars, mindmap, table, chart, stats, spotlight, gallery, hero |
-| **Manim** (`?engine=manim`) | Animated mathematics, on the `manim-ts` library. For maths and physics, where the motion *is* the explanation |
+| **Manim** (`?engine=manim`) | Animated mathematics, rendered by Manim (Python) on the server. For maths and physics, where the motion *is* the explanation |
 
 **The manim engine.** A lesson declares mobjects and the steps that animate them
-(`lib/manim-lesson.ts`), and the player translates that into manim-ts calls.
+(`lib/manim-lesson.ts`), and the server compiles that into a Manim script.
 Declarative rather than code because a manim scene is normally a Python script —
 the model could write that script and we could run it, but executing
 model-authored code in the learner's browser is a door worth not opening.
 Function expressions for plots go through a small parser (`lib/math-expr.ts`)
 for the same reason: `sin(x)` becomes a tree of known operations, never `eval`.
 
-It renders **two ways**. With Manim (Python) installed, `lib/manim-python.ts`
-compiles each scene to a Manim script and `/api/render` renders it to mp4,
-cached by a hash of the script. Without it, the same scene language plays in the
-browser through `manim-ts`. The player asks `/api/render` on startup and picks;
-nothing breaks either way.
+Rendering is **server-side only**. `lib/manim-python.ts` compiles each scene to
+a Manim script and `/api/render` renders it to mp4, cached by a hash of the
+script. The player asks `/api/render` on startup; without Manim (Python)
+installed this engine has no picture, though the narration still plays.
 
 Timing is inverted from manim's own model. Normally `await self.play(...)` runs a
 step and moves on; here each step is pinned to the narration phrase it
-illustrates. In the browser that means blocking until the voice reaches it; on
-the server it means the waits are *baked into the video* — which is why a scene
-is rendered only after its voiceover exists, and why scene N+1 renders while
-scene N plays.
+illustrates, so the waits are *baked into the video* — which is why a scene is
+rendered only after its voiceover exists, and why scene N+1 renders while scene
+N plays.
 
 **Why the canvas engine exists.** With tldraw the box is declared before the
 text is measured, so a label that wraps to three lines silently grows past the

@@ -2,14 +2,15 @@
  * The scene language for the manim engine.
  *
  * Manim scenes are normally *code* — you write `self.play(Create(circle))`. The
- * model could write that code and we could run it, but running model-authored
- * JavaScript in the learner's browser is a door worth not opening: a topic is
- * user input, and a prompt-injected one would be executing in the page.
+ * model could write that code and we could run it, but executing model-authored
+ * code is a door worth not opening: a topic is user input, and a
+ * prompt-injected one would be running on the server.
  *
- * So a lesson declares mobjects and the steps that animate them, and the player
- * translates that into manim-ts calls. It also fits how everything else here
- * works: strict structured outputs, scene-at-a-time streaming, and `anchor`
- * timing that lands each step on the words describing it.
+ * So a lesson declares mobjects and the steps that animate them, and
+ * `lib/manim-python.ts` compiles that into the script. It also fits how
+ * everything else here works: strict structured outputs, scene-at-a-time
+ * streaming, and `anchor` timing that lands each step on the words describing
+ * it.
  *
  * Coordinates are manim's own: the frame is 14.22 x 8 units with the origin at
  * the centre, so x runs about -7 to 7 and y about -4 to 4.

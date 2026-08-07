@@ -8,11 +8,9 @@ import type { ManimLessonEvent } from '@/lib/manim-stream'
 import type { Engine } from '@/lib/engines'
 import type { Provider } from '@/lib/providers'
 import { DEFAULT_VOICE_ID, VOICES, type VoiceId } from '@/lib/voices'
-import type { ManimBoardHandle } from './ManimBoard'
 import { Narrator } from '../narrator'
 import { RenderBank } from './renders'
 
-const Board = dynamic(() => import('./ManimBoard'), { ssr: false })
 const ManimVideoLayer = dynamic(() => import('./ManimVideo'), { ssr: false })
 
 const SUGGESTIONS = [
@@ -82,9 +80,7 @@ export default function ManimStudio({
   const [followups, setFollowups] = useState<string[]>([])
   const [history, setHistory] = useState<{ title: string; summary: string }[]>([])
 
-  const boardRef = useRef<ManimBoardHandle>(null)
-  const [boardReady, setBoardReady] = useState(false)
-  /** The rendered scene now showing, or null while the browser renderer drives. */
+  /** The rendered scene now showing, or null until the server returns one. */
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
   const rendersRef = useRef<RenderBank | null>(null)
@@ -99,9 +95,6 @@ export default function ManimStudio({
 
   useEffect(() => {
     playingRef.current = isPlaying
-    // The scene has its own animation loop, so pausing has to stop that too —
-    // otherwise the picture keeps animating over silent audio.
-    boardRef.current?.setPlaying(isPlaying)
     const audio = audioRef.current
     if (!audio) return
     if (isPlaying) void audio.play().catch(() => setIsPlaying(false))
@@ -114,8 +107,6 @@ export default function ManimStudio({
       audioRef.current?.pause()
     }
   }, [])
-
-  const onBoardReady = useCallback(() => setBoardReady(true), [])
 
   const start = useCallback(
     (next: ManimLesson) => {
@@ -255,12 +246,11 @@ export default function ManimStudio({
   const scene = lesson?.scenes[sceneIndex]
   const sceneId = scene?.id
 
-  // Scene lifecycle: hand the scene to the board on an estimated clock, then
-  // correct the timing in place when the real voiceover lands. The board holds
-  // the schedule by reference and re-reads it, so steps still waiting pick the
-  // corrected moment up rather than firing on the estimate.
+  // Scene lifecycle: the estimated clock carries the scene until the real
+  // voiceover lands, then the duration is corrected in place. Every picture
+  // comes from the server renderer, so the screen stays black until the first
+  // video arrives; from scene two on it is already waiting.
   useEffect(() => {
-    const board = boardRef.current
     const narrator = narratorRef.current
     if (phase !== 'board' || !narrator) return
 
@@ -272,15 +262,8 @@ export default function ManimStudio({
     let audio: HTMLAudioElement | null = null
 
     let duration = estimateNarrationSeconds(scene.narration)
-    const schedule = new Map(scene.steps.map((step) => [step.id, step.at * duration]))
 
-    // Start the browser renderer immediately on an estimate. A rendered video
-    // cannot exist before the narration does — its timing is baked in — so
-    // waiting for one would leave the screen black for the whole render. The
-    // video swaps in when it lands, and from scene two on it is already there.
     setVideoUrl(null)
-    board?.setScene(scene, schedule)
-    board?.setPlaying(playingRef.current)
 
     void narrator.get(sceneIndex, scene.narration).then(async (narration) => {
       if (cancelled) return
@@ -289,12 +272,6 @@ export default function ManimStudio({
       audioRef.current = audio
       duration = narration.duration
       setHasVoice(narrator.hasVoice)
-
-      // Mutated in place, not replaced: the board is holding this exact map.
-      for (const step of scene.steps) {
-        const anchored = step.anchor ? narration.timeOf(step.anchor) : null
-        schedule.set(step.id, anchored ?? step.at * narration.duration)
-      }
 
       const next = lessonRef.current?.scenes[sceneIndex + 1]
       if (next) narrator.prefetch(sceneIndex + 1, next.narration)
@@ -312,12 +289,7 @@ export default function ManimStudio({
       if (cancelled) return
       setRendering(false)
 
-      if (url) {
-        // The video owns the picture from here; two renderers drawing the same
-        // scene at once would just fight.
-        board?.setPlaying(false)
-        setVideoUrl(url)
-      }
+      if (url) setVideoUrl(url)
 
       // Render the next scene while this one plays. Its narration has to exist
       // first, which is why this waits on the prefetch rather than firing now.
@@ -343,7 +315,6 @@ export default function ManimStudio({
       if (playingRef.current) elapsed += delta
 
       const seconds = audio ? audio.currentTime : elapsed
-      board?.setTime(seconds)
 
       const fraction = Math.min(1, seconds / Math.max(0.1, duration))
       const ended = audio ? audio.ended || fraction >= 1 : fraction >= 1
@@ -373,7 +344,7 @@ export default function ManimStudio({
       audio?.pause()
       if (audioRef.current === audio) audioRef.current = null
     }
-  }, [phase, sceneIndex, sceneId, boardReady])
+  }, [phase, sceneIndex, sceneId])
 
   /** The voice's clock, for the video to follow. */
   const audioTime = useCallback(() => audioRef.current?.currentTime ?? 0, [])
@@ -471,10 +442,9 @@ export default function ManimStudio({
     // Black, because manim renders on black and a light frame around it would
     // look like a mistake.
     <div className="fixed inset-0 bg-black">
-      {/* The board keeps drawing underneath: it is what shows while the first
-          scene renders, and what carries the whole lesson if the server has no
-          manim. The video covers it once one arrives. */}
-      <Board ref={boardRef} onReady={onBoardReady} />
+      {/* Every picture is rendered on the server, so there is nothing to show
+          until the first video lands — and nothing at all if the server has no
+          manim. The narration plays either way. */}
       {videoUrl && (
         <ManimVideoLayer src={videoUrl} playing={isPlaying} audioTime={audioTime} />
       )}

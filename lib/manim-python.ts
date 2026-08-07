@@ -11,8 +11,8 @@ import type { ManimMobject, ManimScene, ManimStep } from './manim-lesson'
  * escaped through JSON. Identifiers are rewritten, so a mobject id cannot
  * become a statement.
  *
- * The counterpart to `components/manim/build.ts`, which does the same job
- * against manim-ts in the browser. Same scene language, two renderers.
+ * The only renderer for this engine: the scene language exists so the model
+ * never has to author the script this file emits.
  */
 
 const COLORS: Record<string, string> = {
