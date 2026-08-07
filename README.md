@@ -146,3 +146,4 @@ anything on the board and move it.
 - Layout is whatever the model plans. Shapes are clamped to the scene box and a
   spacing pass opens room for arrow labels, but nothing checks for general overlap
   after the fact.
+# viop-cvf
