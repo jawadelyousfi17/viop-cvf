@@ -60,10 +60,12 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Les
 export default function TemplateStudio({
   engine,
   provider,
+  model,
   chooser,
 }: {
   engine: Engine
   provider: Provider
+  model: string
   chooser: React.ReactNode
 }) {
   const [phase, setPhase] = useState<Phase>('idle')
@@ -225,7 +227,7 @@ export default function TemplateStudio({
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic: trimmed, history, engine, provider }),
+        body: JSON.stringify({ topic: trimmed, history, engine, provider, model }),
       })
 
       if (!response.ok || !response.body) {

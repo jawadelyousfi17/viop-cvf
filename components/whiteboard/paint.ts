@@ -87,9 +87,6 @@ const MIN_ROW_H = 48
 const CHROME_TOP = 96
 const CHROME_BOTTOM = 230
 
-/** How long a laser sweep takes to travel its path. */
-const LASER_MS = 900
-
 interface Rect {
   x: number
   y: number
@@ -235,8 +232,6 @@ export class BoardPainter {
   private readonly painted = new Map<string, TLShapeId>()
   /** Page-space rect of each painted shape, for aiming arrows. */
   private readonly rects = new Map<string, Rect>()
-  /** In-flight laser sweeps, so a reset can cancel them. */
-  private readonly lasers = new Set<ReturnType<typeof setTimeout>>()
   /** Pending camera retries, cancelled when the scene changes. */
   private readonly cameraFrames = new Set<number>()
   /** Pending trace frames, cancelled on reset. */
@@ -357,8 +352,6 @@ export class BoardPainter {
 
   /** Removes everything from the board. Used when starting a new lesson. */
   reset() {
-    for (const timer of this.lasers) clearTimeout(timer)
-    this.lasers.clear()
     for (const frame of this.frames) cancelAnimationFrame(frame)
     this.frames.clear()
     this.queue.length = 0
@@ -411,12 +404,6 @@ export class BoardPainter {
       return
     }
 
-    if (shape.kind === 'laser') {
-      this.paintLaser(shape, offsetY, animate)
-      this.painted.set(key, id)
-      return
-    }
-
     if (shape.kind === 'arrow' || shape.kind === 'elbow') {
       this.paintArrow(sceneIndex, shape, id, offsetY, animate)
     } else if (shape.kind === 'image' || shape.kind === 'symbol') {
@@ -425,6 +412,8 @@ export class BoardPainter {
       this.paintLabel(shape, id, offsetY, animate)
     } else if (shape.kind === 'icon') {
       this.paintIcon(shape, id, offsetY, animate)
+    } else if (shape.kind === 'code') {
+      this.paintCode(shape, id, offsetY, animate)
     } else if (isChart(shape.kind)) {
       this.paintImage(shape, id, offsetY, animate, sceneIndex, scene)
     } else if (shape.kind === 'ring') {
@@ -555,6 +544,98 @@ export class BoardPainter {
     })
     // Never registered as a painted shape, so nothing can bind an arrow to it.
     return id
+  }
+
+  /**
+   * Source, in a monospace face, on a tinted card.
+   *
+   * A board explaining software eventually has to show some, and lettering it
+   * in the hand-drawn face makes code look like prose about code. Monospace is
+   * also what makes the highlight possible: every glyph is the same width, so
+   * the line to box is found by counting lines rather than by measuring text.
+   *
+   * A line ending in a lone `<` marks itself as the one being discussed and is
+   * boxed — cheaper to write than a separate field, and it reads in the source
+   * as the arrow someone would draw in the margin.
+   */
+  private paintCode(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {
+    const x = shape.x + wobble(shape.id, 'x', HAND.drift)
+    const y = shape.y + offsetY
+    const extra: { id: TLShapeId; type: TraceJob['type'] }[] = []
+
+    const raw = (shape.text ?? '').split('\n')
+    const marked = raw.findIndex((line) => /\s<\s*$/.test(line))
+    const lines = raw.map((line) => line.replace(/\s<\s*$/, ''))
+
+    // The card. Kept pale so the lettering on it stays the thing you read.
+    this.editor.createShape({
+      id,
+      type: 'geo',
+      x,
+      y,
+      rotation: wobble(shape.id, 'r', HAND.tiltBox * 0.4),
+      opacity: animate ? 0 : 1,
+      props: {
+        geo: 'rectangle',
+        w: Math.max(200, shape.w),
+        h: Math.max(80, shape.h),
+        color: shape.color === 'black' ? 'grey' : shape.color,
+        fill: 'semi',
+        dash: 'solid',
+        size: 's',
+        scale: 1,
+      },
+    })
+
+    const lineHeight = Math.min(46, (shape.h - 40) / Math.max(1, lines.length))
+    const top = y + 22
+
+    if (marked !== -1) {
+      const boxId = createShapeId()
+      this.editor.createShape({
+        id: boxId,
+        type: 'geo',
+        x: x + 12,
+        y: top + marked * lineHeight - 6,
+        opacity: animate ? 0 : 1,
+        props: {
+          geo: 'rectangle',
+          w: Math.max(100, shape.w - 24),
+          h: lineHeight + 8,
+          color: 'orange',
+          fill: 'none',
+          dash: 'draw',
+          size: 's',
+          scale: 1,
+        },
+      })
+      extra.push({ id: boxId, type: 'geo' })
+    }
+
+    for (const [index, line] of lines.entries()) {
+      const lineId = createShapeId()
+      this.editor.createShape({
+        id: lineId,
+        type: 'text',
+        x: x + 26,
+        y: top + index * lineHeight,
+        opacity: animate ? 0 : 1,
+        props: {
+          richText: toRichText(line || ' '),
+          color: 'black',
+          size: 's',
+          font: 'mono',
+          textAlign: 'start',
+          autoSize: false,
+          w: Math.max(120, shape.w - 52),
+          scale: 1,
+        },
+      })
+      extra.push({ id: lineId, type: 'text' })
+    }
+
+    this.rects.set(id, { x, y, w: shape.w, h: shape.h })
+    this.reveal(id, 'geo', boxPath(x, y, shape.w, shape.h), animate, extra)
   }
 
   private paintNote(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {
@@ -1117,56 +1198,6 @@ export class BoardPainter {
     }
   }
 
-  /**
-   * A laser-pointer sweep along a path. Transient by design — tldraw's scribble
-   * system fades it out on its own, so it reads as a gesture the teacher made
-   * rather than something left on the board.
-   */
-  private paintLaser(shape: BoardShape, offsetY: number, animate: boolean) {
-    if (shape.points.length < 2) return
-
-    // Resample to a smooth path: the scribble needs a decent number of points
-    // before it renders at all, and a sparse one looks like a jump cut.
-    const path: { x: number; y: number }[] = []
-    const PER_LEG = 9
-    for (let i = 0; i < shape.points.length - 1; i++) {
-      const a = shape.points[i]
-      const b = shape.points[i + 1]
-      for (let s = 0; s < PER_LEG; s++) {
-        const t = s / PER_LEG
-        path.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t + offsetY })
-      }
-    }
-    path.push({ x: shape.points.at(-1)!.x, y: shape.points.at(-1)!.y + offsetY })
-
-    const scribble = this.editor.scribbles.addScribble({
-      color: 'laser',
-      size: 10,
-      opacity: 0.85,
-      delay: 200,
-      shrink: 0.05,
-      taper: true,
-    })
-
-    if (!animate) {
-      // Catching up after a skip: nothing to animate, and the gesture is
-      // transient anyway, so just let it fade.
-      this.editor.scribbles.stop(scribble.id)
-      return
-    }
-
-    let i = 0
-    const step = () => {
-      if (i >= path.length) {
-        this.editor.scribbles.stop(scribble.id)
-        return
-      }
-      const point = path[i++]
-      this.editor.scribbles.addPoint(scribble.id, point.x, point.y)
-      this.lasers.add(setTimeout(step, LASER_MS / path.length))
-    }
-    step()
-  }
 
   /** Straight multi-point lines: brackets, dividers, underlines. */
   private paintLine(shape: BoardShape, id: TLShapeId, offsetY: number, animate: boolean) {

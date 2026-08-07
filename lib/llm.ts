@@ -23,6 +23,8 @@ export class LlmError extends Error {
 
 export interface StreamRequest {
   provider: Provider
+  /** A variant from the provider's list; anything else falls back. */
+  model?: string
   system: string
   user: string
   schema: object
@@ -50,7 +52,7 @@ async function* streamOpenAI(request: StreamRequest): AsyncGenerator<string> {
 
   const client = new OpenAI({ apiKey })
   const stream = await client.chat.completions.create({
-    model: modelFor('openai'),
+    model: modelFor('openai', request.model),
     stream: true,
     stream_options: { include_usage: true },
     messages: [
@@ -80,7 +82,7 @@ async function* streamClaude(request: StreamRequest): AsyncGenerator<string> {
   // call gives the same guarantee: the arguments are validated against the
   // schema, and they arrive as partial JSON while it writes them.
   const stream = client.messages.stream({
-    model: modelFor('claude'),
+    model: modelFor('claude', request.model),
     max_tokens: request.maxTokens ?? 32_000,
     system: request.system,
     messages: [{ role: 'user', content: request.user }],

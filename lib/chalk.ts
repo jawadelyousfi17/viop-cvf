@@ -50,6 +50,7 @@ const KINDS: Record<string, ShapeKind> = {
   // numbers and `txt ... @size=xl` would be three tokens to say so.
   num: 'text',
   note: 'note',
+  code: 'code',
   img: 'image',
   sym: 'symbol',
   ico: 'icon',
@@ -92,6 +93,8 @@ const SIZES: Partial<Record<ShapeKind, { w: number; h: number }>> = {
   symbol: { w: 170, h: 170 },
   icon: { w: 120, h: 120 },
   note: { w: 200, h: 200 },
+  // Sized properly by the normalizer, which can count the lines.
+  code: { w: 700, h: 220 },
   table: { w: 760, h: 240 },
   array: { w: 900, h: 130 },
   stack: { w: 700, h: 420 },

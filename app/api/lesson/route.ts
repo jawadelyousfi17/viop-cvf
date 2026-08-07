@@ -71,8 +71,9 @@ export async function POST(request: Request) {
   let history: unknown
   let engine: unknown
   let provider: unknown
+  let model: unknown
   try {
-    ;({ topic, script, history, engine, provider } = await request.json())
+    ;({ topic, script, history, engine, provider, model } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -126,6 +127,7 @@ export async function POST(request: Request) {
   try {
     completion = streamStructured({
       provider: isProvider(provider) ? provider : DEFAULT_PROVIDER,
+      model: typeof model === 'string' ? model : undefined,
       system: config.system,
       user: userPrompt,
       schema: config.schema,

@@ -55,7 +55,7 @@ export interface LessonReport {
 }
 
 /** Connectors and gestures: they follow other shapes, so never packed. */
-const FLOATING = new Set(['arrow', 'elbow', 'curve', 'line', 'highlight', 'laser', 'ring'])
+const FLOATING = new Set(['arrow', 'elbow', 'curve', 'line', 'highlight', 'ring'])
 
 /** An empty dashed box is a grouping frame — it is meant to contain things. */
 const isFrame = (shape: BoardShape) =>

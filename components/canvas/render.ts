@@ -282,9 +282,7 @@ function draw(
     }
 
     case 'curve':
-    case 'line':
-    case 'laser': {
-      if (s.kind === 'laser') ctx.globalAlpha *= 0.75
+    case 'line': {
       roughPath(ctx, revealPoints(s.points, t), seed, s.kind === 'curve' ? 2 : 1)
       return
     }

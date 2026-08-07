@@ -24,7 +24,6 @@ const TAGGABLE: ShapeKind[] = [
   'linechart',
   'piechart',
   'label',
-  'laser',
 ]
 
 interface Track {

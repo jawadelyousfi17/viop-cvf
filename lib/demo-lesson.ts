@@ -36,7 +36,7 @@ function scene(scene: Omit<Scene, 'diagram'> & Partial<Pick<Scene, 'diagram'>>):
  * capability rather than only the ones the topic would reach for:
  *
  *   scene 1  tinted category boxes, their shadows, a two-tier arrow label
- *   scene 2  the `stack` composite, a photograph, a laser sweep
+ *   scene 2  the `stack` composite, a photograph, a ring round the rule
  *   scene 3  a Mermaid flowchart laid out by dagre, a sticky note
  *   scene 4  a dashed grouping frame around the `array` composite, a brace
  *   scene 5  a line chart, a ring thrown around the number that matters
@@ -118,8 +118,9 @@ export const DEMO_LESSON: Lesson = {
         s({ id: 'cap1', kind: 'text', text: 'the slow one, in the flesh', x: 1020, y: 620, w: 460, h: 56, size: 's', color: 'grey', at: 0.66, anchor: 'sixteen gigabytes of main memory' }),
 
         s({ id: 'rule', kind: 'text', text: 'each level down: ×10 bigger, ×10 slower', x: 120, y: 820, w: 900, h: 70, size: 'l', color: 'violet', at: 0.87, anchor: 'ten times bigger and ten times slower' }),
-        // Down the levels as they are named, which is the gesture a hand makes.
-        s({ id: 'sweep', kind: 'laser', color: 'red', size: 'm', at: 0.88, anchor: 'ten times bigger and ten times slower', points: [{ x: 260, y: 330 }, { x: 260, y: 500 }, { x: 260, y: 680 }] }),
+        // Thrown around the rule as it is said, which is what a hand does to
+        // the line that matters.
+        s({ id: 'ringrule', kind: 'ring', color: 'violet', x: 110, y: 810, w: 920, h: 90, at: 0.9, anchor: 'ten times bigger and ten times slower' }),
       ],
     }),
 

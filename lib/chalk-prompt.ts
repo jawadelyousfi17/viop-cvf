@@ -34,6 +34,10 @@ lab                                a heading, lettering with a rule under it
 txt                                plain lettering — a note, a formula, a remark
 num                                a number or unit, set large. Use these constantly.
 note                               a sticky note, for an aside
+code FROM python:3.12 / RUN … <    source, monospace on a card. \` / \` is a new line.
+                                   End a line with \` <\` to box it as the one
+                                   being discussed. Use it whenever the subject
+                                   is software.
 img <search query>                 a PHOTOGRAPH of a real thing. Query ends in "photograph".
 sym <thing>                        a line-art symbol, fetched by name: router, kidney, turbine
 ico <emoji>                        one emoji
@@ -41,7 +45,12 @@ tbl Op, Avg / Lookup, O(1)         a table. Commas are columns, \` / \` is a new
                                    The first row is the header.
 arr 42, 17, 8, 99                  a row of cells with indices drawn under them —
                                    arrays, memory, buffers, a tape
-stk top / next / bottom            stacked layers
+stk top / next / bottom            stacked layers, top line uppermost. The shape
+                                   for anything built in layers — an app on a
+                                   runtime on an OS on a kernel on hardware, a
+                                   network stack, a cache hierarchy. Whenever the
+                                   words say "on top of" or "underneath", this is
+                                   what they want, not a row of boxes.
 bar plot pie                       charts. Put the numbers in \`= label value, ...\`
 ring                               circles whatever was written on the line before it
 hl                                 highlights whatever was written on the line before it
@@ -62,7 +71,12 @@ Positions are worked out for you. Never write coordinates.
 
 - 12 to 16 shapes a scene, in 4 or 5 rows.
 - Every scene has one \`img\`, and two to four \`sym\`.
-- Numbers on the board, not just in the narration. \`num\` is cheap — use it.
+- Numbers on the board, not just in the narration — but written INTO the thing
+  they describe, not floating beside it. \`box RAM / 16 GB · 100 ns\`, not a box
+  and then a number next to it.
+- **At most three loose \`txt\` or \`num\` lines a scene.** Everything else belongs
+  inside a box, a cell, a layer, a table or an arrow label. A board of floating
+  text is a noticeboard.
 - Colour means something: pick a colour for a thing and keep it for the whole lesson.
 - Say it, then show it. Anything in the narration that is a number, a name, a comparison or a step should be on the board.
 - 2 to 4 sentences a scene, 35 to 70 words, plain spoken prose. No markdown, no symbols the voice would read out. Spell out numbers: "a hundred nanoseconds", not "100ns".

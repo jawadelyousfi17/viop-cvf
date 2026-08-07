@@ -11,7 +11,6 @@ const CONNECTORS = new Set([
   'line',
   'curve',
   'highlight',
-  'laser',
   'ring',
 ])
 

@@ -80,6 +80,8 @@ export const SHAPE_KINDS = [
   /** A line-art symbol, fetched by name from The Noun Project. */
   'symbol',
   'icon',
+  /** Source, set in a monospace face, with one line boxed. */
+  'code',
   // Composites: many shapes drawn as one, built from `text`.
   'table',
   'array',
@@ -96,13 +98,12 @@ export const SHAPE_KINDS = [
   'curve',
   'line',
   'highlight',
-  'laser',
 ] as const
 
 /** Kinds whose shape is defined by `points` rather than a bounding box. */
-export const POINT_KINDS = new Set<ShapeKind>(['curve', 'line', 'highlight', 'laser'])
+export const POINT_KINDS = new Set<ShapeKind>(['curve', 'line', 'highlight'])
 
-const MAX_POINTS: Record<string, number> = { curve: 48, line: 12, highlight: 24, laser: 24 }
+const MAX_POINTS: Record<string, number> = { curve: 48, line: 12, highlight: 24 }
 
 /**
  * Floor for a photograph on the board. Shallower than it is wide: height is the
@@ -384,6 +385,15 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
     let w = clamp(num(shape.w, isArrow ? 160 : 200), isArrow ? -SCENE_W : 24, SCENE_W)
     let h = clamp(num(shape.h, isArrow ? 0 : 100), isArrow ? -SCENE_H : 24, SCENE_H)
 
+    // A code block is sized by what is in it: the model has no idea how wide a
+    // monospace line runs, and a guess that is too small crushes the text.
+    if (kind === 'code') {
+      const lines = String(shape.text ?? '').split('\n')
+      const longest = Math.max(...lines.map((line) => line.length), 10)
+      w = clamp(Math.max(w, longest * 15 + 80), 360, SCENE_W - 120)
+      h = clamp(Math.max(h, lines.length * 46 + 56), 120, SCENE_H - 120)
+    }
+
     // A photograph the size of a label is not worth the round trip. The model
     // undersizes them consistently, so enforce a floor rather than ask twice.
     if (kind === 'image') {
@@ -473,7 +483,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
   const placed = new Map(
     withDiagram.map((shape) => [
       shape.id,
-      { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 },
+      { x: shape.x, y: shape.y, w: occupiedWidth(shape), h: occupiedHeight(shape) },
     ])
   )
 
@@ -611,7 +621,6 @@ const FLOATING = new Set<ShapeKind>([
   'curve',
   'line',
   'highlight',
-  'laser',
   'ring',
 ])
 
@@ -1007,7 +1016,10 @@ function fitFrames(shapes: BoardShape[]): BoardShape[] {
  *
  * @param before each shape's centre as the model placed it, before layout.
  */
-function attachRings(shapes: BoardShape[], before: Map<string, { x: number; y: number }>) {
+function attachRings(
+  shapes: BoardShape[],
+  before: Map<string, { x: number; y: number; w: number; h: number }>
+) {
   const rings = shapes.filter((shape) => shape.kind === 'ring')
   if (!rings.length) return shapes
 
@@ -1017,13 +1029,15 @@ function attachRings(shapes: BoardShape[], before: Map<string, { x: number; y: n
   if (!targets.length) return shapes
 
   for (const ring of rings) {
-    const from = before.get(ring.id)
-    if (!from) continue
+    const drawn = before.get(ring.id)
+    if (!drawn) continue
+    const from = { x: drawn.x + drawn.w / 2, y: drawn.y + drawn.h / 2 }
 
     let best: BoardShape | null = null
     let nearest = Infinity
     for (const target of targets) {
-      const at = before.get(target.id)!
+      const box = before.get(target.id)!
+      const at = { x: box.x + box.w / 2, y: box.y + box.h / 2 }
       const distance = Math.hypot(at.x - from.x, at.y - from.y)
       if (distance < nearest) {
         nearest = distance
@@ -1046,12 +1060,12 @@ function attachRings(shapes: BoardShape[], before: Map<string, { x: number; y: n
 }
 
 /** The freehand gestures: drawn over the board, not packed into it. */
-const GESTURES = new Set<ShapeKind>(['curve', 'line', 'highlight', 'laser'])
+const GESTURES = new Set<ShapeKind>(['curve', 'line', 'highlight'])
 
 /**
  * Carries each freehand gesture along with whatever it was drawn over.
  *
- * A highlight, a laser sweep, an underline or a brace is defined by absolute
+ * A highlight, an underline or a brace is defined by absolute
  * points, and the row layout deliberately never touches them — a connector
  * that re-routes itself is right, a marker stroke that reshapes itself is not.
  * But that left them pinned to coordinates the rest of the scene has since
@@ -1064,7 +1078,10 @@ const GESTURES = new Set<ShapeKind>(['curve', 'line', 'highlight', 'laser'])
  *
  * @param before every shape's centre before the layout rewrote it.
  */
-function carryGestures(shapes: BoardShape[], before: Map<string, { x: number; y: number }>) {
+function carryGestures(
+  shapes: BoardShape[],
+  before: Map<string, { x: number; y: number; w: number; h: number }>
+) {
   const gestures = shapes.filter(
     (shape) => GESTURES.has(shape.kind) && !shape.group && shape.points.length >= 2
   )
@@ -1074,7 +1091,8 @@ function carryGestures(shapes: BoardShape[], before: Map<string, { x: number; y:
   const moved = shapes
     .filter((shape) => !FLOATING.has(shape.kind) && before.has(shape.id))
     .map((shape) => {
-      const from = before.get(shape.id)!
+      const box = before.get(shape.id)!
+      const from = { x: box.x + box.w / 2, y: box.y + box.h / 2 }
       return {
         from,
         dx: shape.x + occupiedWidth(shape) / 2 - from.x,
@@ -1084,8 +1102,9 @@ function carryGestures(shapes: BoardShape[], before: Map<string, { x: number; y:
   if (!moved.length) return shapes
 
   for (const gesture of gestures) {
-    const at = before.get(gesture.id)
-    if (!at) continue
+    const box = before.get(gesture.id)
+    if (!box) continue
+    const at = { x: box.x + box.w / 2, y: box.y + box.h / 2 }
 
     let nearest = moved[0]
     let best = Infinity
