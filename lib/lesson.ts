@@ -450,6 +450,10 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
       size: SIZES.includes(shape.size) ? shape.size : 'm',
       dash: DASHES.includes(shape.dash) ? shape.dash : 'draw',
       at: clamp(num(shape.at, i / Math.max(1, (scene.shapes ?? []).length)), 0, 0.95),
+      // Carried through when it is already set. A model cannot reach this —
+      // `group` is not in the JSON schema — so anything arriving with one came
+      // from a compiler that has already decided these shapes move as a block.
+      ...(shape.group ? { group: shape.group } : {}),
     })
   }
 

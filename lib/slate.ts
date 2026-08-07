@@ -241,19 +241,27 @@ export function parseLesson(
     }
     if (/^(#|\/\/)\s/.test(trimmed)) return
 
-    if (/^=\s/.test(trimmed)) {
-      lesson.title = trimmed.slice(2).trim()
-      return
-    }
-    if (/^:\s/.test(trimmed)) {
-      lesson.sub = trimmed.slice(2).trim()
-      return
-    }
-    // `~ role colour` — a declaration, not a use.
-    const declared = trimmed.match(/^~\s+(\S+)\s+(\S+)/)
-    if (declared) {
-      lesson.roles[declared[1]] = declared[2]
-      return
+    const indent = Math.floor((line.match(/^ */)?.[0].length ?? 0) / 2)
+
+    // The document's own header lines, and only at the left margin. A table's
+    // header row also starts with a colon — `: Record | What it does` — and
+    // reading that as the lesson's summary both lost the header and overwrote
+    // the summary with a row of table cells.
+    if (indent === 0) {
+      if (/^=\s/.test(trimmed)) {
+        lesson.title = trimmed.slice(2).trim()
+        return
+      }
+      if (/^:\s/.test(trimmed)) {
+        lesson.sub = trimmed.slice(2).trim()
+        return
+      }
+      // `~ role colour` — a declaration, not a use.
+      const declared = trimmed.match(/^~\s+(\S+)\s+(\S+)/)
+      if (declared) {
+        lesson.roles[declared[1]] = declared[2]
+        return
+      }
     }
     if (/^-{3,}/.test(trimmed) && !/^->/.test(trimmed)) {
       const heading = trimmed.match(/^-{3,}\s*(?:SCENE\s*)?(\d+)?/i)
@@ -267,8 +275,6 @@ export function parseLesson(
       here.beats.push(trimmed.replace(/^say\s+/i, ''))
       return
     }
-
-    const indent = Math.floor((line.match(/^ */)?.[0].length ?? 0) / 2)
 
     const arrow = trimmed.match(/^(-->|->|<->)\s+(.+)$/)
     if (arrow) {

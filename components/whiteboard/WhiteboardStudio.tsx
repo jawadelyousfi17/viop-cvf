@@ -21,8 +21,9 @@ import { CHART_KINDS, chartKey } from '@/lib/chart'
 import { renderChart } from '../charts'
 import { Narrator } from '../narrator'
 import { parseScript } from '@/lib/script-import'
-import { compileChalk } from '@/lib/chalk'
-import { CHALK_SYSTEM, chalkScriptPrompt } from '@/lib/chalk-prompt'
+import { compileSlate } from '@/lib/slate-board'
+import { splitSentences } from '@/lib/slate'
+import { SLATE_SYSTEM, slateScriptPrompt } from '@/lib/slate-prompt'
 import type { SavedScript } from '@/app/api/scripts/route'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
@@ -36,18 +37,24 @@ const SUGGESTIONS = [
   'What causes the northern lights?',
 ]
 
-/** What goes in the Chalk box when it is empty — the language in eight lines. */
-const CHALK_EXAMPLE = `say A domain name is not one flat label. It is a hierarchy, read from right to left.
+/** What goes in the Slate box when it is empty — the language in ten lines. */
+const SLATE_EXAMPLE = `~ name    blue
+~ address green
+~ inert   grey
 
-lab READING A DOMAIN @black | not one flat label
-arr blog|example|co|uk | read from right to left
+--- 4
+box #root ROOT / the silent dot at the end ~inert |1
+box #tld TOP-LEVEL DOMAIN [.uk] ~name |3
+-> root tld : read right to left |2
 
-box #root ROOT @grey | at the far right
-  box uk @blue
-  box co @blue
-sym dns server @violet | the hierarchy
+stk ~name |4
+  uk — the top-level domain |4
+  co — the second level |5
+  example — the registered name |6
 
--> root uk : delegates to`
+sym signpost |2
+img road signs at a junction photograph |5
+callout you read a domain backwards ~inert |6`
 
 const LOADING_LINES = [
   'Reading up on your topic…',
@@ -224,12 +231,12 @@ export default function Studio({
   }, [voiceId])
 
   /**
-   * Plays a lesson compiled from Chalk in the browser.
+   * Plays a lesson compiled from Slate in the browser.
    *
    * No model, no stream, nothing to wait for: the board is already a board by
    * the time it gets here, so there is no plan to keep and nothing more to draw.
    */
-  const drawChalk = useCallback(
+  const drawSlate = useCallback(
     (compiled: Lesson) => {
       runIdRef.current++
       streamingRef.current = false
@@ -765,7 +772,7 @@ export default function Studio({
         onSubmit={generate}
         script={script}
         setScript={setScript}
-        onChalk={drawChalk}
+        onSlate={drawSlate}
         busy={phase === 'generating'}
         pendingTitle={pendingTitle}
         error={error}
@@ -1046,14 +1053,14 @@ function TopicScreen({
   pendingTitle,
   error,
   chooser,
-  onChalk,
+  onSlate,
 }: {
   topic: string
   setTopic: (value: string) => void
   onSubmit: (topic: string, script?: string) => void
   script: string
   setScript: (value: string) => void
-  onChalk: (lesson: Lesson) => void
+  onSlate: (lesson: Lesson) => void
   busy: boolean
   pendingTitle: string | null
   error: string | null
@@ -1064,8 +1071,8 @@ function TopicScreen({
   const [loading, setLoading] = useState<string | null>(null)
   /** The saved script being looked at, before deciding what to do with it. */
   const [picked, setPicked] = useState<{ title: string; text: string } | null>(null)
-  const [chalk, setChalk] = useState('')
-  const [chalkNote, setChalkNote] = useState<string | null>(null)
+  const [slate, setSlate] = useState('')
+  const [slateNote, setSlateNote] = useState<string | null>(null)
   const [writing, setWriting] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -1094,7 +1101,7 @@ function TopicScreen({
    */
   async function pickSaved(name: string, title: string) {
     setLoading(name)
-    setChalkNote(null)
+    setSlateNote(null)
     try {
       const response = await fetch(`/api/scripts?name=${encodeURIComponent(name)}`)
       if (!response.ok) throw new Error(String(response.status))
@@ -1108,14 +1115,25 @@ function TopicScreen({
     }
   }
 
-  /** The whole input for a model asked to write Chalk for the picked script. */
-  const promptForChalk = picked
-    ? `${CHALK_SYSTEM}\n\n${chalkScriptPrompt(parseScript(picked.text).map((s) => s.narration))}`
+  /**
+   * The whole input for a model asked to write Slate for the picked script.
+   *
+   * The sentences are numbered here rather than described, because those
+   * numbers ARE the beats — a model that can count to six can time a board,
+   * and cannot paraphrase an integer.
+   */
+  const promptForSlate = picked
+    ? `${SLATE_SYSTEM}\n\n${slateScriptPrompt(
+        parseScript(picked.text).map((scene, i) => ({
+          n: i + 1,
+          sentences: splitSentences(scene.narration),
+        }))
+      )}`
     : ''
 
   async function copyPrompt() {
     try {
-      await navigator.clipboard.writeText(promptForChalk)
+      await navigator.clipboard.writeText(promptForSlate)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -1123,20 +1141,25 @@ function TopicScreen({
     }
   }
 
-  /** Compiles what is in the Chalk box and puts it on the board. */
-  function drawChalk() {
-    const source = chalk.trim()
+  /** Compiles what is in the Slate box and puts it on the board. */
+  function drawSlate() {
+    const source = slate.trim()
     if (!source) return
 
-    // The words come from the script, not from the Chalk: they are already
+    // The words come from the script, not from the Slate: they are already
     // written, already recorded, and copying them through a compiler is one
-    // more chance to change them.
-    const narration = picked ? parseScript(picked.text).map((scene) => scene.narration) : undefined
-    const { lesson, errors, warnings } = compileChalk(source, narration ? { narration } : {})
+    // more chance to change them. Keyed by scene number, so a document can draw
+    // scenes seven to nine of a fifteen-scene script.
+    const narration = picked
+      ? new Map(parseScript(picked.text).map((scene, i) => [i + 1, scene.narration]))
+      : undefined
+    const { lesson, errors, warnings } = compileSlate(source, narration ? { narration } : {})
 
     if (!lesson.scenes.length) {
-      setChalkNote(
-        errors[0] ? `Line ${errors[0].line}: ${errors[0].message}` : 'Nothing there to draw.'
+      setSlateNote(
+        errors[0]
+          ? `${errors[0].line ? `Line ${errors[0].line}: ` : ''}${errors[0].msg}`
+          : 'Nothing there to draw.'
       )
       return
     }
@@ -1145,15 +1168,15 @@ function TopicScreen({
     // missing from the board, a flagged anchor is on it but off the beat.
     const notes = [
       errors.length
-        ? `${errors.length} line${errors.length === 1 ? '' : 's'} skipped — line ${errors[0].line}: ${errors[0].message}`
+        ? `${errors.length} error${errors.length === 1 ? '' : 's'}${errors[0].line ? ` — line ${errors[0].line}` : ' —'}: ${errors[0].msg}`
         : '',
       warnings.length
-        ? `${warnings.length} anchor${warnings.length === 1 ? '' : 's'} not in the narration — line ${warnings[0].line}: ${warnings[0].message}`
+        ? `${warnings.length} warning${warnings.length === 1 ? '' : 's'}${warnings[0].line ? ` — line ${warnings[0].line}` : ' —'}: ${warnings[0].msg}`
         : '',
     ].filter(Boolean)
 
-    setChalkNote(notes.length ? notes.join(' · ') : null)
-    onChalk(normalizeLesson(lesson))
+    setSlateNote(notes.length ? notes.join(' · ') : null)
+    onSlate(normalizeLesson(lesson))
   }
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
@@ -1233,7 +1256,7 @@ function TopicScreen({
                     onClick={() => setWriting((value) => !value)}
                     className="rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-[13px] font-medium text-zinc-700 transition hover:border-zinc-400 disabled:opacity-50"
                   >
-                    {writing ? 'Hide the Chalk' : 'Paste the Chalk'}
+                    {writing ? 'Hide the Slate' : 'Paste the Slate'}
                   </button>
                   <button
                     type="button"
@@ -1271,7 +1294,7 @@ function TopicScreen({
                     </div>
                     <textarea
                       readOnly
-                      value={promptForChalk}
+                      value={promptForSlate}
                       rows={4}
                       onFocus={(event) => event.currentTarget.select()}
                       className="mt-2 w-full resize-y rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-500 outline-none"
@@ -1281,19 +1304,19 @@ function TopicScreen({
                       2 · What it wrote back
                     </p>
                     <textarea
-                      value={chalk}
-                      onChange={(event) => setChalk(event.target.value)}
+                      value={slate}
+                      onChange={(event) => setSlate(event.target.value)}
                       rows={10}
                       spellCheck={false}
-                      placeholder={CHALK_EXAMPLE}
+                      placeholder={SLATE_EXAMPLE}
                       className="mt-2 w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 font-mono text-[12px] leading-relaxed text-zinc-800 shadow-sm outline-none transition placeholder:text-zinc-300 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/5"
                     />
 
                     <div className="mt-2 flex flex-wrap items-center gap-3">
                       <button
                         type="button"
-                        disabled={!chalk.trim()}
-                        onClick={drawChalk}
+                        disabled={!slate.trim()}
+                        onClick={drawSlate}
                         className="rounded-xl bg-zinc-900 px-4 py-2 text-[13px] font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Draw it
@@ -1302,9 +1325,9 @@ function TopicScreen({
                         Costs nothing — the words and the voice are already here.
                       </span>
                     </div>
-                    {chalkNote && (
+                    {slateNote && (
                       <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        {chalkNote}
+                        {slateNote}
                       </p>
                     )}
                   </div>
