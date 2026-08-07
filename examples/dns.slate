@@ -6,14 +6,14 @@
 ~ cache    orange
 ~ inert    grey
 
---- 7
+--- 7 [6 beats] "Your computer asks for help"
 stk ~cache |1
-  BROWSER CACHE — checked first |1
-  OPERATING SYSTEM CACHE |2
+  Browser cache — checked first |1
+  Operating system cache |2
   then out to the network |3
 
-box #you YOUR COMPUTER ~inert |4
-box #res RECURSIVE RESOLVER / does the legwork for you ~resolver |5
+box #you Your computer ~inert |4
+box #res Recursive resolver / does the legwork for you ~resolver |5
 -> you res : the query goes out |5
 
 tbl |5*
@@ -22,21 +22,21 @@ tbl |5*
   Cloudflare | 1.1.1.1 |6
   Google | 8.8.8.8 |6
 
-sym memory chip |1
-sym person |6
+sym memory chip : answered without leaving your machine ~cache |1
+sym person : one resolver, many people ~resolver |6
 img data centre server aisle photograph |6
 
---- 8
+--- 8 [7 beats] "Four questions down the hierarchy"
 carry #res
 
-box #root ROOT SERVER [13 addresses worldwide] ~resolver |1
+box #root Root server [13 addresses worldwide] ~resolver |1
 -> res root : where is example.com? |1
 note #root no idea where example.com lives — but it knows who does |3
 
-box #tld .COM TLD SERVER / no final answer either ~resolver |4
+box #tld The .com TLD server / no final answer either ~resolver |4
 -> root tld : ask the .com servers |3
 
-box #auth AUTHORITATIVE NAMESERVERS / for example.com ~address |6
+box #auth Authoritative nameservers / for example.com ~address |6
 -> tld auth : it points the way |7
 
 sym card index |5
@@ -45,12 +45,12 @@ sym compass |7
 
 callout four questions, and only the last one knows the answer ~inert |7
 
---- 9
+--- 9 [5 beats] "The source of truth"
 carry #auth
 
-box #truth THE SOURCE OF TRUTH / configured by the domain's owner ~address |2
+box #truth The source of truth / configured by the domain's owner ~address |2
   txt the only server that actually knows / everything else only forwards
-box #page YOUR BROWSER [under 100 ms] ~inert |3
+box #page Your browser [under 100 ms] ~inert |3
 -> truth page : 93.184.216.34 |3
 
 chart bar "where the time goes, in ms" ~resolver

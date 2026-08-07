@@ -1,10 +1,16 @@
 /**
- * The symbol set, closed on purpose.
+ * The symbol set, closed on purpose — with a way in for the words authors
+ * actually reach for.
  *
  * Chalk's `sym` took any word and sent it to an icon service, which meant
  * "router" could come back as a map of a bus route and nobody would know until
- * they watched the lesson. A closed set is smaller and always right: a name is
- * either in here, or the build fails and says which names are close.
+ * they watched the lesson. A closed set is smaller and always right.
+ *
+ * What the closed set got wrong was the *penalty*. An unknown name used to fail
+ * the build, so writing a Docker board and instinctively typing `sym whale`
+ * stopped everything over a decoration. Now a name resolves through the aliases
+ * below, and a name that still misses draws the generic glyph and warns. The
+ * board is never held hostage by an icon.
  *
  * Drawn as stroked paths on a 48x48 grid, so they read as one hand at any size.
  */
@@ -70,9 +76,142 @@ export const SYMBOLS: Record<string, string> = {
     '<circle cx="20" cy="24" r="7"/><path d="M27 24h14M41 24l-4-3M41 24l-4 3M15 18l-7-5M15 30l-7 5M20 17V8M20 31v9"/>',
   heart: '<path d="M24 40S8 30 8 19a8 8 0 0 1 16-3 8 8 0 0 1 16 3c0 11-16 21-16 21z"/>',
   leaf: '<path d="M10 38C10 20 24 8 40 8c0 16-12 30-30 30z"/><path d="M10 38c8-8 14-14 22-18"/>',
+  container:
+    '<rect x="6" y="14" width="36" height="24" rx="2"/><path d="M6 22h36M17 14v24M28 14v24"/>',
+  cloud: '<path d="M15 37a9 9 0 0 1 1-18 12 12 0 0 1 22-2 8 8 0 0 1 0 20z"/>',
+  switch:
+    '<rect x="5" y="20" width="38" height="13" rx="2"/><path d="M11 27h6M21 27h6M31 27h7"/><path d="M15 20v-9h19"/><path d="M30 7l5 4-5 4"/>',
+  calendar:
+    '<rect x="7" y="11" width="34" height="30" rx="2"/><path d="M7 20h34M16 7v8M32 7v8M16 27h5M27 27h5M16 34h5"/>',
+  dna: '<path d="M17 5c0 13 14 13 14 26s-14 12-14 12"/><path d="M31 5c0 13-14 13-14 26s14 12 14 12"/><path d="M19 13h10M16 21h16M16 31h16M19 39h10"/>',
+  wrench:
+    '<path d="M33 6a10 10 0 0 0-9 14L9 35a4 4 0 0 0 5 6l15-15a10 10 0 0 0 13-12l-7 7-6-2-2-6z"/>',
+  pipe: '<path d="M8 18h14a8 8 0 0 1 8 8v14"/><rect x="3" y="13" width="6" height="10"/><rect x="25" y="39" width="10" height="6"/>',
+  valve:
+    '<circle cx="24" cy="24" r="7"/><path d="M5 24h12M31 24h12M24 5v12M24 31v12"/><path d="M17 5h14M17 43h14"/>',
+  phone: '<rect x="14" y="4" width="20" height="40" rx="3"/><path d="M21 9h6M20 38h8"/>',
+  antenna:
+    '<path d="M24 20v23"/><circle cx="24" cy="16" r="4"/><path d="M14 26a14 14 0 0 1 0-20M34 26a14 14 0 0 0 0-20M18 22a8 8 0 0 1 0-12M30 22a8 8 0 0 0 0-12"/>',
+  map: '<path d="M6 12l12-5 12 5 12-5v29l-12 5-12-5-12 5z"/><path d="M18 7v29M30 12v29"/>',
+  receipt:
+    '<path d="M11 5h26v38l-5-4-4 4-4-4-4 4-4-4-5 4z"/><path d="M17 15h14M17 22h14M17 29h9"/>',
+  // A verdict. Boards argue, and the cheapest honest way to say "and this is
+  // the bad one" is a face — no colour, no exclamation mark, no adjective the
+  // narration has to repeat.
+  'sad face':
+    '<circle cx="24" cy="24" r="19"/><path d="M14 17l6 5M20 17l-6 5M28 17l6 5M34 17l-6 5"/><path d="M16 35a9 9 0 0 1 16 0"/>',
+  'happy face':
+    '<circle cx="24" cy="24" r="19"/><circle cx="17" cy="20" r="1.8"/><circle cx="31" cy="20" r="1.8"/><path d="M15 29a10 10 0 0 0 18 0"/>',
+  'neutral face':
+    '<circle cx="24" cy="24" r="19"/><circle cx="17" cy="20" r="1.8"/><circle cx="31" cy="20" r="1.8"/><path d="M16 32h16"/>',
 }
 
 export const SYMBOL_NAMES = Object.keys(SYMBOLS).sort()
+
+/**
+ * The words authors reach for, pointed at the glyph that already means them.
+ *
+ * Not a second symbol set — every value here is a name in `SYMBOLS`. This is
+ * how the vocabulary stays closed while the *writing* stays natural: `sym cpu`
+ * and `sym processor` are the same picture, and neither one is a build failure.
+ * A lesson can add its own with `symbol docker = container`.
+ */
+export const SYMBOL_ALIASES: Record<string, string> = {
+  cpu: 'processor',
+  core: 'processor',
+  kernel: 'processor',
+  chip: 'memory chip',
+  ram: 'memory chip',
+  memory: 'memory chip',
+  db: 'database',
+  store: 'database',
+  storage: 'disk',
+  drive: 'disk',
+  bucket: 'warehouse',
+  net: 'network',
+  internet: 'globe',
+  world: 'globe',
+  earth: 'globe',
+  web: 'globe',
+  window: 'browser window',
+  browser: 'browser window',
+  shell: 'terminal',
+  console: 'terminal',
+  vm: 'server',
+  host: 'server',
+  machine: 'server',
+  image: 'layers',
+  stack: 'layers',
+  docker: 'container',
+  package: 'container',
+  pod: 'container',
+  lock: 'padlock',
+  unlock: 'open padlock',
+  secret: 'key',
+  security: 'shield',
+  mail: 'envelope',
+  email: 'envelope',
+  message: 'envelope',
+  doc: 'document',
+  paper: 'document',
+  page: 'document',
+  user: 'person',
+  users: 'people',
+  team: 'people',
+  time: 'clock',
+  timer: 'stopwatch',
+  latency: 'stopwatch',
+  cog: 'gear',
+  settings: 'gear',
+  config: 'gear',
+  build: 'wrench',
+  tool: 'wrench',
+  balance: 'scales',
+  tradeoff: 'scales',
+  brain: 'neuron',
+  plant: 'leaf',
+  route: 'signpost',
+  direction: 'signpost',
+  sad: 'sad face',
+  unhappy: 'sad face',
+  bad: 'sad face',
+  worse: 'sad face',
+  happy: 'happy face',
+  good: 'happy face',
+  better: 'happy face',
+  neutral: 'neutral face',
+  ok: 'neutral face',
+}
+
+/**
+ * A symbol name, resolved through the aliases and a lesson's own `symbol`
+ * declarations.
+ *
+ * Returns what to draw either way, so the renderer never has to decide what a
+ * miss looks like — and reports whether it was a miss, so the linter can say so
+ * once instead of the board saying nothing.
+ */
+export function resolveSymbol(
+  name: string,
+  extra: Record<string, string> = {}
+): { art: string; resolved: string | null } {
+  const wanted = name.trim().toLowerCase()
+  // A lesson's own aliases lead: `symbol docker = server` should win over the
+  // built-in `docker`, because the author is the one who knows their subject.
+  const target = extra[wanted] ?? SYMBOL_ALIASES[wanted] ?? wanted
+  const art = SYMBOLS[target]
+  return art ? { art, resolved: target } : { art: MISSING_SYMBOL, resolved: null }
+}
+
+/** The nearest names to a miss, so a typo is one line from fixed. */
+export function nearestSymbols(word: string, limit = 3): string[] {
+  const wanted = word.trim().toLowerCase()
+  const head = wanted.split(' ')[0]
+  const pool = [...Object.keys(SYMBOLS), ...Object.keys(SYMBOL_ALIASES)]
+  return pool
+    .filter((name) => name.includes(head) || wanted.includes(name.split(' ')[0]))
+    .slice(0, limit)
+}
 
 /** Drawn when a name is unknown, so the board says "missing" rather than lying. */
 export const MISSING_SYMBOL =

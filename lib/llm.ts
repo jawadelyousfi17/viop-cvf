@@ -46,6 +46,53 @@ export async function completeStructured(request: StreamRequest): Promise<string
   return text
 }
 
+/**
+ * Plain text out, no schema.
+ *
+ * For the formats that are their own validator. A JSON schema exists to stop a
+ * model inventing a field; YAML and the line form are checked by a parser and a
+ * linter that were going to run anyway, and forcing them through a tool call
+ * would only mean asking for a string inside an object.
+ */
+export async function* streamText(
+  request: Omit<StreamRequest, 'schema'>
+): AsyncGenerator<string> {
+  if (request.provider === 'claude') {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) throw new LlmError('ANTHROPIC_API_KEY is not set.', 501)
+
+    const stream = new Anthropic({ apiKey }).messages.stream({
+      model: modelFor('claude', request.model),
+      max_tokens: request.maxTokens ?? 16_000,
+      system: request.system,
+      messages: [{ role: 'user', content: request.user }],
+    })
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        yield event.delta.text
+      }
+    }
+    return
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new LlmError('OPENAI_API_KEY is not set.', 501)
+
+  const stream = await new OpenAI({ apiKey }).chat.completions.create({
+    model: modelFor('openai', request.model),
+    stream: true,
+    messages: [
+      { role: 'system', content: request.system },
+      { role: 'user', content: request.user },
+    ],
+    ...(request.effort ? { reasoning_effort: request.effort as never } : {}),
+  })
+  for await (const part of stream) {
+    const delta = part.choices?.[0]?.delta?.content
+    if (delta) yield delta
+  }
+}
+
 async function* streamOpenAI(request: StreamRequest): AsyncGenerator<string> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new LlmError('OPENAI_API_KEY is not set.', 501)

@@ -1,91 +1,163 @@
 /**
  * Slate's board, as a stylesheet.
  *
+ * Paper, not chalkboard. A board drawn by hand on white, in one pen, with air
+ * around everything — the style the whole engine is now tuned to. Three things
+ * carry it and they are worth stating, because every rule below serves one of
+ * them:
+ *
+ * **Nothing here draws a border.** Outlines are hand-drawn SVG paths generated
+ * after layout by `roughen()` in draw.ts, because a rough edge has to know how
+ * long it is. What this file does is take the borders away and leave room for
+ * the ink.
+ *
+ * **Hierarchy is size, never weight.** The hand is one font at one weight; a
+ * bold hand-drawn face reads as a second pen. A container labels itself large
+ * in its top corner, a leaf centres its label — which is what a person does
+ * without thinking, and what makes a nested diagram legible at a glance.
+ *
+ * **Space is the layout.** The gaps are large on purpose. A board with room
+ * around its parts reads at a glance; the same board with the gaps filled in
+ * has to be studied.
+ *
  * Scoped under .slate so it can live in an app that already has a design of its
- * own. Everything is variables at the top: recolouring the whole engine, light
- * to dark or one palette to another, is the first block of this file.
+ * own. Everything is variables at the top: recolouring the whole engine, paper
+ * to chalkboard or one palette to another, is the first block of this file.
  */
 
 .slate {
-  --slate: #20302e;
-  --slate-deep: #182422;
-  --slate-edge: #0f1817;
-  --chalk: #ede8da;
-  --chalk-soft: #b6c0ba;
-  --chalk-faint: #6f817c;
-  --rule: rgba(237, 232, 218, 0.16);
-  --c-blue: #9fc2e8;
-  --c-green: #9bd0a2;
-  --c-red: #e39b96;
-  --c-violet: #bca5e6;
-  --c-yellow: #e3ce92;
-  --c-orange: #e0b084;
-  --c-grey: #9aaca7;
+  --slate: #fdfdfc;
+  --slate-deep: #f5f5f2;
+  --slate-edge: #ecece8;
+  --chalk: #1b1b1f;
+  --chalk-soft: #52525b;
+  --chalk-faint: #8e8e98;
+  --rule: rgba(27, 27, 31, 0.13);
+  /* Ink colours, weighted for white paper: saturated enough to read as a
+     deliberate second pen, dark enough to keep contrast on the labels. */
+  --c-blue: #1971c2;
+  --c-green: #2f9e44;
+  --c-red: #e03131;
+  --c-violet: #6741d9;
+  --c-yellow: #c28a00;
+  --c-orange: #e8590c;
+  --c-grey: #6c757d;
+  --stroke: 2;
   --draw: 380ms;
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 
   background: var(--slate);
   color: var(--chalk);
-  font-family: 'IBM Plex Sans Condensed', ui-sans-serif, system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.45;
+  font-family: var(--font-hand), 'Segoe Print', 'Bradley Hand', 'Chalkboard SE', ui-rounded,
+    system-ui, sans-serif;
+  font-size: 17px;
+  line-height: 1.35;
   -webkit-font-smoothing: antialiased;
 }
 
-.slate .mono {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+/* The chrome around the board keeps the app's own face: a control is not a
+   thing on the whiteboard, and setting one in a marker hand makes it look like
+   part of the drawing. */
+.slate .mono,
+.slate button {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 /* ---------- the board ---------- */
 .slate-board {
   overflow: auto;
-  padding: 34px 30px 28px;
-  background-image:
-    radial-gradient(circle at 20% 16%, rgba(237, 232, 218, 0.05), transparent 42%),
-    radial-gradient(circle at 80% 74%, rgba(237, 232, 218, 0.035), transparent 46%);
+  padding: 46px 44px 40px;
+  background: var(--slate);
 }
 .slate .row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  gap: 14px;
-  margin-bottom: 26px;
+  gap: 46px;
+  margin-bottom: 54px;
 }
 .slate .row:last-child {
   margin-bottom: 0;
 }
 
-/* Everything drawable fades and rises onto its beat. */
+/* Everything drawable fades onto its beat. No movement: a shape that slides in
+   is a shape that was somewhere else first, and nothing on a board ever was. */
 .slate [data-beat] {
   opacity: 0;
-  transform: translateY(5px);
   transition:
     opacity var(--draw) var(--ease),
-    transform var(--draw) var(--ease),
     filter var(--draw) var(--ease);
 }
 .slate [data-beat].on {
   opacity: 1;
-  transform: none;
 }
 /* Carried from an earlier scene: present, but not what this scene is about. */
 .slate .ghost.on {
-  opacity: 0.45;
-  filter: saturate(0.35);
+  opacity: 0.4;
+}
+/* Stood down — replaced, or hidden. It keeps its place in the arrangement so
+   nothing below it moves; only the ink goes. */
+.slate .gone {
+  opacity: 0 !important;
+  pointer-events: none;
 }
 .slate .marked-dim.on {
-  opacity: 0.3;
-  filter: saturate(0.2);
+  opacity: 0.28;
 }
 .slate .marked-hl {
-  background: rgba(227, 206, 146, 0.14) !important;
-  border-color: var(--c-yellow) !important;
+  background: rgba(228, 196, 60, 0.3);
+  border-radius: 2px;
 }
 .slate .marked-ring {
-  outline: 2px dashed var(--c-yellow);
-  outline-offset: 6px;
-  border-radius: 6px;
+  outline: 2px dashed var(--c-orange);
+  outline-offset: 8px;
+  border-radius: 8px;
+}
+
+/* ---------- attention ---------- */
+/* `focus` is the hand on the board. Everything the hand is not on goes back,
+   which is a thing a board of equally bright boxes cannot do at all. It applies
+   at every level, so one half of a comparison can be focused without the other
+   half coming with it. */
+.slate .unfocused {
+  opacity: 0.24;
+}
+.slate .focused > .ink path {
+  stroke-width: calc(var(--stroke) * 1.7);
+}
+.slate .row > .node,
+.slate .compare > .side,
+.slate .flow > .fstep,
+.slate .gkids > *,
+.slate .lay > * {
+  transition:
+    opacity var(--draw) var(--ease),
+    filter var(--draw) var(--ease);
+}
+
+/* ---------- the ink ----------
+   Every outline on the board. Drawn as paths, generated per shape from its real
+   pixel size, so no edge is straight and no two are wobbly in the same way. */
+.slate [data-rough] {
+  position: relative;
+}
+.slate .ink {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.slate .ink path {
+  fill: none;
+  stroke: var(--c, var(--chalk));
+  stroke-width: var(--stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.slate .dashed-ink > .ink path {
+  stroke-dasharray: 9 7;
 }
 
 /* ---------- shapes ---------- */
@@ -93,113 +165,133 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  max-width: min(300px, 80vw);
+  max-width: min(330px, 84vw);
 }
+/* A slot holding a shape and the shape that replaces it: one cell, both in it,
+   sized to the larger. The exchange happens in place. */
+.slate .node.swapping {
+  display: grid;
+}
+.slate .node.swapping > * {
+  grid-area: 1 / 1;
+}
+/* Arrangement can be wider than a single shape is allowed to be. */
+.slate .node:has(> .lay),
+.slate .node:has(> .group),
+.slate .node:has(> .compare),
+.slate .node:has(> .flow) {
+  max-width: min(1060px, 96vw);
+}
+
 .slate .shape {
-  position: relative;
-  border: 1.5px solid var(--chalk-soft);
-  border-radius: 3px;
-  padding: 12px 14px;
-  background: rgba(237, 232, 218, 0.03);
-  min-width: 150px;
+  padding: 17px 19px;
+  min-width: 148px;
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  /* A leaf box says one thing, so it says it in the middle. */
+  justify-content: center;
+  text-align: center;
 }
-.slate .shape.k-actor {
-  border-radius: 26px;
+/* A container labels itself in the corner and gives the room to what it holds —
+   which is what the hand does, and what stops a nested diagram reading as a box
+   with a heading floating above three other boxes. */
+.slate .shape:has(> .children),
+.slate .shape:has(> .arms) {
+  justify-content: flex-start;
+  text-align: left;
+  padding: 20px 20px 22px;
 }
-.slate .shape.k-store {
-  border-radius: 3px / 14px;
+.slate .shape:has(> .children) > .readings .label,
+.slate .shape:has(> .arms) > .readings .label {
+  font-size: 25px;
 }
-.slate .shape.k-choice {
-  border-left-width: 5px;
-}
-.slate .shape.k-step {
-  border-left: 5px solid var(--chalk-soft);
-}
+
+/* Names are for the author, not the audience. Shown while the source is open
+   and gone the moment it is closed — the board people watch has no ids on it. */
 .slate .kindtag {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  display: none;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 9px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--chalk-faint);
+  margin-bottom: 6px;
+}
+.slate.tagged .kindtag {
   display: block;
-  margin-bottom: 5px;
+}
+
+/* Every reading of a shape stacked in one cell: what it says now, and what it
+   becomes. The cell is as tall as the tallest of them, so a `transform` changes
+   a word without moving the board. */
+.slate .readings {
+  display: grid;
+}
+.slate .readings > .reading {
+  grid-area: 1 / 1;
+  display: block;
+  min-width: 0;
+  align-self: center;
 }
 .slate .label {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-  line-height: 1.2;
+  font-size: 20px;
+  line-height: 1.16;
   display: block;
 }
 .slate .sub {
-  font-size: 12.5px;
+  font-size: 15.5px;
   color: var(--chalk-soft);
-  margin-top: 3px;
+  margin-top: 5px;
   display: block;
 }
 /* The stat slot: the number, set large, inside the thing it describes. */
 .slate .stat {
   display: block;
-  margin-top: 9px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--rule);
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 16px;
+  margin-top: 11px;
+  font-size: 23px;
+  line-height: 1.1;
 }
 .slate .stat i {
   font-style: normal;
-  font-size: 11px;
+  font-size: 14px;
   color: var(--chalk-faint);
   display: block;
-  letter-spacing: 0.05em;
+  margin-top: 2px;
 }
 .slate .children {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 11px;
+  gap: 13px;
+  margin-top: 16px;
 }
 .slate .children .shape {
   min-width: 0;
-  padding: 8px 10px;
-  background: rgba(237, 232, 218, 0.05);
+  min-height: 62px;
+  flex: 1 1 auto;
+  padding: 13px 14px;
+  text-align: center;
+  justify-content: center;
 }
 .slate .children .label {
-  font-size: 12px;
-  letter-spacing: 0.04em;
-}
-.slate .children .kindtag {
-  display: none;
+  font-size: 17px;
 }
 /* An attached list: full width under whatever else is in the box. */
 .slate .inner-txt {
   flex: 1 0 100%;
-  font-size: 12px;
+  font-size: 15px;
   color: var(--chalk-soft);
-  border-top: 1px dashed var(--rule);
-  padding-top: 7px;
+  padding-top: 4px;
   white-space: pre-line;
+  text-align: left;
 }
 .slate .note {
-  margin: 0 10px;
-  padding: 8px 11px;
-  border: 1px solid var(--rule);
-  border-top: 0;
-  border-radius: 0 0 3px 3px;
-  font-size: 12.5px;
+  margin: 10px 4px 0;
+  padding: 9px 12px 9px 14px;
+  border-left: 3px solid var(--rule);
+  font-size: 15px;
   color: var(--chalk-soft);
-  background: rgba(237, 232, 218, 0.04);
-}
-.slate .note::before {
-  content: 'note';
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--chalk-faint);
-  display: block;
-  margin-bottom: 2px;
+  text-align: left;
 }
 
 /* ---------- arrows ---------- */
@@ -207,142 +299,353 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding-top: 38px;
-  width: 120px;
+  gap: 6px;
+  padding-top: 34px;
+  width: 128px;
   flex: 0 0 auto;
 }
 .slate .arrow .alabel {
-  font-size: 11.5px;
+  font-size: 15px;
   color: var(--chalk-soft);
   text-align: center;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 .slate .arrow svg {
   width: 100%;
-  height: 12px;
+  height: 13px;
   overflow: visible;
 }
 .slate .arrow path,
 .slate .arrow line {
-  stroke: var(--chalk-soft);
-  stroke-width: 1.4;
+  stroke: var(--chalk);
+  stroke-width: 1.9;
   fill: none;
   stroke-linecap: round;
 }
 .slate .arrow.dashed line {
+  stroke-dasharray: 6 5;
+}
+
+/* ---------- arrangement ----------
+   Composition without coordinates. `row`, `column`, `grid`, `split` and
+   `center` say where things go relative to each other and nothing else; the
+   sizes are still worked out here, never written by the author. */
+.slate .lay,
+.slate .gkids {
+  display: flex;
+  gap: 22px;
+  align-items: stretch;
+  min-width: 0;
+}
+.slate .lay-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.slate .lay-column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 26px;
+}
+.slate .lay-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.slate .lay-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.slate .lay-center {
+  flex-direction: column;
+  align-items: center;
+}
+.slate .lay > *,
+.slate .gkids > * {
+  min-width: 0;
+}
+.slate .lay-row > .shape,
+.slate .gkids.lay-row > .shape {
+  flex: 1 1 160px;
+}
+
+/* A group: these belong together. The boundary is dashed because it is not a
+   wall — nothing here is claiming one shape is inside another. */
+.slate .group {
+  padding: 30px 18px 18px;
+  min-width: 0;
+}
+.slate .group > .ink path {
+  stroke: var(--c, var(--chalk-faint));
+  stroke-dasharray: 10 8;
+  stroke-width: 1.8;
+}
+.slate .group .glabel {
+  position: absolute;
+  top: 6px;
+  left: 18px;
+  padding: 0 8px 0 0;
+  background: var(--slate);
+  font-size: 16px;
+  color: var(--c, var(--chalk-soft));
+}
+
+/* A comparison: two columns, balanced, with the divider drawn for you. */
+.slate .compare {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 26px;
+  min-width: 0;
+}
+.slate .compare .side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.slate .compare .side > .shape {
+  height: 100%;
+}
+.slate .compare .vs {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+  border-left: 1px dashed var(--rule);
+  padding-left: 26px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+/* A sequence, with its connectors drawn for it. */
+.slate .flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.slate .flow.lay-column {
+  flex-direction: column;
+  align-items: stretch;
+}
+.slate .flow .fstep {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+.slate .flow .fstep > * {
+  flex: 1;
+}
+.slate .flow .fjoin {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+}
+.slate .flow .fjoin svg {
+  width: 40px;
+  height: 13px;
+  overflow: visible;
+}
+.slate .flow .fjoin path,
+.slate .flow .fjoin line {
+  stroke: var(--c, var(--chalk));
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+}
+.slate .flow.lay-column .fjoin {
+  flex: 0 0 26px;
+  justify-content: center;
+}
+.slate .flow.lay-column .fjoin svg {
+  transform: rotate(90deg);
+}
+.slate .flow .fjoin.back svg {
+  transform: rotate(180deg);
+}
+
+/* A relationship that is not a flow: a brace, no arrowhead, and the word for
+   what it is. */
+.slate .rel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding-top: 36px;
+  width: 140px;
+  flex: 0 0 auto;
+}
+.slate .rel .rword {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--chalk-faint);
+}
+.slate .rel svg {
+  width: 100%;
+  height: 14px;
+  overflow: visible;
+}
+.slate .rel path {
+  stroke: var(--chalk-soft);
+  stroke-width: 1.7;
+  fill: none;
   stroke-dasharray: 5 4;
+  stroke-linecap: round;
+}
+.slate .rel .alabel {
+  font-size: 14.5px;
+  color: var(--chalk-soft);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* A fork's ways out, written inside the decision they leave. */
+.slate .arms {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.slate .arm {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 16px;
+}
+.slate .arm .armlabel {
+  color: var(--c, var(--chalk));
+}
+.slate .arm .armto {
+  color: var(--chalk-faint);
+}
+
+/* A part of a thing, named but not boxed. */
+.slate .item {
+  flex: 1 0 100%;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 16px;
+  color: var(--chalk-soft);
+  padding: 5px 0;
+  text-align: left;
+}
+.slate .item .bullet {
+  color: var(--c, var(--chalk-faint));
+}
+.slate .item .itext {
+  flex: 1;
+}
+.slate .item .ival {
+  color: var(--chalk-faint);
 }
 
 /* ---------- structures ---------- */
 .slate .stk {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  width: min(330px, 84vw);
+  gap: 7px;
+  width: min(340px, 84vw);
 }
 .slate .stk .layer {
-  border: 1.5px solid var(--chalk-soft);
-  background: rgba(237, 232, 218, 0.04);
-  padding: 9px 12px;
-  font-size: 13px;
-  letter-spacing: 0.03em;
+  padding: 13px 15px;
+  font-size: 16.5px;
+  text-align: center;
 }
 .slate .arr {
   display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 .slate .arr .cell {
-  border: 1.5px solid var(--chalk-soft);
-  border-right-width: 0;
-  padding: 9px 13px;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 14px;
+  padding: 13px 16px;
+  font-size: 18px;
   text-align: center;
-}
-.slate .arr .cell:last-child {
-  border-right-width: 1.5px;
+  min-width: 46px;
 }
 .slate .arr .cell i {
   display: block;
   font-style: normal;
-  font-size: 9.5px;
+  font-size: 11px;
   color: var(--chalk-faint);
-  margin-top: 3px;
+  margin-top: 4px;
+}
+/* An empty cell is "and more of these": grey, dashed, unnumbered. */
+.slate .arr .cell.blank {
+  min-width: 62px;
+  min-height: 44px;
+  background: rgba(27, 27, 31, 0.04);
+  border-radius: 2px;
+}
+.slate .arr .cell.blank > .ink path {
+  stroke: var(--chalk-faint);
+  stroke-dasharray: 8 6;
+  stroke-width: 1.7;
 }
 .slate table.tbl {
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 16px;
 }
 .slate table.tbl th,
 .slate table.tbl td {
   border: 1px solid var(--rule);
-  padding: 7px 11px;
+  padding: 9px 14px;
   text-align: left;
 }
 .slate table.tbl th {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 14px;
   color: var(--chalk-faint);
-}
-.slate table.tbl td.mono {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
 }
 .slate .chart {
-  width: min(360px, 86vw);
+  width: min(380px, 86vw);
 }
 .slate .chart .ctitle {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-size: 15px;
   color: var(--chalk-faint);
-  margin-bottom: 9px;
+  margin-bottom: 12px;
 }
 .slate .chart .barrow {
   display: grid;
-  grid-template-columns: 96px 1fr auto;
-  gap: 9px;
+  grid-template-columns: 106px 1fr auto;
+  gap: 11px;
   align-items: center;
-  margin-bottom: 6px;
-  font-size: 12px;
+  margin-bottom: 8px;
+  font-size: 15px;
 }
 .slate .chart .track {
-  height: 11px;
-  background: rgba(237, 232, 218, 0.07);
+  height: 13px;
+  background: rgba(27, 27, 31, 0.07);
+  border-radius: 2px;
 }
 .slate .chart .fill {
   height: 100%;
-  background: var(--chalk-soft);
+  background: var(--c, var(--chalk-soft));
+  border-radius: 2px;
   transform-origin: left;
   transition: transform 500ms var(--ease);
 }
 .slate .chart .val {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 11.5px;
+  font-size: 15px;
   color: var(--chalk-faint);
 }
 .slate pre.code {
   margin: 0;
-  border: 1px solid var(--rule);
-  border-radius: 3px;
-  background: var(--slate-edge);
-  padding: 12px 14px;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 12.5px;
-  line-height: 1.7;
+  padding: 15px 17px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13.5px;
+  line-height: 1.75;
   color: var(--chalk-soft);
   overflow-x: auto;
-  max-width: min(460px, 88vw);
+  max-width: min(480px, 88vw);
 }
 .slate pre.code .hlline {
   display: block;
-  background: rgba(188, 165, 230, 0.16);
+  background: rgba(103, 65, 217, 0.12);
   color: var(--chalk);
-  margin: 0 -14px;
-  padding: 0 14px;
-  border-left: 2px solid var(--c-violet);
+  margin: 0 -17px;
+  padding: 0 17px;
 }
 
 /* ---------- media and lettering ---------- */
@@ -350,37 +653,62 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  width: 106px;
+  gap: 8px;
+  width: 112px;
   margin: 0;
 }
 .slate .sym svg {
-  width: 54px;
-  height: 54px;
-  stroke: var(--chalk-soft);
-  stroke-width: 1.3;
+  width: 58px;
+  height: 58px;
+  stroke: var(--c, var(--chalk));
+  stroke-width: 1.7;
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.slate .sym span {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+.slate .sym figcaption {
+  font-size: 14px;
   color: var(--chalk-faint);
   text-align: center;
 }
+/* Given something to say, a symbol becomes a line in a list: glyph on the left,
+   words on the right, at reading size. This is the shape a property of a thing
+   actually takes on a board. */
+.slate .sym.said,
+.slate .ico.said {
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
+  width: auto;
+  text-align: left;
+}
+.slate .sym.said svg {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+}
+.slate .sym.said figcaption,
+.slate .ico.said .icaption {
+  font-size: 19px;
+  color: var(--chalk);
+  text-align: left;
+}
 .slate .ico {
-  font-size: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.slate .ico .glyph {
+  font-size: 40px;
   line-height: 1;
 }
+.slate .ico.said .glyph {
+  font-size: 34px;
+  flex: 0 0 auto;
+}
 .slate .photo {
-  width: 230px;
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  padding: 8px;
-  background: rgba(15, 24, 23, 0.55);
+  width: 250px;
   margin: 0;
 }
 .slate .photo .frame {
@@ -388,59 +716,68 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: repeating-linear-gradient(
-    135deg,
-    rgba(237, 232, 218, 0.045) 0 6px,
-    transparent 6px 12px
-  );
+  padding: 6px;
 }
 .slate .photo .frame img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.slate .photo .frame svg {
-  width: 60%;
-  height: 60%;
+.slate .photo .frame > svg:not(.ink) {
+  width: 58%;
+  height: 58%;
   stroke: var(--chalk-faint);
-  stroke-width: 1.2;
+  stroke-width: 1.4;
   fill: none;
 }
 .slate .photo figcaption {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 13px;
   color: var(--chalk-faint);
-  margin-top: 7px;
+  margin-top: 9px;
+  text-align: center;
 }
 .slate .callout {
-  max-width: 620px;
+  max-width: 660px;
   margin: 0 auto;
   text-align: center;
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-size: clamp(19px, 2.4vw, 27px);
+  font-size: clamp(21px, 2.5vw, 30px);
   line-height: 1.25;
-  border-top: 1px solid var(--rule);
-  padding-top: 18px;
+  color: var(--c, var(--chalk));
 }
 .slate .callout small {
-  display: block;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--chalk-faint);
-  margin-bottom: 8px;
+  display: none;
 }
 .slate .lab {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-size: 24px;
-  border-bottom: 1px solid var(--rule);
-  padding-bottom: 5px;
+  font-size: 27px;
+  padding-bottom: 9px;
+  color: var(--c, var(--chalk));
 }
 
-/* ---------- colour roles ---------- */
+/* ---------- colour roles ----------
+   `--c` is the pen a shape is drawn in, and it inherits — so every shape resets
+   it first. Without the reset an uncoloured box inside a green group came out
+   green, because the only thing it knew about colour was what it was standing
+   in. The reset and the roles have equal specificity, so the roles win on order
+   alone; an inherited value loses to either. */
+.slate .shape,
+.slate .group,
+.slate .lay,
+.slate .compare,
+.slate .flow,
+.slate .stk,
+.slate .arr,
+.slate .tbl,
+.slate .chart,
+.slate .sym,
+.slate .ico,
+.slate .item,
+.slate .lab,
+.slate .callout,
+.slate .photo,
+.slate pre.code {
+  --c: var(--chalk);
+}
+
 .slate .c-blue {
   --c: var(--c-blue);
 }
@@ -462,33 +799,20 @@
 .slate .c-grey {
   --c: var(--c-grey);
 }
-.slate [class*='c-'] .shape,
-.slate [class*='c-'].shape {
-  border-color: var(--c, var(--chalk-soft));
-}
-.slate [class*='c-'] .label,
+.slate [class*='c-'] > .readings .label,
 .slate [class*='c-'].label {
   color: var(--c, var(--chalk));
-}
-.slate [class*='c-'] .layer {
-  border-color: var(--c, var(--chalk-soft));
-}
-.slate [class*='c-'] .fill {
-  background: var(--c, var(--chalk-soft));
-}
-.slate [class*='c-'] .cell {
-  border-color: var(--c, var(--chalk-soft));
 }
 
 /* ---------- the narration rail ---------- */
 .slate-rail {
   overflow: auto;
-  padding: 12px 0;
+  padding: 14px 0;
   background: var(--slate-deep);
   border-right: 1px solid var(--rule);
 }
 .slate .railhead {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -506,9 +830,9 @@
   border: 0;
   border-left: 2px solid transparent;
   color: var(--chalk-faint);
-  font: inherit;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.4;
   padding: 8px 14px 8px 12px;
   cursor: pointer;
   transition:
@@ -517,7 +841,7 @@
     background 0.2s var(--ease);
 }
 .slate .beat .n {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10.5px;
   opacity: 0.7;
   padding-top: 2px;
@@ -528,7 +852,7 @@
 .slate .beat.now {
   color: var(--chalk);
   border-left-color: var(--c-violet);
-  background: rgba(188, 165, 230, 0.08);
+  background: rgba(103, 65, 217, 0.07);
 }
 .slate .beat.now .n {
   color: var(--c-violet);
@@ -539,15 +863,48 @@
 }
 
 @media (max-width: 880px) {
-  .slate .arrow {
+  .slate-board {
+    padding: 26px 18px;
+  }
+  .slate .row {
+    gap: 26px;
+    margin-bottom: 34px;
+  }
+  .slate .arrow,
+  .slate .rel {
     padding-top: 0;
     width: auto;
     height: 48px;
     justify-content: center;
   }
-  .slate .arrow svg {
+  .slate .arrow svg,
+  .slate .rel svg {
     width: 12px;
     height: 30px;
+    transform: rotate(90deg);
+  }
+  /* A comparison stays a comparison when it stacks: the divider goes between
+     the two rows rather than beside them. */
+  .slate .compare {
+    grid-template-columns: 1fr;
+  }
+  .slate .compare .vs {
+    border-left: 0;
+    border-top: 1px dashed var(--rule);
+    padding: 10px 0 0;
+    justify-content: center;
+  }
+  .slate .flow,
+  .slate .lay-split {
+    flex-direction: column;
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+  .slate .flow .fjoin {
+    flex: 0 0 26px;
+    justify-content: center;
+  }
+  .slate .flow .fjoin svg {
     transform: rotate(90deg);
   }
 }

@@ -6,7 +6,16 @@ import {
   type Scene,
   type ShapeKind,
 } from './lesson'
-import { allNodes, parseLesson, parseScript, type SlateNode, type SlateScene } from './slate'
+import {
+  LAYOUT_KINDS,
+  allNodes,
+  parseLesson,
+  parseScript,
+  splitCaption,
+  splitTarget,
+  type SlateNode,
+  type SlateScene,
+} from './slate'
 import { lint } from './slate-lint'
 import type { SlateProblem } from './slate'
 
@@ -30,6 +39,15 @@ import type { SlateProblem } from './slate'
  * every row a beat, and the board has no way to express that — so a block whose
  * rows are separately timed is compiled into one shape per row, stacked, which
  * is the same picture and the right timing.
+ *
+ * **What the board cannot do, said plainly.** A whiteboard accumulates: ink
+ * goes on and stays. So `hide` and `dim` are dropped rather than faked, and
+ * `replace` and `transform` are compiled as the new reading arriving beside the
+ * old with a dashed arrow between them — which is what a person at a real board
+ * does when they cannot erase. The engine that can do all of it is Slate's own
+ * renderer, `components/slate/draw.ts`; this one is the translation, and a
+ * translation that quietly invents the missing tense is worse than one that
+ * says "and then this became that".
  */
 
 export interface SlateBoardResult {
@@ -57,6 +75,10 @@ const KINDS: Record<string, ShapeKind> = {
   actor: 'oval',
   step: 'box',
   choice: 'diamond',
+  branch: 'diamond',
+  // A group is a boundary, drawn dashed below so it reads as belonging rather
+  // than as another part.
+  group: 'box',
   store: 'ellipse',
   stk: 'stack',
   arr: 'array',
@@ -69,6 +91,7 @@ const KINDS: Record<string, ShapeKind> = {
   lab: 'label',
   callout: 'text',
   txt: 'text',
+  item: 'text',
 }
 
 const CHART_KIND: Record<string, ShapeKind> = {
@@ -108,6 +131,33 @@ const SIZE: Record<string, { w: number; h: number }> = {
   linechart: { w: 620, h: 400 },
   ring: { w: 320, h: 150 },
   highlight: { w: 320, h: 60 },
+}
+
+/** A morph, in the shape `emit` wants. Only the four fields it reads matter. */
+function asNode(source: {
+  text: string
+  stat: string | null
+  role: string | null
+  beat: number
+}): SlateNode {
+  return {
+    kind: 'box',
+    name: null,
+    text: source.text,
+    stat: source.stat,
+    role: source.role,
+    colour: null,
+    layout: null,
+    beatTok: null,
+    beat: source.beat,
+    beatEnd: 0,
+    shared: false,
+    held: false,
+    children: [],
+    rows: [],
+    arms: [],
+    line: 0,
+  }
 }
 
 /** Enough of a sentence to be found in the alignment, short enough to be exact. */
@@ -198,8 +248,66 @@ function compileScene(roles: Record<string, string>, scene: SlateScene): Scene {
     return shape
   }
 
-  const walk = (node: SlateNode, parent: string | null) => {
-    if (node.kind === 'arrow') return
+  /** An arrow between two shapes that already exist. */
+  const link = (
+    from: string,
+    to: string,
+    text: string,
+    beat: number,
+    dash: BoardShape['dash'] = 'draw'
+  ) => {
+    const timed = timing(beat)
+    shapes.push({
+      id: `a${shapes.length}`,
+      kind: 'arrow',
+      text,
+      x: 0,
+      y: 0,
+      w: 200,
+      h: 0,
+      from,
+      to,
+      parent: null,
+      color: 'black',
+      fill: 'none',
+      size: 'm',
+      dash,
+      at: timed.at,
+      anchor: timed.anchor,
+      points: [],
+      data: [],
+    })
+  }
+
+  /** Returns the id of the shape a line produced, for the things that join. */
+  const walk = (node: SlateNode, parent: string | null): string | null => {
+    if (node.kind === 'arrow' || node.kind === 'rel') return null
+
+    // Pure arrangement. The board flows its shapes itself, so a `row` or the
+    // two halves of a `compare` are simply their contents — the one thing the
+    // board layout is already good at is putting siblings beside each other.
+    if ((LAYOUT_KINDS as readonly string[]).includes(node.kind) || node.kind === 'compare') {
+      for (const child of node.children) walk(child, parent)
+      return null
+    }
+
+    // A sequence, with the arrows the author did not have to write. Each
+    // connector takes the beat of the step it leads to, so the line is drawn as
+    // the voice reaches the thing at the end of it.
+    if (node.kind === 'flow') {
+      const made: { id: string; beat: number }[] = []
+      for (const child of node.children) {
+        const id = walk(child, parent)
+        if (id) made.push({ id, beat: child.beat })
+      }
+      for (let i = 0; i + 1 < made.length; i++) {
+        link(made[i].id, made[i + 1].id, i === 0 ? node.text : '', made[i + 1].beat)
+      }
+      if (node.layout === 'cycle' && made.length > 1) {
+        link(made[made.length - 1].id, made[0].id, '', made[made.length - 1].beat, 'dashed')
+      }
+      return null
+    }
 
     // A chart's numbers live in `data`, and its rows are the numbers.
     if (node.kind === 'chart') {
@@ -217,11 +325,11 @@ function compileScene(roles: Record<string, string>, scene: SlateScene): Scene {
       // A chart arrives whole — it is one picture, and half a chart is a lie.
       const first = node.rows.find((row) => row.beat)
       if (first) Object.assign(shape, timing(first.beat))
-      return
+      return shape.id
     }
 
     const kind = KINDS[node.kind]
-    if (!kind) return
+    if (!kind) return null
 
     // A block whose rows are separately timed becomes one shape per row. The
     // board has no way to reveal the third layer of a stack on its own beat,
@@ -242,7 +350,7 @@ function compileScene(roles: Record<string, string>, scene: SlateScene): Scene {
           ...beat,
         })
       }
-      return
+      return null
     }
     if (staggered && node.kind === 'tbl') {
       // One shard a row, sharing a group so the layout moves them as one block
@@ -281,7 +389,7 @@ function compileScene(roles: Record<string, string>, scene: SlateScene): Scene {
         shard.h = withHeader ? 110 : 56
         stacked += shard.h + 4
       }
-      return
+      return null
     }
 
     const shape = emit(node, kind, { parent })
@@ -294,50 +402,104 @@ function compileScene(roles: Record<string, string>, scene: SlateScene): Scene {
         shape.text = node.rows.map((row) => (row.cells ?? []).join('|')).join('\n')
       }
     }
+    // A captioned symbol is a glyph and a line of words. The board has no
+    // single shape for that pairing, so it becomes the glyph with the words
+    // attached under it — which is where they sit anyway.
+    if (node.kind === 'sym' || node.kind === 'ico') {
+      const [glyph, caption] = splitCaption(node.text)
+      shape.text = glyph
+      if (caption) {
+        emit(asNode({ text: caption, stat: null, role: node.role, beat: node.beat }), 'text', {
+          id: `${shape.id}-said`,
+          parent: shape.id,
+          size: 's',
+        })
+      }
+    }
     if (node.kind === 'callout') shape.size = 'l'
     if (node.kind === 'code') shape.text = node.text.split(' / ').join('\n')
     if (node.kind === 'arr' && !node.rows.length) shape.text = node.text.split(',').map((c) => c.trim()).join('|')
+    // A boundary rather than a part: dashed, so a group of three boxes does not
+    // read as a fourth box with three inside it.
+    if (node.kind === 'group') shape.dash = 'dashed'
 
     for (const child of node.children) walk(child, shape.id)
+    // A fork's ways out, once the decision has an id to leave from.
+    for (const arm of node.arms) armLinks.push({ from: shape.id, arm })
+    return shape.id
   }
+
+  /** Deferred until every shape exists, the same way arrows are. */
+  const armLinks: { from: string; arm: SlateNode['arms'][number] }[] = []
 
   for (const row of scene.rows) for (const node of row) walk(node, null)
 
-  // Arrows, once every end exists to point at.
+  // A replacement is a shape in its own right here: the board cannot erase, so
+  // the exchange is drawn as the new reading arriving with a dashed line from
+  // what it replaced.
+  const swapLinks: { from: string; to: string; beat: number }[] = []
+  for (const swap of scene.swaps) {
+    if (swap.node) walk(swap.node, null)
+    swapLinks.push({ from: swap.from, to: swap.to, beat: swap.beat })
+  }
+
+  // Likewise a transform: the same shape saying something new is two shapes
+  // here, joined, which is what a person at a real board draws when they have
+  // run out of eraser.
+  for (const morph of scene.morphs) {
+    const source = shapes.find((shape) => shape.id === morph.target)
+    if (!source) continue
+    const become = emit(asNode(morph), source.kind, {
+      id: `${morph.target}-${morph.beat}`,
+      parent: source.parent,
+    })
+    swapLinks.push({ from: morph.target, to: become.id, beat: morph.beat })
+  }
+
+  // Connectors, once every end exists to point at.
   const drawn = new Set(shapes.map((shape) => shape.id))
   for (const node of allNodes(scene)) {
-    if (node.kind !== 'arrow') continue
+    if (node.kind !== 'arrow' && node.kind !== 'rel') continue
     const ends = node.names ?? []
+
+    // A named relationship has no direction of travel, and the board has no
+    // connector that says so — so it is drawn dashed and *labelled with the
+    // relation*, which at least stops "shares" reading as "becomes".
+    if (node.kind === 'rel') {
+      if (!drawn.has(ends[0]) || !drawn.has(ends[1])) continue
+      link(ends[0], ends[1], [node.rel, node.text].filter(Boolean).join(' · '), node.beat, 'dashed')
+      continue
+    }
+
     // A chain is sugar for one arrow a link, so `-> a b c` is two arrows.
     for (let i = 0; i + 1 < ends.length; i++) {
       if (!drawn.has(ends[i]) || !drawn.has(ends[i + 1])) continue
-      const beat = timing(node.beat)
-      shapes.push({
-        id: `a${shapes.length}`,
-        kind: 'arrow',
-        text: i === 0 ? node.text : '',
-        x: 0,
-        y: 0,
-        w: 200,
-        h: 0,
-        from: ends[i],
-        to: ends[i + 1],
-        parent: null,
-        color: 'black',
-        fill: 'none',
-        size: 'm',
-        dash: node.style === '-->' ? 'dashed' : 'draw',
-        at: beat.at,
-        anchor: beat.anchor,
-        points: [],
-        data: [],
-      })
+      link(
+        ends[i],
+        ends[i + 1],
+        i === 0 ? node.text : '',
+        node.beat,
+        node.style === '-->' ? 'dashed' : 'draw'
+      )
+    }
+  }
+
+  for (const { from, arm } of armLinks) {
+    if (drawn.has(from) && drawn.has(arm.target)) link(from, arm.target, arm.label, arm.beat)
+  }
+  for (const swap of swapLinks) {
+    if (drawn.has(swap.from) && drawn.has(swap.to)) {
+      link(swap.from, swap.to, 'becomes', swap.beat, 'dashed')
     }
   }
 
   // Marks: point at what is already there rather than drawing it again.
   for (const mark of scene.marks) {
-    const target = shapes.find((shape) => shape.id === mark.target)
+    // A row of a block gets the whole block marked. The board splits a
+    // staggered block into shards with generated ids, so there is no row to
+    // aim at — and ringing the table is closer to the intent than ringing
+    // nothing, which is what happened before.
+    const target = shapes.find((shape) => shape.id === splitTarget(mark.target).name)
     if (!target) continue
     const beat = timing(mark.beat)
 
@@ -365,9 +527,11 @@ function compileScene(roles: Record<string, string>, scene: SlateScene): Scene {
       })
       continue
     }
-    // `dim` has no board equivalent — nothing can be pushed back once drawn —
-    // so it is dropped rather than faked with a ring that means the opposite.
-    if (mark.kind === 'dim') continue
+    // `dim`, `hide` and `show` have no board equivalent — ink goes on and stays
+    // — so they are dropped rather than faked with a mark that means something
+    // else. `focus` keeps the half it can honour: the ring round what matters,
+    // without the pushing back of everything else.
+    if (mark.kind === 'dim' || mark.kind === 'hide' || mark.kind === 'show') continue
 
     shapes.push({
       id: `m${shapes.length}`,
@@ -381,7 +545,7 @@ function compileScene(roles: Record<string, string>, scene: SlateScene): Scene {
       from: null,
       to: null,
       parent: null,
-      color: mark.kind === 'hl' ? 'yellow' : 'red',
+      color: mark.kind === 'hl' ? 'yellow' : mark.kind === 'focus' ? 'violet' : 'red',
       fill: 'none',
       size: 'm',
       dash: 'draw',

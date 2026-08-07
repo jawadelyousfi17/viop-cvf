@@ -6,8 +6,9 @@ import type { Provider } from '@/lib/providers'
 import { DEFAULT_VOICE_ID, type VoiceId } from '@/lib/voices'
 import { Narrator } from '../narrator'
 import { parseLesson, parseScript, type SlateLesson } from '@/lib/slate'
+import { looksLikeYaml, parseYamlLesson } from '@/lib/slate-yaml'
 import { lint } from '@/lib/slate-lint'
-import { drawScene, showBeat } from './draw'
+import { drawScene, roughen, showBeat } from './draw'
 import './slate.css'
 
 /**
@@ -28,6 +29,25 @@ interface Cue {
 
 const WORDS_PER_SECOND = 2.6
 
+/**
+ * The boards that ship with the engine.
+ *
+ * Two, deliberately. One is a sequence of questions and answers, which is what
+ * the language was first built for; the other is a diagram that argues, changes
+ * and gets pointed at, which is what `group`, `compare`, `focus` and
+ * `transform` were built for. A language demonstrated on one kind of lesson
+ * only looks general until you try the other.
+ */
+const EXAMPLES = [
+  { id: 'dns', label: 'dns', board: 'dns.slate', script: 'dns.script.md' },
+  { id: 'docker', label: 'docker', board: 'docker.slate', script: 'docker.script.md' },
+  // The same board, written the other way. Shipped side by side because the
+  // only useful way to judge a format is to read one document in both.
+  { id: 'docker-yaml', label: 'docker · yaml', board: 'docker.yaml', script: 'docker.script.md' },
+] as const
+
+type ExampleId = (typeof EXAMPLES)[number]['id']
+
 /** Enough of a sentence to be unambiguous, short enough to be found. */
 const opening = (sentence: string) => sentence.split(/\s+/).slice(0, 7).join(' ')
 
@@ -43,19 +63,28 @@ export default function SlateStudio({
 }) {
   const [source, setSource] = useState('')
   const [script, setScript] = useState('')
+  const [example, setExample] = useState<ExampleId>('docker-yaml')
+  const [topic, setTopic] = useState('')
+  const [writing, setWriting] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
   const [beat, setBeat] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showChecks, setShowChecks] = useState(false)
   const [showDesk, setShowDesk] = useState(true)
 
-  // Reparsed as it is typed. The whole language is a few hundred lines of
-  // string handling, so this is cheaper than the render it feeds — and a
-  // language whose errors arrive a second late is one you argue with.
-  const lesson = useMemo<SlateLesson | null>(
-    () => (source.trim() ? parseLesson(source, parseScript(script)) : null),
-    [source, script]
-  )
+  // Which of the two front ends wrote this. Detected rather than configured:
+  // the two produce the same board, so the only thing the choice can break is
+  // the parse, and that is decidable from the first line.
+  const isYaml = useMemo(() => looksLikeYaml(source), [source])
+
+  // Reparsed as it is typed. Both parsers are a few hundred lines of string
+  // handling, so this is cheaper than the render it feeds — and a language
+  // whose errors arrive a second late is one you argue with.
+  const lesson = useMemo<SlateLesson | null>(() => {
+    if (!source.trim()) return null
+    const words = parseScript(script)
+    return isYaml ? parseYamlLesson(source, words) : parseLesson(source, words)
+  }, [source, script, isYaml])
   const problems = useMemo(() => (lesson ? lint(lesson) : []), [lesson])
   const ready = Boolean(lesson)
 
@@ -74,22 +103,31 @@ export default function SlateStudio({
   // anyone has written a line, or the first impression is an empty box.
   useEffect(() => {
     let live = true
+    const chosen = EXAMPLES.find((e) => e.id === example) ?? EXAMPLES[0]
     void Promise.all([
-      fetch('/api/slate?name=dns.slate').then((r) => r.text()),
-      fetch('/api/slate?name=dns.script.md').then((r) => r.text()),
+      fetch(`/api/slate?name=${chosen.board}`).then((r) => r.text()),
+      fetch(`/api/slate?name=${chosen.script}`).then((r) => r.text()),
     ])
       .then(([board, words]) => {
         if (!live) return
         setSource(board)
         setScript(words)
+        setSceneIndex(0)
+        setIsPlaying(false)
       })
       .catch(() => {})
     return () => {
       live = false
+    }
+  }, [example])
+
+  useEffect(
+    () => () => {
       narratorRef.current?.dispose()
       audioRef.current?.pause()
-    }
-  }, [])
+    },
+    []
+  )
 
   // The animation loop reads the lesson through a ref, so a keystroke in the
   // source does not restart the scene being played.
@@ -115,19 +153,35 @@ export default function SlateStudio({
 
     // Every scene is drawn once in order first, so a `carry` in scene nine can
     // find a shape that scene seven defined without having played it.
+    //
+    // What is registered is the *pristine* copy, not the one in the document. A
+    // scene that transforms a shape it carried would otherwise hand the
+    // transformed version forward, and since the current scene is drawn twice —
+    // once here and once to display — every redraw would transform it again.
     const registry: Record<string, HTMLElement> = {}
     for (const past of lesson.scenes) {
-      const { byName } = drawScene(lesson, past, registry)
-      Object.assign(registry, byName)
+      Object.assign(registry, drawScene(lesson, past, registry).pristine)
     }
     registryRef.current = registry
 
-    const { fragment, byName } = drawScene(lesson, scene, registry)
+    const { fragment, pristine } = drawScene(lesson, scene, registry)
     board.textContent = ''
     board.appendChild(fragment)
-    Object.assign(registryRef.current, byName)
+    Object.assign(registryRef.current, pristine)
     showBeat(board, 0)
     setBeat(0)
+
+    // Outlines are drawn by hand, which means drawn after layout — and again
+    // whenever layout changes underneath them. The font is the one that catches
+    // people out: the board is laid out in the fallback face, every box is
+    // sized to it, and then the real hand arrives and every box is a different
+    // width with a straight-edged border still pinned to the old one.
+    roughen(board)
+    void document.fonts?.ready.then(() => roughen(board))
+
+    const observer = new ResizeObserver(() => roughen(board))
+    observer.observe(board)
+    return () => observer.disconnect()
   }, [lesson, scene])
 
   // The voice, and the clock it puts the beats on.
@@ -224,6 +278,47 @@ export default function SlateStudio({
     }
   }, [beat])
 
+  /**
+   * Asks the model for a board and streams it into the source pane.
+   *
+   * Written straight into the editor rather than into some hidden state: what
+   * arrives is a document, the same one a person would have typed, and being
+   * able to watch it land — and then fix a line of it — is most of what makes
+   * a generated board usable.
+   */
+  const write = useCallback(async () => {
+    if (!topic.trim() || writing) return
+    setWriting(true)
+    setIsPlaying(false)
+    setSource('')
+    try {
+      const response = await fetch('/api/slate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ topic, provider, model }),
+      })
+      if (!response.ok || !response.body) {
+        const { error } = await response.json().catch(() => ({ error: 'Could not reach the model.' }))
+        setSource(`# ${error}\n`)
+        return
+      }
+      // A board written by a script keeps that script; a board written from a
+      // topic brings its own narration, so the old words have to go.
+      setScript('')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let text = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        text += decoder.decode(value, { stream: true })
+        setSource(text)
+      }
+    } finally {
+      setWriting(false)
+    }
+  }, [topic, writing, provider, model])
+
   const goToBeat = useCallback((n: number) => {
     setIsPlaying(false)
     const cue = cuesRef.current.find((c) => c.beat === n)
@@ -235,7 +330,7 @@ export default function SlateStudio({
   const beats = scene?.beats ?? []
 
   return (
-    <main className="slate flex h-dvh flex-col overflow-hidden">
+    <main className={`slate flex h-dvh flex-col overflow-hidden${showDesk ? ' tagged' : ''}`}>
       <header className="flex flex-wrap items-baseline gap-4 border-b border-[var(--rule)] bg-[var(--slate-deep)] px-4 py-3">
         <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--chalk-faint)]">
           slate <b className="font-medium text-[var(--c-violet)]">engine</b>
@@ -258,9 +353,40 @@ export default function SlateStudio({
       <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: showDesk ? 'minmax(280px,360px) minmax(0,1fr)' : '0 minmax(0,1fr)' }}>
         {showDesk && (
           <section className="flex min-h-0 flex-col border-r border-[var(--rule)] bg-[var(--slate-deep)]">
-            <p className="border-b border-[var(--rule)] px-3 py-2 text-[12px] text-[var(--chalk-faint)]">
-              Slate source. Shapes are timed with <span className="mono">|3</span>.
-            </p>
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--rule)] px-3 py-2">
+              <span
+                className="mono rounded-sm border border-[var(--rule)] px-2 py-1 text-[10px] uppercase tracking-[0.16em]"
+                style={{ color: isYaml ? 'var(--c-violet)' : 'var(--chalk-faint)' }}
+                title="Which front end parsed this document"
+              >
+                {isYaml ? 'yaml' : 'slate'}
+              </span>
+              <p className="m-0 mr-auto text-[12px] text-[var(--chalk-faint)]">
+                Timed with <span className="mono">{isYaml ? 'at: 3' : '|3'}</span>.
+              </p>
+              {EXAMPLES.map((choice) => (
+                <Chip
+                  key={choice.id}
+                  onClick={() => setExample(choice.id)}
+                  pressed={example === choice.id}
+                >
+                  {choice.label}
+                </Chip>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 border-b border-[var(--rule)] px-3 py-2">
+              <input
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                onKeyDown={(event) => event.key === 'Enter' && void write()}
+                placeholder="a topic to teach…"
+                className="mono min-w-0 flex-1 rounded-sm border border-[var(--rule)] bg-[var(--slate-edge)] px-2 py-1.5 text-[12px] text-[var(--chalk)] outline-none placeholder:text-[var(--chalk-faint)]"
+              />
+              <Chip onClick={() => void write()} pressed={writing}>
+                {writing ? 'writing…' : 'write yaml'}
+              </Chip>
+            </div>
             <textarea
               value={source}
               onChange={(event) => setSource(event.target.value)}
