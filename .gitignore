@@ -42,5 +42,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Synthesised narration, cached so a script is only ever paid for once.
-.cache/
+# Synthesised narration is committed on purpose: a saved script's words never
+# change, so its recording is content, not a build artefact. Paying ElevenLabs
+# once per clone — and re-deriving the timestamps the board needs — is the
+# thing this avoids. Keyed by text+provider+voice+model, so nothing here goes
+# stale; a changed script is a new key, not a bad hit.
+# Anything else under .cache/ is a real cache and stays ignored.
+.cache/*
+!.cache/tts/
