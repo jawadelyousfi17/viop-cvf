@@ -229,57 +229,66 @@ export const PLATES: Plate[] = [
         </g>
 
         <Fade k={c.at(1)}>
-          <text x={150} y={250} className="tech" fontSize={15} fill="var(--graphite)">
-            no operating system, no kernel of its own
+          <text x={150} y={238} className="tech" fontSize={15} fill="var(--graphite)">
+            it never boots an operating system, and needs no kernel of its own
           </text>
         </Fade>
 
-        {/* One line for the host, one small box standing on it. */}
-        <g transform="translate(200 560)">
-          <Ink d={`M0 0H1200`} k={c.at(1, 1.2)} className="stroke" />
+        {/* One line for the host; everything stands on it. */}
+        <g transform="translate(160 560)">
+          <Ink d={`M0 0H1290`} k={c.at(1, 1.2)} className="stroke" />
           <Fade k={c.at(1, 1.4)}>
             <text x={0} y={30} className="micro">
               the host
             </text>
           </Fade>
 
-          <g transform="translate(120 -110)">
-            <Crate k={c.at(2)} w={150} h={104} tone="hot" />
+          <g transform="translate(60 -190)">
+            <Crate k={c.at(2)} w={230} h={186} tone="hot" />
             <Fade k={c.at(2, 1.4)}>
-              <text x={75} y={-20} textAnchor="middle" className="tech" fontSize={13} fill="var(--hot)">
+              <text x={115} y={-24} textAnchor="middle" className="tech" fontSize={15} fill="var(--hot)">
                 one ordinary process
               </text>
             </Fade>
+            <Call
+              x={-40}
+              y={70}
+              to={[0, 88]}
+              text="no guest OS inside it"
+              k={c.at(3)}
+              align="end"
+            />
           </g>
 
-          <g transform="translate(560 -96)">
-            <Die k={c.at(4)} s={92} />
+          <g transform="translate(560 -150)">
+            <Die k={c.at(4)} s={146} />
             <Fade k={c.at(4, 1.4)}>
-              <text x={46} y={116} textAnchor="middle" className="tech" fontSize={13} fill="var(--cool)">
+              <text x={73} y={182} textAnchor="middle" className="tech" fontSize={15} fill="var(--cool)">
                 the host kernel
               </text>
             </Fade>
           </g>
 
+          {/* The shared line sits clear of its own label. */}
           <Ink
-            d={`M270 -58H600`}
+            d={`M290 -96H560`}
             k={c.at(4, 1.2)}
             className="stroke hair cool"
             style={{ strokeDasharray: '6 6' }}
           />
           <Fade k={c.at(4, 1.5)}>
-            <text x={435} y={-70} textAnchor="middle" className="tech" fontSize={12} fill="var(--cool)">
+            <text x={425} y={-112} textAnchor="middle" className="tech" fontSize={13} fill="var(--cool)">
               shared with every container
             </text>
           </Fade>
 
-          <g transform="translate(880 -150)">
-            <Watch k={c.at(5)} spin={ease(c.at(5, 1.2)) * 6} r={40} />
+          <g transform="translate(940 -196)">
+            <Watch k={c.at(5)} spin={ease(c.at(5, 1.2)) * 6} r={56} />
             <Fade k={c.at(5, 1.4)}>
-              <text x={40} y={122} textAnchor="middle" className="tech" fontSize={13} fill="var(--good)">
+              <text x={56} y={152} textAnchor="middle" className="tech" fontSize={15} fill="var(--good)">
                 starts almost instantly
               </text>
-              <text x={40} y={144} textAnchor="middle" className="tech" fontSize={12} fill="var(--faint)">
+              <text x={56} y={178} textAnchor="middle" className="tech" fontSize={13} fill="var(--faint)">
                 only the memory it actually uses
               </text>
             </Fade>
@@ -779,75 +788,80 @@ export const PLATES: Plate[] = [
     title: 'Swap the root entirely',
     render: (c) => {
       const swing = ease(c.at(3))
+      // The warning is answered by the next beat, so it leaves when the answer
+      // arrives. A statement that has been superseded and stays on the plate
+      // is read as still true.
+      const warning = clamp(ease(c.at(5)) - ease(c.at(6)))
       return (
         <g transform={drift(c.p)}>
           <g transform="translate(120 110)">
             <Heading n={10} of={17} title="Swap the root entirely" k={c.at(1)} />
           </g>
 
-          <g transform="translate(150 260)">
-            <Ink d={box(0, 0, 420, 74, 3)} k={c.at(1, 1.1)} className="stroke cool" />
-            <Type x={26} y={46} text="pivot_root(new, old)" k={c.at(1, 1.4)} size={19} />
+          <g transform="translate(150 250)">
+            <Ink d={box(0, 0, 470, 82, 3)} k={c.at(1, 1.1)} className="stroke cool" />
+            <Type x={28} y={52} text="pivot_root(new, old)" k={c.at(1, 1.4)} size={20} />
           </g>
 
           <g transform="translate(150 400)">
             {[
               ['chroot', 'restricts the view', ''],
               ['pivot_root', 'replaces the root', 'cool'],
-            ].map(([a, b, tone], i) => (
-              <g key={a} transform={`translate(0 ${i * 108})`}>
-                <Ink d={box(0, 0, 420, 84, 3)} k={c.at(2, 1 + i * 0.3)} className={`stroke ${tone || 'hair'}`} />
+            ].map(([a2, b2, tone], i) => (
+              <g key={a2} transform={`translate(0 ${i * 116})`}>
+                <Ink d={box(0, 0, 470, 92, 3)} k={c.at(2, 1 + i * 0.3)} className={`stroke ${tone || 'hair'}`} />
                 <Fade k={c.at(2, 1.3 + i * 0.3)}>
-                  <text x={24} y={36} className="tech" fontSize={18} fill={tone ? 'var(--cool)' : 'var(--graphite)'}>
-                    {a}
+                  <text x={26} y={40} className="tech" fontSize={19} fill={tone ? 'var(--cool)' : 'var(--graphite)'}>
+                    {a2}
                   </text>
-                  <text x={24} y={62} className="tech" fontSize={13} fill="var(--faint)">
-                    {b}
+                  <text x={26} y={68} className="tech" fontSize={13} fill="var(--faint)">
+                    {b2}
                   </text>
                 </Fade>
               </g>
             ))}
           </g>
 
-          {/* The old tree swings away; the new one takes its place. */}
-          <g transform="translate(760 250)">
+          {/* The old tree leaves the plate entirely rather than lying under it. */}
+          <g transform="translate(790 240)">
             <g
-              transform={`translate(${swing * 240} ${swing * 90}) rotate(${swing * 16} 150 200)`}
-              opacity={1 - swing * 0.75}
+              transform={`translate(${swing * 420} ${swing * 210}) rotate(${swing * 22} 170 220)`}
+              opacity={(1 - swing) * 0.9}
             >
-              <Ink d={box(0, 0, 300, 400, 3)} k={c.at(1, 1.2)} className="stroke hair" />
-              <Fade k={c.at(1, 1.5)}>
-                <text x={150} y={210} textAnchor="middle" className="tech" fontSize={14} fill="var(--faint)">
+              <Ink d={box(0, 0, 340, 440, 3)} k={c.at(1, 1.2)} className="stroke hair" />
+              <Fade k={clamp(c.at(1, 1.5) - swing * 2)}>
+                <text x={170} y={230} textAnchor="middle" className="tech" fontSize={14} fill="var(--faint)">
                   the host&rsquo;s original tree
                 </text>
               </Fade>
-              <Fade k={c.at(3, 1.4)}>
-                <text x={150} y={240} textAnchor="middle" className="tech" fontSize={12} fill="var(--faint)">
-                  safely disconnected
-                </text>
-              </Fade>
             </g>
+            <Fade k={clamp(swing * 1.6 - 0.5)}>
+              <text x={480} y={470} textAnchor="middle" className="tech" fontSize={13} fill="var(--faint)">
+                safely disconnected
+              </text>
+            </Fade>
 
             <Fade k={c.at(4)}>
               <g>
-                <Ink d={box(0, 0, 300, 400, 3)} k={c.at(4)} className="stroke cool" />
-                <text x={150} y={-16} textAnchor="middle" className="micro">
+                <Ink d={box(0, 0, 340, 440, 3)} k={c.at(4)} className="stroke cool" />
+                <text x={170} y={-18} textAnchor="middle" className="micro">
                   the new root
                 </text>
               </g>
             </Fade>
-            <Fade k={c.at(5)}>
-              <text x={150} y={200} textAnchor="middle" className="tech" fontSize={14} fill="var(--hot)">
+
+            {/* Sits above the box, and goes when the box fills. */}
+            <g opacity={warning}>
+              <text x={170} y={-46} textAnchor="middle" className="tech" fontSize={15} fill="var(--hot)">
                 but it cannot be empty
               </text>
-            </Fade>
+            </g>
 
-            {/* It fills. */}
             {['/bin', '/lib', '/usr', 'your app'].map((name, i) => (
-              <Fade key={name} k={c.at(6, 1 + i * 0.22)}>
-                <g transform={`translate(30 ${60 + i * 62})`}>
-                  <Ink d={box(0, 0, 240, 46, 2)} k={c.at(6, 1 + i * 0.22)} className="stroke hair cool" />
-                  <text x={16} y={30} className="tech" fontSize={14} fill="var(--graphite)">
+              <Fade key={name} k={c.at(6, 1 + i * 0.25)}>
+                <g transform={`translate(36 ${64 + i * 90})`}>
+                  <Ink d={box(0, 0, 268, 62, 2)} k={c.at(6, 1 + i * 0.25)} className="stroke hair cool" />
+                  <text x={20} y={39} className="tech" fontSize={16} fill="var(--graphite)">
                     {name}
                   </text>
                 </g>
@@ -856,10 +870,10 @@ export const PLATES: Plate[] = [
           </g>
 
           <Fade k={c.at(7)}>
-            <text x={1200} y={760} textAnchor="middle" className="title" fontSize={44} fill="var(--ink)">
+            <text x={1310} y={800} textAnchor="middle" className="title" fontSize={44} fill="var(--ink)">
               a docker image
             </text>
-            <text x={1200} y={794} textAnchor="middle" className="tech" fontSize={13} fill="var(--graphite)">
+            <text x={1310} y={834} textAnchor="middle" className="tech" fontSize={13} fill="var(--graphite)">
               is exactly that, pre-filled
             </text>
           </Fade>
@@ -968,76 +982,75 @@ export const PLATES: Plate[] = [
             <Heading n={12} of={17} title="Frozen, plus one thin layer" k={c.at(1)} />
           </g>
 
-          <g transform="translate(190 400)">
+          <g transform="translate(160 330)">
             {[0, 1, 2].map((i) => (
-              <g key={i} transform={`translate(0 ${(2 - i) * 74 + 60})`}>
-                <Ink d={box(0, 0, 460, 62, 2)} k={c.at(1, 1 + i * 0.2)} className="stroke hair" />
+              <g key={i} transform={`translate(0 ${(2 - i) * 84 + 62})`}>
+                <Ink d={box(0, 0, 470, 70, 2)} k={c.at(1, 1 + i * 0.2)} className="stroke hair" />
                 <Fade k={c.at(1, 1.3 + i * 0.2)}>
-                  <text x={20} y={38} className="tech" fontSize={14} fill="var(--faint)">
+                  <text x={22} y={43} className="tech" fontSize={15} fill="var(--faint)">
                     read-only layer
                   </text>
                 </Fade>
               </g>
             ))}
-            {/* The thin writable one. */}
             <g transform="translate(0 22)">
-              <Ink d={box(0, 0, 460, 30, 2)} k={c.at(2)} className="stroke hot" />
+              <Ink d={box(0, 0, 470, 34, 2)} k={c.at(2)} className="stroke hot" />
               <Fade k={c.at(2, 1.3)}>
-                <text x={20} y={21} className="tech" fontSize={13} fill="var(--hot)">
+                <text x={22} y={24} className="tech" fontSize={14} fill="var(--hot)">
                   thin writable layer
                 </text>
               </Fade>
             </g>
 
-            {/* copy-up: the file rises from a lower layer to the top. */}
-            <g transform={`translate(${520} ${230 - lift * 200})`} opacity={ease(c.at(3))}>
-              <Sheet k={c.at(3)} tone={lift > 0.5 ? 'hot' : ''} />
+            {/* copy-up: the file rises from a lower course into the top one. */}
+            <g transform={`translate(540 ${252 - lift * 214})`} opacity={ease(c.at(3))}>
+              <Sheet k={c.at(3)} w={54} h={68} tone={lift > 0.5 ? 'hot' : ''} />
             </g>
-            <Ink
-              d={`M544 240C600 200 600 120 544 60`}
-              k={c.at(4)}
-              className="stroke hair hot"
-            />
+            <Ink d={`M528 268C596 220 596 110 540 62`} k={c.at(4)} className="stroke hair hot" />
+
+            {/* Below the stack, clear of the right-hand column entirely. */}
             <Fade k={c.at(5)}>
-              <text x={620} y={140} className="tech" fontSize={13} fill="var(--hot)">
-                copied up, then changed
+              <text x={0} y={366} className="tech" fontSize={15} fill="var(--hot)">
+                copied up into the writable layer, and the copy is changed
               </text>
-              <text x={620} y={164} className="tech" fontSize={13} fill="var(--graphite)">
-                the original is never touched
+              <text x={0} y={392} className="tech" fontSize={14} fill="var(--graphite)">
+                the original is never touched — the old version is simply hidden underneath
               </text>
             </Fade>
           </g>
 
-          {/* Ten containers, one stack. */}
-          <g transform="translate(980 300)">
+          <g transform="translate(1020 300)">
             <Fade k={c.at(6)}>
-              <text className="micro" y={-16}>
-                ten containers
+              <text className="micro" y={-18}>
+                ten containers, one image
               </text>
             </Fade>
             {Array.from({ length: 10 }, (_, i) => (
               <Fade key={i} k={c.at(6, 1 + i * 0.06)}>
-                <g transform={`translate(${(i % 5) * 84} ${Math.floor(i / 5) * 74})`}>
-                  <Ink d={box(0, 0, 68, 30, 2)} k={c.at(6, 1 + i * 0.06)} className="stroke hot" />
+                <g transform={`translate(${(i % 5) * 92} ${Math.floor(i / 5) * 80})`}>
+                  <Ink d={box(0, 0, 74, 34, 2)} k={c.at(6, 1 + i * 0.06)} className="stroke hot" />
                 </g>
               </Fade>
             ))}
             <Fade k={c.at(7)}>
-              <text y={210} className="tech" fontSize={14} fill="var(--good)">
+              <text y={220} className="tech" fontSize={15} fill="var(--good)">
                 one copy of the layers, shared
               </text>
-              <text y={234} className="tech" fontSize={13} fill="var(--faint)">
+              <text y={246} className="tech" fontSize={13} fill="var(--faint)">
                 on disk and in memory
               </text>
             </Fade>
             <Fade k={c.at(8)}>
-              <g transform="translate(0 300)">
-                <Ink d={box(0, 0, 420, 96, 3)} k={c.at(8)} className="stroke amber" />
-                <text x={20} y={38} className="tech" fontSize={14} fill="var(--amber)">
+              <g transform="translate(0 310)">
+                <Ink d={box(0, 0, 470, 108, 3)} k={c.at(8)} className="stroke amber" />
+                <text x={24} y={42} className="tech" fontSize={15} fill="var(--amber)">
                   which is why order matters
                 </text>
-                <text x={20} y={66} className="tech" fontSize={13} fill="var(--graphite)">
-                  change a line near the top and everything below rebuilds
+                <text x={24} y={70} className="tech" fontSize={13} fill="var(--graphite)">
+                  change a line near the top
+                </text>
+                <text x={24} y={92} className="tech" fontSize={13} fill="var(--graphite)">
+                  and everything below it rebuilds
                 </text>
               </g>
             </Fade>
@@ -1287,7 +1300,7 @@ export const PLATES: Plate[] = [
             </Fade>
           </g>
 
-          <g transform="translate(560 250)">
+          <g transform="translate(700 250)">
             {[
               'sets up the namespaces',
               'configures the cgroups',
@@ -1300,7 +1313,7 @@ export const PLATES: Plate[] = [
                   <Ink d={`M0 0h22v22H0Z`} k={k} className="stroke hair" />
                   <Ink d={`M4 11l6 7 12-15`} k={clamp(k * 1.6 - 0.6)} className="stroke good" />
                   <Fade k={clamp(k * 1.4 - 0.4)}>
-                    <text x={42} y={18} className="tech" fontSize={16} fill="var(--graphite)">
+                    <text x={48} y={19} className="tech" fontSize={19} fill="var(--graphite)">
                       {step}
                     </text>
                   </Fade>
@@ -1330,16 +1343,16 @@ export const PLATES: Plate[] = [
               </Fade>
             </g>
             <Fade k={c.at(9)}>
-              <text x={340} y={100} className="tech" fontSize={13} fill="var(--graphite)">
+              <text x={330} y={98} className="tech" fontSize={15} fill="var(--graphite)">
                 adopts the container and stays for its whole life
               </text>
-              <text x={340} y={126} className="tech" fontSize={13} fill="var(--faint)">
+              <text x={330} y={126} className="tech" fontSize={14} fill="var(--faint)">
                 it keeps the process alive even if containerd restarts
               </text>
             </Fade>
             <Fade k={c.at(10)}>
-              <text x={340} y={168} className="tech" fontSize={13} fill="var(--faint)">
-                and grabs the exit code when it finally stops
+              <text x={330} y={168} className="tech" fontSize={14} fill="var(--faint)">
+                and grabs the exit code when the container finally stops
               </text>
             </Fade>
           </g>

@@ -21,8 +21,15 @@ interface Sheet {
   scenes: { n: number; start: number; end: number; beats: number[] }[]
 }
 
-/** How long a beat takes to land. Slower than a cut, faster than a thought. */
-const REVEAL = 1.15
+/**
+ * How long a beat takes to land.
+ *
+ * Beats are about three and a half seconds apart. At 1.15s the plate was
+ * mid-draw a third of the time, so any given glance caught something
+ * unfinished; at 0.62s it is settled for four fifths of every beat and the
+ * drawing reads as *arriving* rather than as perpetually half-made.
+ */
+const REVEAL = 0.62
 
 /** A plate with everything on it, for measuring the finished composition. */
 const FULL: Cue = { p: 0.5, beat: 99, t: 4, at: () => 1 }

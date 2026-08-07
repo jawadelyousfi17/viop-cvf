@@ -38,6 +38,18 @@ export const easeInOut = (x: number) =>
 export const mix = (a: number, b: number, k: number) => a + (b - a) * k
 
 /**
+ * One slice of a driver, for drawing a figure in the order a hand draws it.
+ *
+ * The outline finishes before the detail starts. Staggering every stroke by a
+ * small offset instead — which is what this replaced — meant that at any moment
+ * mid-draw you saw six things each a third finished: a scatter of fragments
+ * rather than a drawing in progress. A figure should look *unfinished* while it
+ * is being made, never broken.
+ */
+export const seg = (k: number, from: number, to: number) =>
+  clamp((clamp(k) - from) / (to - from))
+
+/**
  * A stroke that draws itself.
  *
  * `pathLength="1"` normalises the dash maths, so one driver works for a 40px
@@ -236,13 +248,13 @@ export function Crate({ k, w = 120, h = 84, tone = '' }: { k: number; w?: number
   const ribs = [0.22, 0.4, 0.58, 0.76]
   return (
     <g>
-      <Ink d={box(0, 0, w, h, 2)} k={k} className={`stroke ${tone}`} />
-      <Ink d={`M0 ${h * 0.24}H${w}`} k={clamp(k * 1.4 - 0.3)} className={`stroke hair ${tone}`} />
+      <Ink d={box(0, 0, w, h, 2)} k={seg(k, 0, 0.6)} className={`stroke ${tone}`} />
+      <Ink d={`M0 ${h * 0.24}H${w}`} k={seg(k, 0.58, 0.74)} className={`stroke hair ${tone}`} />
       {ribs.map((r, i) => (
         <Ink
           key={i}
           d={`M${w * r} ${h * 0.24}V${h}`}
-          k={clamp(k * 1.6 - 0.4 - i * 0.06)}
+          k={seg(k, 0.72 + i * 0.07, 0.79 + i * 0.07)}
           className={`stroke hair ${tone}`}
         />
       ))}
@@ -255,16 +267,19 @@ export function Die({ k, s = 76, tone = 'cool' }: { k: number; s?: number; tone?
   const legs = [0.28, 0.5, 0.72]
   return (
     <g>
-      <Ink d={box(s * 0.16, s * 0.16, s * 0.68, s * 0.68, 3)} k={k} className={`stroke ${tone}`} />
-      <Ink d={box(s * 0.34, s * 0.34, s * 0.32, s * 0.32, 1)} k={clamp(k * 1.5 - 0.4)} className={`stroke hair ${tone}`} />
-      {legs.map((p, i) => (
-        <g key={i}>
-          <Ink d={`M${s * p} ${s * 0.16}V${s * 0.04}`} k={clamp(k * 2 - 0.6 - i * 0.05)} className={`stroke hair ${tone}`} />
-          <Ink d={`M${s * p} ${s * 0.84}V${s * 0.96}`} k={clamp(k * 2 - 0.6 - i * 0.05)} className={`stroke hair ${tone}`} />
-          <Ink d={`M${s * 0.16} ${s * p}H${s * 0.04}`} k={clamp(k * 2 - 0.7 - i * 0.05)} className={`stroke hair ${tone}`} />
-          <Ink d={`M${s * 0.84} ${s * p}H${s * 0.96}`} k={clamp(k * 2 - 0.7 - i * 0.05)} className={`stroke hair ${tone}`} />
-        </g>
-      ))}
+      <Ink d={box(s * 0.16, s * 0.16, s * 0.68, s * 0.68, 3)} k={seg(k, 0, 0.5)} className={`stroke ${tone}`} />
+      <Ink d={box(s * 0.34, s * 0.34, s * 0.32, s * 0.32, 1)} k={seg(k, 0.48, 0.68)} className={`stroke hair ${tone}`} />
+      {legs.map((p, i) => {
+        const a = seg(k, 0.68 + i * 0.1, 0.78 + i * 0.1)
+        return (
+          <g key={i}>
+            <Ink d={`M${s * p} ${s * 0.16}V${s * 0.04}`} k={a} className={`stroke hair ${tone}`} />
+            <Ink d={`M${s * p} ${s * 0.84}V${s * 0.96}`} k={a} className={`stroke hair ${tone}`} />
+            <Ink d={`M${s * 0.16} ${s * p}H${s * 0.04}`} k={a} className={`stroke hair ${tone}`} />
+            <Ink d={`M${s * 0.84} ${s * p}H${s * 0.96}`} k={a} className={`stroke hair ${tone}`} />
+          </g>
+        )
+      })}
     </g>
   )
 }
@@ -276,7 +291,12 @@ export function Wall({ k, w = 120, h = 70, tone = 'hot' }: { k: number; w?: numb
   for (let r = 0; r < rows; r++) {
     const y = (h / rows) * r
     out.push(
-      <Ink key={`r${r}`} d={`M0 ${y}H${w}`} k={clamp(k * 2 - r * 0.22)} className={`stroke hair ${tone}`} />
+      <Ink
+        key={`r${r}`}
+        d={`M0 ${y}H${w}`}
+        k={seg(k, 0.4 + r * 0.13, 0.53 + r * 0.13)}
+        className={`stroke hair ${tone}`}
+      />
     )
     const offset = r % 2 ? 0 : w / 8
     for (let c = 0; c <= 4; c++) {
@@ -286,13 +306,13 @@ export function Wall({ k, w = 120, h = 70, tone = 'hot' }: { k: number; w?: numb
         <Ink
           key={`b${r}${c}`}
           d={`M${x} ${y}V${y + h / rows}`}
-          k={clamp(k * 2 - r * 0.22 - 0.1)}
+          k={seg(k, 0.46 + r * 0.13, 0.58 + r * 0.13)}
           className={`stroke hair ${tone}`}
         />
       )
     }
   }
-  out.push(<Ink key="edge" d={rect(0, 0, w, h)} k={k} className={`stroke ${tone}`} />)
+  out.push(<Ink key="edge" d={rect(0, 0, w, h)} k={seg(k, 0, 0.42)} className={`stroke ${tone}`} />)
   return <g>{out}</g>
 }
 
@@ -315,7 +335,7 @@ export function Meter({
         d={`M${r - Math.cos(Math.PI * 0.82) * r} ${r - Math.sin(Math.PI * 0.82) * r}A${r} ${r} 0 0 1 ${
           r - Math.cos(Math.PI * 0.18) * r
         } ${r - Math.sin(Math.PI * 0.18) * r}`}
-        k={k}
+        k={seg(k, 0, 0.5)}
         className={`stroke ${tone}`}
       />
       {[0, 0.25, 0.5, 0.75, 1].map((m, i) => {
@@ -326,17 +346,17 @@ export function Meter({
             d={`M${r - Math.cos(ta) * r} ${r - Math.sin(ta) * r}L${r - Math.cos(ta) * (r - 9)} ${
               r - Math.sin(ta) * (r - 9)
             }`}
-            k={clamp(k * 2 - 0.4)}
+            k={seg(k, 0.5 + i * 0.05, 0.6 + i * 0.05)}
             className="stroke hair"
           />
         )
       })}
       <Ink
         d={`M${r} ${r}L${r - Math.cos(a) * (r - 14)} ${r - Math.sin(a) * (r - 14)}`}
-        k={clamp(k * 3 - 1)}
+        k={seg(k, 0.78, 1)}
         className={`stroke heavy ${value > 0.92 ? 'hot' : tone}`}
       />
-      <circle cx={r} cy={r} r={3.4} className="fillink" opacity={ease(clamp(k * 3 - 1))} />
+      <circle cx={r} cy={r} r={3.4} className="fillink" opacity={ease(seg(k, 0.78, 1))} />
     </g>
   )
 }
@@ -345,17 +365,17 @@ export function Meter({
 export function Switchbox({ k, w = 150, h = 46 }: { k: number; w?: number; h?: number }) {
   return (
     <g>
-      <Ink d={box(0, 0, w, h, 3)} k={k} className="stroke cool" />
+      <Ink d={box(0, 0, w, h, 3)} k={seg(k, 0, 0.5)} className="stroke cool" />
       {[0.14, 0.3, 0.46, 0.62, 0.78].map((p, i) => (
         <Ink
           key={i}
           d={box(w * p - 8, h * 0.55, 16, 12, 1)}
-          k={clamp(k * 2 - 0.5 - i * 0.06)}
+          k={seg(k, 0.5 + i * 0.07, 0.6 + i * 0.07)}
           className="stroke hair cool"
         />
       ))}
-      <circle cx={w * 0.9} cy={h * 0.34} r={3} className="fillcool" opacity={ease(clamp(k * 2 - 1))} />
-      <circle cx={w * 0.9} cy={h * 0.62} r={3} className="fillcool" opacity={ease(clamp(k * 2 - 1.2))} />
+      <circle cx={w * 0.9} cy={h * 0.34} r={3} className="fillcool" opacity={ease(seg(k, 0.85, 1))} />
+      <circle cx={w * 0.9} cy={h * 0.62} r={3} className="fillcool" opacity={ease(seg(k, 0.9, 1))} />
     </g>
   )
 }
@@ -365,9 +385,9 @@ export function Watch({ k, spin, r = 34 }: { k: number; spin: number; r?: number
   const a = -Math.PI / 2 + spin * Math.PI * 2
   return (
     <g>
-      <Ink d={`M${r} 4a${r - 4} ${r - 4} 0 1 1-0.1 0Z`} k={k} className="stroke" />
-      <Ink d={`M${r - 9} 2h18`} k={clamp(k * 2 - 0.6)} className="stroke" />
-      <Ink d={`M${r} 2v6`} k={clamp(k * 2 - 0.6)} className="stroke hair" />
+      <Ink d={`M${r} 4a${r - 4} ${r - 4} 0 1 1-0.1 0Z`} k={seg(k, 0, 0.62)} className="stroke" />
+      <Ink d={`M${r - 9} 2h18`} k={seg(k, 0.6, 0.76)} className="stroke" />
+      <Ink d={`M${r} 2v6`} k={seg(k, 0.6, 0.76)} className="stroke hair" />
       <line
         x1={r}
         y1={r}
@@ -375,9 +395,9 @@ export function Watch({ k, spin, r = 34 }: { k: number; spin: number; r?: number
         y2={r + Math.sin(a) * (r - 13)}
         className="stroke hot"
         strokeWidth={2.4}
-        opacity={ease(clamp(k * 2 - 0.8))}
+        opacity={ease(seg(k, 0.76, 1))}
       />
-      <circle cx={r} cy={r} r={2.6} className="fillink" opacity={ease(clamp(k * 2 - 0.8))} />
+      <circle cx={r} cy={r} r={2.6} className="fillink" opacity={ease(seg(k, 0.76, 1))} />
     </g>
   )
 }
@@ -392,9 +412,9 @@ export function Sheet({ k, w = 44, h = 56, tone = '' }: { k: number; w?: number;
         k={k}
         className={`stroke ${tone}`}
       />
-      <Ink d={`M${w - fold} 0V${fold}H${w}`} k={clamp(k * 2 - 0.7)} className={`stroke hair ${tone}`} />
+      <Ink d={`M${w - fold} 0V${fold}H${w}`} k={seg(k, 0.55, 0.7)} className={`stroke hair ${tone}`} />
       {[0.5, 0.66, 0.82].map((p, i) => (
-        <Ink key={i} d={`M8 ${h * p}H${w - 8}`} k={clamp(k * 2 - 0.9 - i * 0.08)} className="stroke hair" />
+        <Ink key={i} d={`M8 ${h * p}H${w - 8}`} k={seg(k, 0.7 + i * 0.1, 0.8 + i * 0.1)} className="stroke hair" />
       ))}
     </g>
   )
