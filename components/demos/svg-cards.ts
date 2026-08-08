@@ -31,6 +31,28 @@ const TONE: Record<string, string> = {
   orange: '#b07d1a',
 }
 
+/** A look for the drawn assets — icons and code cards — to match a wall. */
+export interface CardTheme {
+  ink: string
+  paper: string
+  tone: Record<string, string>
+  tokens: Record<string, string>
+}
+
+let cardTheme: CardTheme | null = null
+
+/** Set (or, with no argument, reset) the asset palette. Call before building. */
+export function setCardTheme(next?: Partial<CardTheme>) {
+  cardTheme = next
+    ? {
+        ink: next.ink ?? INK,
+        paper: next.paper ?? PAPER,
+        tone: { ...TONE, ...next.tone },
+        tokens: { ...TOKEN_FILL, ...next.tokens },
+      }
+    : null
+}
+
 /** Glyphs the lesson needs that the published set does not carry. */
 const EXTRA: Record<string, string> = {
   bricks:
@@ -59,7 +81,7 @@ const seedOf = (name: string) => {
 /** A named glyph as a standalone hand-drawn SVG document. */
 export function iconSvg(name: string, color = 'black'): string {
   const art = SYMBOLS[name] ?? EXTRA[name] ?? EXTRA.bricks
-  const stroke = TONE[color] ?? INK
+  const stroke = (cardTheme?.tone ?? TONE)[color] ?? cardTheme?.ink ?? INK
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="-4 -4 56 56">` +
     `<filter id="w" x="-20%" y="-20%" width="140%" height="140%">` +
@@ -99,22 +121,22 @@ export function codeSvg(lines: string[], title?: string): { svg: string; w: numb
       const spans = highlight(line)
         .map((t) =>
           t.kind
-            ? `<tspan fill="${TOKEN_FILL[t.kind]}">${escape(t.text)}</tspan>`
+            ? `<tspan fill="${(cardTheme?.tokens ?? TOKEN_FILL)[t.kind]}">${escape(t.text)}</tspan>`
             : escape(t.text)
         )
         .join('')
-      return `<text x="${padX}" y="${y}" xml:space="preserve" font-family="ui-monospace,Menlo,monospace" font-size="15" fill="${INK}">${spans}</text>`
+      return `<text x="${padX}" y="${y}" xml:space="preserve" font-family="ui-monospace,Menlo,monospace" font-size="15" fill="${cardTheme?.ink ?? INK}">${spans}</text>`
     })
     .join('')
 
   const head = title
-    ? `<text x="${padX}" y="${padY + 8}" font-family="ui-monospace,Menlo,monospace" font-size="11" letter-spacing="2.5" fill="#8e8e98">${escape(title.toUpperCase())}</text>`
+    ? `<text x="${padX}" y="${padY + 8}" font-family="ui-monospace,Menlo,monospace" font-size="11" letter-spacing="2.5" fill="${(cardTheme?.tone ?? TONE).grey}">${escape(title.toUpperCase())}</text>`
     : ''
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w + 12}" height="${h + 12}" viewBox="-6 -6 ${w + 12} ${h + 12}">` +
-    `<rect x="0" y="0" width="${w}" height="${h}" rx="4" fill="${PAPER}"/>` +
-    `<path d="${roughRect(w, h, lines[0] ?? 'code')}" fill="none" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>` +
+    `<rect x="0" y="0" width="${w}" height="${h}" rx="4" fill="${cardTheme?.paper ?? PAPER}"/>` +
+    `<path d="${roughRect(w, h, lines[0] ?? 'code')}" fill="none" stroke="${cardTheme?.ink ?? INK}" stroke-width="2" stroke-linecap="round"/>` +
     head +
     rows +
     `</svg>`

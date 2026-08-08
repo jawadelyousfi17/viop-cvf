@@ -52,6 +52,16 @@ export default function DemosIndex() {
             </Link>
           ))}
         </div>
+        <Link
+          href="/demos/styles"
+          style={{
+            fontFamily: 'var(--technical)', fontSize: 12, letterSpacing: '0.22em',
+            textTransform: 'uppercase', color: 'var(--graphite)', textDecoration: 'underline',
+            textUnderlineOffset: 6,
+          }}
+        >
+          five looks, same lesson — pick a style
+        </Link>
       </div>
     </main>
   )

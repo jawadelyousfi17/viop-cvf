@@ -1,6 +1,12 @@
 'use client'
 
-import { createShapeId, toRichText, type Editor, type TLShapeId } from 'tldraw'
+import {
+  createShapeId,
+  toRichText,
+  type Editor,
+  type TLDefaultColorStyle,
+  type TLShapeId,
+} from 'tldraw'
 // Not re-exported from `tldraw` despite what its docs show, so imported from
 // the schema package directly (pinned to the same version).
 import { b64Vecs } from '@tldraw/tlschema'
@@ -55,7 +61,35 @@ export type Size = 's' | 'm' | 'l' | 'xl'
 export type Dash = 'draw' | 'dashed' | 'dotted' | 'solid'
 export type Fill = 'none' | 'semi' | 'solid' | 'pattern'
 
-const FONT = 'draw' as const
+/* ------------------------------------------------------------------ themes */
+
+/**
+ * A look for the whole wall, applied at build time.
+ *
+ * The acts speak in semantic tones — red for danger, blue for the machine,
+ * green for relief — and a theme decides what those tones look like on this
+ * particular paper. That way five very different walls share one script.
+ */
+export interface WallTheme {
+  /** Semantic tone → tldraw ink for this paper. */
+  tone?: Partial<Record<Tone, TLDefaultColorStyle>>
+  font?: 'draw' | 'sans' | 'serif' | 'mono'
+  /** A default fill for boxes, for looks that want solid poster shapes. */
+  fill?: Fill
+  dash?: Dash
+}
+
+let theme: WallTheme = {}
+
+/** Set (or, with no argument, reset) the wall's look. Call before building. */
+export function setWallTheme(next: WallTheme = {}) {
+  theme = next
+}
+
+const toneOf = (tone?: Tone): TLDefaultColorStyle =>
+  theme.tone?.[tone ?? 'black'] ?? ((tone ?? 'black') as TLDefaultColorStyle)
+const fontOf = () => theme.font ?? 'draw'
+const dashOf = (dash?: Dash) => dash ?? theme.dash ?? 'draw'
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -86,11 +120,11 @@ export function geo(
       geo: opts.kind ?? 'rectangle',
       w: opts.w,
       h: opts.h,
-      color: opts.color ?? 'black',
-      fill: opts.fill ?? 'none',
-      dash: opts.dash ?? 'draw',
+      color: toneOf(opts.color),
+      fill: opts.fill ?? theme.fill ?? 'none',
+      dash: dashOf(opts.dash),
       size: opts.size ?? 'm',
-      font: FONT,
+      font: fontOf(),
       align: opts.align ?? 'middle',
       verticalAlign: 'middle',
       richText: toRichText(opts.text ?? ''),
@@ -113,9 +147,9 @@ export function txt(
     opacity: 0,
     props: {
       richText: toRichText(opts.text),
-      color: opts.color ?? 'black',
+      color: toneOf(opts.color),
       size: opts.size ?? 'm',
-      font: opts.mono ? 'mono' : FONT,
+      font: opts.mono ? 'mono' : fontOf(),
       textAlign: 'start',
       autoSize: true,
       w: opts.w ?? 8,
@@ -150,16 +184,16 @@ export function arrow(
       start: { x: 0, y: 0 },
       end: { x: opts.to[0] - opts.from[0], y: opts.to[1] - opts.from[1] },
       bend: opts.bend ?? 0,
-      color: opts.color ?? 'black',
+      color: toneOf(opts.color),
       fill: 'none',
-      dash: opts.dash ?? 'draw',
+      dash: dashOf(opts.dash),
       size: opts.size ?? 'm',
       arrowheadStart: 'none',
       arrowheadEnd: opts.head === false ? 'none' : 'arrow',
-      font: FONT,
+      font: fontOf(),
       richText: toRichText(opts.text ?? ''),
       labelPosition: 0.5,
-      labelColor: opts.color ?? 'black',
+      labelColor: toneOf(opts.color),
       scale: 1,
       elbowMidPoint: 0.5,
     },
@@ -203,9 +237,9 @@ export function stroke(
     y: oy,
     opacity: 0,
     props: {
-      color: opts.color ?? 'black',
+      color: toneOf(opts.color),
       fill: 'none',
-      dash: opts.dash ?? 'draw',
+      dash: dashOf(opts.dash),
       size: opts.size ?? 's',
       segments: [
         {

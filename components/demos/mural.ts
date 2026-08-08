@@ -23,9 +23,12 @@ export function buildActs(sheet: CueSheet): Act[] {
   const acts: Act[] = []
   const beat = (scene: number, n: number, delay = 0) => {
     const s_ = sheet.scenes[scene - 1]
-    return (s_?.beats[n - 1] ?? s_?.start ?? 0) + delay
+    if (!s_) return NaN // scene cut from a sampled sheet: skip its acts
+    return (s_.beats[n - 1] ?? s_.start) + delay
   }
-  const act = (at: number, make: (e: Editor) => TLShapeId[]) => acts.push({ at, make })
+  const act = (at: number, make: (e: Editor) => TLShapeId[]) => {
+    if (Number.isFinite(at)) acts.push({ at, make })
+  }
 
   /** The plain-words opening line every station gets instead of a title. */
   const opening = (scene: number, text: string) => {

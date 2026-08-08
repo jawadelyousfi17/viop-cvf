@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Box, EASINGS, Tldraw, type Editor, type TLShapeId } from 'tldraw'
 import 'tldraw/tldraw.css'
-import { stationBounds, type Act, type CueSheet } from './wall'
+import { setWallTheme, stationBounds, type Act, type CueSheet, type WallTheme } from './wall'
+import { setCardTheme, type CardTheme } from './svg-cards'
 import './demo.css'
 
 /**
@@ -33,9 +34,18 @@ export interface MuralProps {
   title: string
   blurb: string
   build: (sheet: CueSheet) => Act[]
+  /** Play only the first N scenes — a style sample rather than the lesson. */
+  scenes?: number
+  colorScheme?: 'light' | 'dark'
+  grid?: boolean
+  /** Extra class on the plate, for per-look chrome and canvas colours. */
+  variant?: string
+  wallTheme?: WallTheme
+  cardTheme?: Partial<CardTheme>
 }
 
-export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }: MuralProps) {
+export default function MuralPlayer(props: MuralProps) {
+  const { cue, corner, kicker, title, blurb, build, scenes: sceneLimit } = props
   const [sheet, setSheet] = useState<CueSheet | null>(null)
   const [started, setStarted] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -52,15 +62,20 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
   const tweensRef = useRef<{ id: TLShapeId; born: number }[]>([])
   const cameraSceneRef = useRef(-1)
   const idleTimer = useRef<number | null>(null)
+  const doneRef = useRef(false)
   /** Per-scene camera frames, measured from the finished mural. */
   const framesRef = useRef<Box[]>([])
 
   useEffect(() => {
     void fetch(`/api/slate?name=${cue}`)
       .then((r) => r.json())
-      .then(setSheet)
+      .then((full: CueSheet) => {
+        if (!sceneLimit) return setSheet(full)
+        const kept = full.scenes.slice(0, sceneLimit)
+        setSheet({ ...full, scenes: kept, duration: kept[kept.length - 1].end })
+      })
       .catch(() => {})
-  }, [cue])
+  }, [cue, sceneLimit])
 
   /**
    * Builds the act list and measures each station's camera frame.
@@ -72,6 +87,8 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
    * that always frames what the narration is about to draw.
    */
   const prepare = useCallback((editor: Editor, cueSheet: CueSheet) => {
+    setWallTheme(props.wallTheme)
+    setCardTheme(props.cardTheme)
     const acts = build(cueSheet)
     actsRef.current = acts
 
@@ -109,13 +126,15 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
       return new Box(e.minX - 50, e.minY - 50, e.maxX - e.minX + 100, e.maxY - e.minY + 100)
     })
     editor.zoomToBounds(framesRef.current[0], { inset: 60 })
-  }, [build])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [build, props.wallTheme, props.cardTheme])
 
   const onMount = useCallback((editor: Editor) => {
     editorRef.current = editor
-    editor.user.updateUserPreferences({ colorScheme: 'light' })
-    editor.updateInstanceState({ isGridMode: true })
+    editor.user.updateUserPreferences({ colorScheme: props.colorScheme ?? 'light' })
+    editor.updateInstanceState({ isGridMode: props.grid ?? true })
     if (sheet) prepare(editor, sheet)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheet, prepare])
 
   useEffect(() => {
@@ -147,6 +166,24 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
     }
   }, [])
 
+  // When the recording ends, pull back and show the whole wall.
+  const onEnded = useCallback(() => {
+    setPlaying(false)
+    const editor = editorRef.current
+    if (!editor) return
+    // The whole wall: the union of every station's own frame.
+    const frames = framesRef.current
+    if (!frames.length) return
+    const minX = Math.min(...frames.map((f) => f.x))
+    const minY = Math.min(...frames.map((f) => f.y))
+    const maxX = Math.max(...frames.map((f) => f.x + f.w))
+    const maxY = Math.max(...frames.map((f) => f.y + f.h))
+    editor.zoomToBounds(new Box(minX, minY, maxX - minX, maxY - minY), {
+      inset: 80,
+      animation: { duration: 2800, easing: EASINGS.easeInOutCubic },
+    })
+  }, [])
+
   // One loop: clock → acts → arrivals → camera.
   useEffect(() => {
     if (!started) return
@@ -158,6 +195,17 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
         const t = audio.currentTime
         setNow(t)
         settle(t)
+
+        if (t >= sheet.duration - 0.05) {
+          if (!doneRef.current) {
+            doneRef.current = true
+            audio.pause()
+            setPlaying(false)
+            onEnded()
+          }
+        } else {
+          doneRef.current = false
+        }
 
         // Arrivals: opacity eased in over a beat of wall-clock, so a shape is
         // never popped — and never half-there for long either.
@@ -194,7 +242,7 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [started, sheet, settle])
+  }, [started, sheet, settle, onEnded])
 
   // The chrome gets out of the way while playing.
   useEffect(() => {
@@ -237,24 +285,6 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
     setNow(audio.currentTime)
   }, [])
 
-  // When the recording ends, pull back and show the whole wall.
-  const onEnded = useCallback(() => {
-    setPlaying(false)
-    const editor = editorRef.current
-    if (!editor) return
-    // The whole wall: the union of every station's own frame.
-    const frames = framesRef.current
-    if (!frames.length) return
-    const minX = Math.min(...frames.map((f) => f.x))
-    const minY = Math.min(...frames.map((f) => f.y))
-    const maxX = Math.max(...frames.map((f) => f.x + f.w))
-    const maxY = Math.max(...frames.map((f) => f.y + f.h))
-    editor.zoomToBounds(new Box(minX, minY, maxX - minX, maxY - minY), {
-      inset: 80,
-      animation: { duration: 2800, easing: EASINGS.easeInOutCubic },
-    })
-  }, [])
-
   /** Jump to the next section's first beat. */
   const nextScene = useCallback(() => {
     if (!sheet) return
@@ -290,7 +320,7 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }
   const clock = (s: number) =>
     `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   return (
-    <main className="plate bare">
+    <main className={`plate bare${props.variant ? ` ${props.variant}` : ''}`}>
       <div className="canvas">
         <Tldraw hideUi onMount={onMount} />
       </div>
