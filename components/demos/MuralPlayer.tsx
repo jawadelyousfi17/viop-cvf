@@ -33,11 +33,9 @@ export interface MuralProps {
   title: string
   blurb: string
   build: (sheet: CueSheet) => Act[]
-  /** Per-scene labels for the top-right corner. Absent: stay quiet. */
-  titles?: string[]
 }
 
-export default function MuralPlayer({ cue, corner, kicker, title, blurb, build, titles }: MuralProps) {
+export default function MuralPlayer({ cue, corner, kicker, title, blurb, build }: MuralProps) {
   const [sheet, setSheet] = useState<CueSheet | null>(null)
   const [started, setStarted] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -257,6 +255,21 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build, 
     })
   }, [])
 
+  /** Jump to the next section's first beat. */
+  const nextScene = useCallback(() => {
+    if (!sheet) return
+    const next = sheet.scenes.find((s) => s.start > now + 0.4)
+    if (next) seek(next.start)
+  }, [sheet, now, seek])
+
+  /** Back to the top of this section — or the one before, if already there. */
+  const prevScene = useCallback(() => {
+    if (!sheet) return
+    const here = sheet.scenes[sceneIndex]
+    if (!here) return
+    seek(now - here.start < 1.2 ? (sheet.scenes[sceneIndex - 1]?.start ?? 0) : here.start)
+  }, [sheet, now, sceneIndex, seek])
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!started) return
@@ -266,18 +279,12 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build, 
       }
       if (event.key === 'ArrowRight') seek(now + 10)
       if (event.key === 'ArrowLeft') seek(now - 10)
-      if (event.key === 'ArrowDown' && sheet) {
-        const next = sheet.scenes.find((s) => s.start > now + 0.4)
-        if (next) seek(next.start)
-      }
-      if (event.key === 'ArrowUp' && sheet) {
-        const here = sheet.scenes[sceneIndex]
-        seek(now - here.start < 1.2 ? (sheet.scenes[sceneIndex - 1]?.start ?? 0) : here.start)
-      }
+      if (event.key === 'ArrowDown') nextScene()
+      if (event.key === 'ArrowUp') prevScene()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [started, toggle, seek, now, sheet, sceneIndex])
+  }, [started, toggle, seek, now, nextScene, prevScene])
 
   const duration = sheet?.duration ?? 1
   const clock = (s: number) =>
@@ -289,9 +296,6 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build, 
       </div>
 
       <div className="corner left">{corner}</div>
-      <div className="corner right">
-        {started && titles ? `${String(sceneIndex + 1).padStart(2, '0')} — ${titles[sceneIndex]}` : ''}
-      </div>
 
       <div className={`card${started ? ' gone' : ''}`}>
         <p className="micro" style={{ letterSpacing: '0.32em' }}>
@@ -322,9 +326,15 @@ export default function MuralPlayer({ cue, corner, kicker, title, blurb, build, 
           ))}
         </div>
         <span style={{ minWidth: 74, textAlign: 'right' }}>{clock(duration)}</span>
-        <span style={{ minWidth: 110, textAlign: 'right' }}>
-          station {String(sceneIndex + 1).padStart(2, '0')}/{sheet?.scenes.length ?? 0}
+        <button type="button" className="key" onClick={prevScene} aria-label="previous section">
+          ↑
+        </button>
+        <span style={{ minWidth: 74, textAlign: 'center' }}>
+          {String(sceneIndex + 1).padStart(2, '0')}/{sheet?.scenes.length ?? 0}
         </span>
+        <button type="button" className="key" onClick={nextScene} aria-label="next section">
+          ↓
+        </button>
       </div>
 
       {sheet && (

@@ -27,19 +27,16 @@ export function buildActs(sheet: CueSheet): Act[] {
   }
   const act = (at: number, make: (e: Editor) => TLShapeId[]) => acts.push({ at, make })
 
-  const heading = (scene: number, title: string) => {
+  /** The plain-words opening line every station gets instead of a title. */
+  const opening = (scene: number, text: string) => {
     const { x, y } = station(scene)
-    act(beat(scene, 1), (e) => [
-      ...txt(e, { x, y: y - 10, text: `PLATE ${String(scene).padStart(2, '0')} / 17`, color: 'grey', size: 's', mono: true }),
-      ...txt(e, { x, y: y + 26, text: title, size: 'xl' }),
-      ...stroke(e, [[x, y + 100], [x + 560, y + 100]], { color: 'grey' }),
-    ])
+    act(beat(scene, 1), (e) => txt(e, { x, y, text, size: 'l' }))
   }
 
   /* ——— 1 · behind the command ——— */
   {
     const { x, y } = station(1)
-    heading(1, 'Behind the command')
+    opening(1, 'You run one command — and your code is suddenly sealed off.')
     act(beat(1, 1, 0.4), (e) =>
       code(e, x + 40, y + 170, ['$ docker run myapp', 'Unable to find image locally…', 'Status: container started'], { title: 'terminal' })
     )
@@ -74,7 +71,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 2 · a whole computer, simulated ——— */
   {
     const { x, y } = station(2)
-    heading(2, 'A whole computer, simulated')
+    opening(2, 'A virtual machine fakes a whole computer.')
     const stack = [
       ['Physical server', 'blue'], ['Hypervisor', 'blue'], ['Guest kernel', 'red'],
       ['Hardware drivers', 'red'], ['A complete operating system', 'red'], ['Your application', 'black'],
@@ -106,7 +103,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 3 · just a process ——— */
   {
     const { x, y } = station(3)
-    heading(3, 'Just a process')
+    opening(3, 'A container boots nothing. It is just a process.')
     act(beat(3, 1, 0.3), (e) => [
       ...txt(e, { x, y: y + 150, text: 'no operating system to boot, no kernel of its own', color: 'grey', size: 's' }),
       ...stroke(e, [[x + 40, y + 700], [x + 1700, y + 700]], { size: 'm' }),
@@ -131,7 +128,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 4 · everyone can see everyone ——— */
   {
     const { x, y } = station(4)
-    heading(4, 'Everyone can see everyone')
+    opening(4, 'Problem: processes on Linux can see each other.')
     const dots: [number, number][] = [
       [x + 260, y + 320], [x + 470, y + 250], [x + 690, y + 330], [x + 900, y + 260],
       [x + 1090, y + 340], [x + 450, y + 470], [x + 820, y + 480],
@@ -165,7 +162,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 5 · one process, two realities ——— */
   {
     const { x, y } = station(5)
-    heading(5, 'One process, two realities')
+    opening(5, 'The PID namespace puts a wall around what it sees.')
     act(beat(5, 2, 0.3), (e) =>
       code(e, x + 40, y + 180, [
         '$ ps -eo pid,comm',
@@ -199,7 +196,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 6 · and the rest of them ——— */
   {
     const { x, y } = station(6)
-    heading(6, 'And the rest of them')
+    opening(6, 'And there is a namespace for every other kind of seeing.')
     const kinds = [
       ['mount', 'its own view of the file system'],
       ['network', 'a private network stack'],
@@ -225,7 +222,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 7 · seeing is not consuming ——— */
   {
     const { x, y } = station(7)
-    heading(7, 'Seeing is not consuming')
+    opening(7, 'Namespaces control sight — not appetite.')
     act(beat(7, 2), (e) => [
       ...icon(e, 'container', x + 80, y + 240, 160, 'red'),
       ...icon(e, 'gauge', x + 330, y + 240, 160, 'red'),
@@ -248,7 +245,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 8 · a number in a file ——— */
   {
     const { x, y } = station(8)
-    heading(8, 'A number in a file')
+    opening(8, 'A cgroup limit is a number written into a file.')
     act(beat(8, 2, 0.3), (e) =>
       code(e, x + 40, y + 170, [
         '/sys/fs/cgroup/docker/a3f9…/',
@@ -279,7 +276,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 9 · it still needs a root ——— */
   {
     const { x, y } = station(9)
-    heading(9, 'It still needs a root')
+    opening(9, 'The process still needs a root directory of its own.')
     const rows = [
       ['/', 0], ['etc/', 1], ['usr/', 1], ['srv/', 1], ['app/', 2], ['bin/', 3], ['lib/', 3], ['app.py', 3],
     ] as const
@@ -320,7 +317,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 10 · swap the root entirely ——— */
   {
     const { x, y } = station(10)
-    heading(10, 'Swap the root entirely')
+    opening(10, 'pivot_root swaps the root out entirely.')
     act(beat(10, 1, 0.4), (e) =>
       code(e, x + 40, y + 170, ['pivot_root("/newroot", "/put_old")', 'umount2("/put_old", MNT_DETACH)'], { title: 'the system calls' })
     )
@@ -353,7 +350,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 11 · a stack of layers ——— */
   {
     const { x, y } = station(11)
-    heading(11, 'A stack of layers')
+    opening(11, 'An image is a stack of layers.')
     act(beat(11, 2), (e) =>
       code(e, x + 40, y + 170, [
         'FROM python:3.12',
@@ -387,7 +384,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 12 · frozen, plus one thin layer ——— */
   {
     const { x, y } = station(12)
-    heading(12, 'Frozen, plus one thin layer')
+    opening(12, 'The layers are frozen — you write on one thin sheet on top.')
     for (const i of [0, 1, 2]) {
       act(beat(12, 1, 0.3 + i * 0.2), (e) =>
         geo(e, { x: x + 40, y: y + 500 - i * 100, w: 620, h: 84, text: 'read-only layer', color: 'grey', size: 's', align: 'start' })
@@ -421,7 +418,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 13 · a cable to a switch ——— */
   {
     const { x, y } = station(13)
-    heading(13, 'A cable to a switch')
+    opening(13, 'Networking: a virtual cable into a virtual switch.')
     act(beat(13, 2), (e) =>
       txt(e, { x, y: y + 150, text: 'its own network stack — and no interface at all', color: 'grey', size: 's' })
     )
@@ -449,7 +446,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 14 · opening one door ——— */
   {
     const { x, y } = station(14)
-    heading(14, 'Opening one door')
+    opening(14, 'To reach the internet, you open one door.')
     act(beat(14, 1, 0.4), (e) => [
       ...geo(e, { x: x + 40, y: y + 210, w: 640, h: 400, color: 'grey', dash: 'dashed', size: 's' }),
       ...txt(e, { x: x + 60, y: y + 170, text: 'ONE BRIDGE', color: 'grey', size: 's', mono: true }),
@@ -479,7 +476,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 15 · nobody who starts it ——— */
   {
     const { x, y } = station(15)
-    heading(15, 'Nobody who starts it')
+    opening(15, 'The docker command never starts your container.')
     const chain = [
       ['docker CLI', 'just makes an API call', 3],
       ['the daemon', 'images, networks, volumes', 4],
@@ -507,7 +504,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 16 · built, then abandoned ——— */
   {
     const { x, y } = station(16)
-    heading(16, 'Built, then abandoned')
+    opening(16, 'runc builds the container, then walks away.')
     act(beat(16, 2), (e) => [
       ...geo(e, { x: x + 40, y: y + 190, w: 360, h: 140, text: 'runc', size: 'l' }),
       ...txt(e, { x: x + 40, y: y + 350, text: 'its only job is to talk to the kernel', color: 'grey', size: 's' }),
@@ -544,7 +541,7 @@ export function buildActs(sheet: CueSheet): Act[] {
   /* ——— 17 · nothing but a process ——— */
   {
     const { x, y } = station(17)
-    heading(17, 'Nothing but a process')
+    opening(17, 'In the end: nothing but a process.')
     act(beat(17, 2), (e) => [
       ...txt(e, { x: x + 40, y: y + 220, text: 'a regular Linux process', size: 'xl' }),
       ...txt(e, { x: x + 40, y: y + 320, text: 'everything else is the kernel telling it a story', color: 'grey', size: 's' }),

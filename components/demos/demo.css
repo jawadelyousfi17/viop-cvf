@@ -168,7 +168,9 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 20px 32px;
+  /* Extra right padding keeps the section buttons clear of tldraw's
+     bottom-corner watermark. */
+  padding: 20px 110px 20px 32px;
   font-family: var(--technical);
   font-size: 11px;
   letter-spacing: 0.18em;

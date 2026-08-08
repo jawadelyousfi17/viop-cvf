@@ -32,29 +32,20 @@ export interface CueSheet {
 
 export const STATION_W = 2100
 export const STATION_H = 1300
-const STRIDE_X = 2700
-const STRIDE_Y = 1900
-const COLS = 6
+/**
+ * One column: the wall reads downward, so moving between sections is a
+ * vertical scroll — the way a long sheet of paper would unroll.
+ */
+const STRIDE_Y = 1800
 
 /** Where scene n (1-based) lives on the wall. */
 export function station(n: number) {
-  const i = n - 1
-  return { x: (i % COLS) * STRIDE_X, y: Math.floor(i / COLS) * STRIDE_Y }
+  return { x: 0, y: (n - 1) * STRIDE_Y }
 }
 
 export function stationBounds(n: number) {
   const { x, y } = station(n)
   return { x: x - 80, y: y - 80, w: STATION_W + 160, h: STATION_H + 160 }
-}
-
-export function muralBounds() {
-  const rows = Math.ceil(17 / COLS)
-  return {
-    x: -120,
-    y: -120,
-    w: (COLS - 1) * STRIDE_X + STATION_W + 240,
-    h: (rows - 1) * STRIDE_Y + STATION_H + 240,
-  }
 }
 
 /* ----------------------------------------------------------------- colours */
