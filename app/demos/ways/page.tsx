@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { WAYS } from '@/components/demos/ways'
+import { WAY_LIST } from '@/components/demos/ways-list'
 import '@/components/demos/demo.css'
 
 export const metadata: Metadata = {
@@ -17,7 +17,7 @@ export default function WaysIndex() {
         </p>
         <h1 style={{ fontSize: 'clamp(34px, 4.6vw, 70px)' }}>Ten ways to explain</h1>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1300 }}>
-          {WAYS.map((way, i) => (
+          {WAY_LIST.map((way, i) => (
             <Link
               key={way.slug}
               href={`/demos/ways/${way.slug}`}

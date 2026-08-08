@@ -2,6 +2,7 @@
 
 import { type Editor, type TLShapeId } from 'tldraw'
 import { code, icon } from './svg-cards'
+import { WAY_LIST, type WayMeta } from './ways-list'
 import { arrow, geo, phraseAct, station, stroke, txt, type Act, type CueSheet, type Tone } from './wall'
 
 /**
@@ -685,32 +686,21 @@ function buildPoster(sheet: CueSheet): Act[] {
 
 /* ————————————————————————————————————————————————————— the registry ——— */
 
-export interface Way {
-  slug: string
-  title: string
-  blurb: string
+export interface Way extends WayMeta {
   build: (sheet: CueSheet) => Act[]
 }
 
-export const WAYS: Way[] = [
-  { slug: 'metaphor', title: 'The shipping crate', build: buildMetaphor,
-    blurb: 'Everything is a household metaphor: crates, houses, tents. Not one technical drawing — the pictures argue by analogy.' },
-  { slug: 'architect', title: 'Boxes and arrows', build: buildArchitect,
-    blurb: 'A systems textbook. Strict labelled boxes, layer stacks, ruled arrows — the two architectures drawn side by side.' },
-  { slug: 'terminal', title: 'Prove it in the shell', build: buildTerminal,
-    blurb: 'No pictures at all. Every claim is demonstrated as a terminal session you could type yourself.' },
-  { slug: 'versus', title: 'The scoreboard', build: buildVersus,
-    blurb: 'One comparison table that fills in for the whole three scenes — VM versus container, row by row, verdict at the end.' },
-  { slug: 'one-picture', title: 'One drawing, annotated', build: buildOnePicture,
-    blurb: 'A single picture of your machine that never leaves the screen — the narration just keeps annotating it.' },
-  { slug: 'comic', title: 'The comic strip', build: buildComic,
-    blurb: 'Panels and faces. Your app is a character, the VM is its heavyweight cousin, and the story has an ending.' },
-  { slug: 'recipe', title: 'Recipes and bills', build: buildRecipe,
-    blurb: 'Numbered steps with checkmarks — and each recipe ends with an itemised bill. The VM’s bill is the argument.' },
-  { slug: 'socratic', title: 'Questions first', build: buildSocratic,
-    blurb: 'Socratic method: every beat poses a question, answers it, and sharpens the next one — ending on the real question.' },
-  { slug: 'race', title: 'Two lanes, one clock', build: buildRace,
-    blurb: 'Everything happens on timelines. The VM lane crawls through boot ticks; the container lane is over in one tick.' },
-  { slug: 'poster', title: 'Five words at a time', build: buildPoster,
-    blurb: 'Typographic minimalism — one huge phrase per beat, a fine-print line under it, nothing else on the paper.' },
-]
+const BUILDS: Record<string, (sheet: CueSheet) => Act[]> = {
+  metaphor: buildMetaphor,
+  architect: buildArchitect,
+  terminal: buildTerminal,
+  versus: buildVersus,
+  'one-picture': buildOnePicture,
+  comic: buildComic,
+  recipe: buildRecipe,
+  socratic: buildSocratic,
+  race: buildRace,
+  poster: buildPoster,
+}
+
+export const WAYS: Way[] = WAY_LIST.map((meta) => ({ ...meta, build: BUILDS[meta.slug] }))
