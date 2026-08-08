@@ -322,30 +322,3 @@
   pointer-events: auto;
 }
 
-/* ---------- the five looks ----------
-   Each variant recolours the chrome variables and paints the tldraw paper.
-   The shapes themselves are recoloured at build time by the wall theme. */
-
-.plate.bare.v-blueprint { --ink: #e4edf9; --graphite: #a9bfd9; --faint: #7d97b6; }
-.plate.bare.v-blueprint .tl-background { background: #12385f; }
-.plate.bare.v-blueprint .track { background: rgba(228, 237, 249, 0.18); }
-
-.plate.bare.v-chalk { --ink: #f2efe3; --graphite: #c3c4b2; --faint: #8f9584; }
-.plate.bare.v-chalk .tl-background { background: #253730; }
-.plate.bare.v-chalk .track { background: rgba(242, 239, 227, 0.16); }
-
-.plate.bare.v-atelier { --ink: #43301d; --graphite: #7b6449; --faint: #a8916f; }
-.plate.bare.v-atelier .tl-background { background: #f3e9d2; }
-
-.plate.bare.v-phosphor { --ink: #9dffb0; --graphite: #55b96e; --faint: #2f7a46; }
-.plate.bare.v-phosphor .tl-background { background: #040a06; }
-.plate.bare.v-phosphor .track { background: rgba(157, 255, 176, 0.16); }
-.plate.bare.v-phosphor .card h1,
-.plate.bare.v-phosphor .card p { text-shadow: 0 0 18px rgba(157, 255, 176, 0.25); }
-
-.plate.bare.v-pop { --ink: #14151f; --graphite: #3d3f52; --faint: #9092a6; }
-.plate.bare.v-pop .tl-background { background: #ffffff; }
-
-.plate.bare.v-navy { --ink: #e8eef7; --graphite: #a4b2c7; --faint: #6b7d97; }
-.plate.bare.v-navy .tl-background { background: #0c1526; }
-.plate.bare.v-navy .track { background: rgba(232, 238, 247, 0.16); }
