@@ -77,94 +77,99 @@ export function buildTest1(sheet: CueSheet): Act[] {
     )
   }
 
-  /* ——— 1 · the command, the crate, the two machines ——— */
+  /* ——— 1 · one command, one crate, two identical machines ——— */
   {
     const { x, y } = station(1)
     phrase(1, 1, 'You run one command.')
     act(beat(1, 2), (e) =>
-      code(e, x + 760, y + 40, ['$ docker run myapp', 'Unable to find image locally…', 'Status: container started'], { title: 'terminal' })
+      code(e, x + 40, y + 60, ['$ docker run myapp', 'Unable to find image locally…', 'Status: container started'], { title: 'terminal' })
     )
+    // The subject: an anchor icon with its label centred beneath it.
     act(beat(1, 3), (e) => [
-      ...panel(e, x + 40, y + 40, 640, 560),
-      ...icon(e, 'container', x + 250, y + 100, 180, 'red'),
-      ...txt(e, { x: x + 240, y: y + 300, text: 'your container', color: 'red', size: 'm' }),
+      ...icon(e, 'container', x + 240, y + 330, 200, 'red'),
+      ...txt(e, { x: x + 255, y: y + 570, text: 'your container', color: 'red', size: 'm' }),
     ])
+    // A symmetric fan: three leader arrows, three labels on one baseline.
     act(beat(1, 4), (e) => [
-      ...arrow(e, { from: [x + 300, y + 370], to: [x + 150, y + 460], color: 'green', size: 's' }),
-      ...txt(e, { x: x + 75, y: y + 480, text: 'its own process tree', size: 's' }),
-      ...arrow(e, { from: [x + 330, y + 375], to: [x + 350, y + 490], color: 'green', size: 's' }),
-      ...txt(e, { x: x + 270, y: y + 515, text: 'its own network interfaces', size: 's' }),
-      ...arrow(e, { from: [x + 360, y + 365], to: [x + 520, y + 445], color: 'green', size: 's' }),
-      ...txt(e, { x: x + 445, y: y + 465, text: 'its own file system', size: 's' }),
+      ...arrow(e, { from: [x + 280, y + 630], to: [x + 110, y + 680], color: 'green', size: 's' }),
+      ...arrow(e, { from: [x + 340, y + 640], to: [x + 340, y + 685], color: 'green', size: 's' }),
+      ...arrow(e, { from: [x + 400, y + 630], to: [x + 570, y + 680], color: 'green', size: 's' }),
+      ...txt(e, { x: x + 10, y: y + 700, text: 'its own process tree', size: 's' }),
+      ...txt(e, { x: x + 210, y: y + 750, text: 'its own network interfaces', size: 's' }),
+      ...txt(e, { x: x + 490, y: y + 700, text: 'its own file system', size: 's' }),
     ])
+    // Two identical frames on one baseline, the = centred between them.
     act(beat(1, 5), (e) => [
-      ...panel(e, x + 760, y + 340, 420, 340),
-      ...laptop(e, x + 780, y + 380),
-      ...txt(e, { x: x + 850, y: y + 700, text: 'your laptop', color: 'grey', size: 's' }),
-      ...txt(e, { x: x + 1220, y: y + 480, text: '=', color: 'red', size: 'xl' }),
-      ...panel(e, x + 1330, y + 340, 420, 340),
-      ...slabStack(e, x + 1430, y + 380),
-      ...txt(e, { x: x + 1385, y: y + 700, text: 'a production server', color: 'grey', size: 's' }),
+      ...geo(e, { x: x + 840, y: y + 330, w: 380, h: 300, size: 'l' }),
+      ...laptop(e, x + 850, y + 350),
+      ...txt(e, { x: x + 975, y: y + 660, text: 'your laptop', color: 'grey', size: 's' }),
+      ...txt(e, { x: x + 1262, y: y + 440, text: '=', color: 'red', size: 'xl' }),
+      ...geo(e, { x: x + 1360, y: y + 330, w: 380, h: 300, size: 'l' }),
+      ...slabStack(e, x + 1445, y + 355),
+      ...txt(e, { x: x + 1450, y: y + 660, text: 'a production server', color: 'grey', size: 's' }),
     ])
     act(beat(1, 6), (e) =>
-      txt(e, { x: x + 760, y: y + 760, text: 'it spins up, and nobody looks inside', color: 'grey', size: 's' })
+      txt(e, { x: x + 1100, y: y + 730, text: 'it spins up, and nobody looks inside', color: 'grey', size: 's' })
     )
     phrase(1, 7, 'Tonight: inside.', 'red')
   }
 
-  /* ——— 2 · the virtual machine, faked whole ——— */
+  /* ——— 2 · the VM: an anatomy tower, costs by repetition, verdicts ——— */
   {
     const { x, y } = station(2)
     phrase(2, 1, 'First suspect:\nthe virtual machine.')
-    act(beat(2, 2), (e) => [
-      ...panel(e, x + 40, y + 40, 620, 620),
-      ...desktop(e, x + 150, y + 110, 380),
-      ...txt(e, { x: x + 130, y: y + 570, text: 'a whole computer, faked', color: 'red', size: 'm' }),
-    ])
-    act(beat(2, 3), (e) => [
-      ...slabStack(e, x + 210, y + 150),
-      ...txt(e, { x: x + 470, y: y + 180, text: 'its own kernel', size: 's' }),
-      ...txt(e, { x: x + 470, y: y + 260, text: 'a whole OS', size: 's' }),
-      ...txt(e, { x: x + 470, y: y + 345, text: 'every driver', size: 's' }),
-    ])
+    // The anatomy: one tower of identical boxes, colour-coded per layer.
+    const row = (e: Editor, i: number, label: string, tone?: 'red' | 'blue') =>
+      geo(e, { x: x + 60, y: y + 150 + i * 112, w: 560, h: 88, text: label, color: tone, size: 's' })
+    act(beat(2, 2), (e) => [...row(e, 0, 'your application'), ...row(e, 1, 'a complete operating system', 'red')])
+    act(beat(2, 3), (e) => [...row(e, 2, 'hardware drivers', 'red'), ...row(e, 3, 'guest kernel', 'red')])
+    act(beat(2, 3, 0.8), (e) => [...row(e, 4, 'hypervisor', 'blue'), ...row(e, 5, 'physical server', 'blue')])
+    // The cost: three identical columns, the price stamped above each one.
     act(beat(2, 4), (e) => [
-      ...panel(e, x + 760, y + 40, 620, 400),
-      ...desktop(e, x + 800, y + 100, 150),
-      ...desktop(e, x + 990, y + 105, 150),
-      ...desktop(e, x + 1180, y + 110, 150),
-      ...txt(e, { x: x + 800, y: y + 360, text: 'three machines — three kernels held in memory', color: 'red', size: 's' }),
+      ...[0, 1, 2].flatMap((i) => [
+        ...txt(e, { x: x + 805 + i * 240, y: y + 175, text: '3 GB', color: 'red', size: 'l' }),
+        ...geo(e, { x: x + 760 + i * 240, y: y + 260, w: 200, h: 380, size: 'm' }),
+        ...geo(e, { x: x + 785 + i * 240, y: y + 550, w: 150, h: 70, text: 'kernel', color: 'red', size: 's' }),
+      ]),
+      ...geo(e, { x: x + 760, y: y + 680, w: 680, h: 90, text: 'hypervisor', color: 'blue', size: 's' }),
     ])
+    // The verdicts: thin arrows fanning to icon-and-caption pairs.
     act(beat(2, 5), (e) => [
-      ...icon(e, 'hourglass', x + 790, y + 500, 110, 'red'),
-      ...txt(e, { x: x + 930, y: y + 520, text: 'gigabytes of memory', size: 's' }),
-      ...txt(e, { x: x + 930, y: y + 570, text: 'minutes of booting', size: 's' }),
-      ...txt(e, { x: x + 930, y: y + 630, text: 'thick walls, though', color: 'green', size: 's' }),
+      ...arrow(e, { from: [x + 1460, y + 450], to: [x + 1580, y + 330], size: 's' }),
+      ...icon(e, 'stopwatch', x + 1620, y + 220, 110),
+      ...txt(e, { x: x + 1600, y: y + 360, text: 'a long time to boot', color: 'grey', size: 's' }),
+      ...arrow(e, { from: [x + 1460, y + 500], to: [x + 1580, y + 590], size: 's' }),
+      ...icon(e, 'shield', x + 1620, y + 480, 100, 'green'),
+      ...txt(e, { x: x + 1600, y: y + 610, text: 'it does isolate well', color: 'green', size: 's' }),
     ])
   }
 
-  /* ——— 3 · the container, carrying nothing ——— */
+  /* ——— 3 · the container: one anchor bar, annotated from afar ——— */
   {
     const { x, y } = station(3)
     phrase(3, 1, 'A container fakes nothing.', 'red')
+    // The subject floats above its ground, label above it.
     act(beat(3, 2), (e) => [
-      ...panel(e, x + 40, y + 40, 520, 460),
-      ...icon(e, 'container', x + 170, y + 120, 220, 'red'),
-      ...txt(e, { x: x + 130, y: y + 400, text: 'no OS in here — just your app', color: 'red', size: 's' }),
+      ...txt(e, { x: x + 275, y: y + 175, text: 'one ordinary process', color: 'red', size: 'm' }),
+      ...icon(e, 'container', x + 300, y + 240, 170, 'red'),
     ])
+    // The ground: one wide host bar, the kernel chip living inside it.
     act(beat(3, 3), (e) => [
-      ...panel(e, x + 680, y + 40, 520, 460),
-      ...icon(e, 'person', x + 840, y + 130, 190),
-      ...txt(e, { x: x + 740, y: y + 400, text: 'to the machine: one more process', size: 's' }),
+      ...geo(e, { x: x + 60, y: y + 560, w: 1200, h: 120, size: 'l' }),
+      ...icon(e, 'processor', x + 880, y + 575, 90, 'blue'),
+      ...txt(e, { x: x + 1010, y: y + 600, text: 'THE HOST', color: 'grey', size: 's', mono: true }),
     ])
+    // Annotations travel on long leaders; the label rides the connector.
     act(beat(3, 4), (e) => [
-      ...geo(e, { x: x + 40, y: y + 600, w: 1160, h: 110, text: 'THE HOST KERNEL — ONE, SHARED', size: 's' }),
-      ...arrow(e, { from: [x + 300, y + 505], to: [x + 300, y + 595], color: 'green' }),
-      ...arrow(e, { from: [x + 940, y + 505], to: [x + 940, y + 595], color: 'green' }),
+      ...arrow(e, { from: [x + 430, y + 420], to: [x + 850, y + 600], color: 'blue', dash: 'dashed', text: 'shared' }),
+      ...txt(e, { x: x + 1130, y: y + 220, text: "host's\nkernel", size: 'm' }),
+      ...arrow(e, { from: [x + 1160, y + 330], to: [x + 945, y + 570], size: 's' }),
     ])
+    // The consequences, in their own far-right column.
     act(beat(3, 5), (e) => [
-      ...icon(e, 'stopwatch', x + 1340, y + 180, 150, 'green'),
-      ...txt(e, { x: x + 1310, y: y + 370, text: 'starts in milliseconds,', color: 'green', size: 's' }),
-      ...txt(e, { x: x + 1310, y: y + 415, text: 'weighs what your app weighs', color: 'green', size: 's' }),
+      ...icon(e, 'stopwatch', x + 1480, y + 300, 130, 'green'),
+      ...txt(e, { x: x + 1445, y: y + 470, text: 'starts almost instantly', color: 'green', size: 's' }),
+      ...txt(e, { x: x + 1415, y: y + 520, text: 'only the memory it actually uses', color: 'grey', size: 's' }),
     ])
   }
 
