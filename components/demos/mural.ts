@@ -105,7 +105,7 @@ export function buildActs(sheet: CueSheet): Act[] {
     const { x, y } = station(3)
     opening(3, 'A container boots nothing. It is just a process.')
     act(beat(3, 1, 0.3), (e) => [
-      ...txt(e, { x, y: y + 150, text: 'no operating system to boot, no kernel of its own', color: 'grey', size: 's' }),
+      ...txt(e, { x: x + 4, y: y + 95, text: 'no operating system to boot, no kernel of its own', color: 'grey', size: 's' }),
       ...stroke(e, [[x + 40, y + 700], [x + 1700, y + 700]], { size: 'm' }),
       ...txt(e, { x: x + 40, y: y + 720, text: 'THE HOST', color: 'grey', size: 's', mono: true }),
     ])
@@ -119,9 +119,9 @@ export function buildActs(sheet: CueSheet): Act[] {
       ...arrow(e, { from: [x + 400, y + 570], to: [x + 790, y + 580], text: 'shared', color: 'blue', dash: 'dashed', head: false }),
     ])
     act(beat(3, 5), (e) => [
-      ...icon(e, 'stopwatch', x + 1280, y + 460, 150),
-      ...txt(e, { x: x + 1240, y: y + 650, text: 'starts almost instantly —', color: 'green' }),
-      ...txt(e, { x: x + 1240, y: y + 710, text: 'only the memory it actually uses', color: 'grey', size: 's' }),
+      ...icon(e, 'stopwatch', x + 1280, y + 430, 150),
+      ...txt(e, { x: x + 1240, y: y + 600, text: 'starts almost instantly —', color: 'green' }),
+      ...txt(e, { x: x + 1240, y: y + 655, text: 'only the memory it actually uses', color: 'grey', size: 's' }),
     ])
   }
 
@@ -174,22 +174,22 @@ export function buildActs(sheet: CueSheet): Act[] {
       ], { title: 'on the host' })
     )
     act(beat(5, 4), (e) =>
-      txt(e, { x: x + 700, y: y + 150, text: 'it can see all of this', color: 'red', size: 's' })
+      txt(e, { x: x + 60, y: y + 470, text: 'it can see all of this', color: 'red', size: 's' })
     )
-    act(beat(5, 5), (e) => icon(e, 'bricks', x + 740, y + 300, 160, 'red'))
+    act(beat(5, 5), (e) => icon(e, 'bricks', x + 575, y + 240, 150, 'red'))
     act(beat(5, 6), (e) =>
-      txt(e, { x: x + 690, y: y + 490, text: 'the kernel filters the answer', color: 'red', size: 's' })
+      txt(e, { x: x + 505, y: y + 430, text: 'the kernel filters the answer', color: 'red', size: 's' })
     )
     act(beat(5, 7), (e) =>
-      code(e, x + 1000, y + 180, ['$ ps -eo pid,comm', '    1  python3'], { title: 'inside the namespace' })
+      code(e, x + 900, y + 180, ['$ ps -eo pid,comm', '    1  python3'], { title: 'inside the namespace' })
     )
     act(beat(5, 8), (e) => [
-      ...txt(e, { x: x + 1020, y: y + 400, text: 'PID 1', color: 'red', size: 'xl' }),
-      ...txt(e, { x: x + 1260, y: y + 415, text: 'and PID 4500 on the host', color: 'blue', size: 's' }),
+      ...txt(e, { x: x + 920, y: y + 390, text: 'PID 1', color: 'red', size: 'xl' }),
+      ...txt(e, { x: x + 1140, y: y + 418, text: '— and PID 4500 on the host', color: 'blue', size: 's' }),
     ])
     act(beat(5, 9), (e) => [
-      ...txt(e, { x: x + 1000, y: y + 530, text: 'the same process,', size: 'm' }),
-      ...txt(e, { x: x + 1000, y: y + 585, text: 'experiencing a different reality', color: 'grey', size: 'm' }),
+      ...txt(e, { x: x + 920, y: y + 510, text: 'the same process,', size: 'm' }),
+      ...txt(e, { x: x + 920, y: y + 565, text: 'experiencing a different reality', color: 'grey', size: 'm' }),
     ])
   }
 
@@ -230,8 +230,8 @@ export function buildActs(sheet: CueSheet): Act[] {
       ...txt(e, { x: x + 70, y: y + 500, text: 'every CPU on the host', color: 'red', size: 's' }),
     ])
     act(beat(7, 3), (e) => [
-      ...txt(e, { x: x + 70, y: y + 610, text: 'cgroups', color: 'orange', size: 'xl' }),
-      ...txt(e, { x: x + 70, y: y + 690, text: 'control groups', color: 'grey', size: 's' }),
+      ...txt(e, { x: x + 760, y: y + 110, text: 'cgroups', color: 'orange', size: 'xl' }),
+      ...txt(e, { x: x + 1090, y: y + 138, text: '— control groups', color: 'grey', size: 's' }),
     ])
     act(beat(7, 4), (e) => [
       ...geo(e, { x: x + 760, y: y + 220, w: 740, h: 120, text: 'namespaces — restrict what it can SEE', color: 'red', size: 's' }),
@@ -420,7 +420,7 @@ export function buildActs(sheet: CueSheet): Act[] {
     const { x, y } = station(13)
     opening(13, 'Networking: a virtual cable into a virtual switch.')
     act(beat(13, 3), (e) =>
-      txt(e, { x, y: y + 150, text: 'its own network stack — and no interface at all', color: 'grey', size: 's' })
+      txt(e, { x: x + 4, y: y + 95, text: 'its own network stack — and no interface at all', color: 'grey', size: 's' })
     )
     act(beat(13, 2), (e) => [
       ...icon(e, 'container', x + 80, y + 380, 170, 'red'),
