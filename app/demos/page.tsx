@@ -16,6 +16,12 @@ const DEMOS = [
     blurb: 'Namespaces, cgroups, overlayfs, and the three programs that hand the job on before anything starts.',
   },
   {
+    href: '/demos/test-1',
+    kicker: 'sample · 3 stations',
+    title: 'test-1 — the night board',
+    blurb: 'White panels on deep navy, yellow subjects, mint arrows, big hand-drawn machines.',
+  },
+  {
     href: '/demos/redis',
     kicker: '19 stations · 8 minutes',
     title: 'Redis will finally make sense',
