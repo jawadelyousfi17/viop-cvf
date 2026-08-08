@@ -60,7 +60,7 @@ export default function MuralPlayer(props: MuralProps) {
   const appliedRef = useRef<TLShapeId[][]>([])
   const cursorRef = useRef(0)
   const tweensRef = useRef<{ id: TLShapeId; born: number }[]>([])
-  const cameraSceneRef = useRef(-1)
+  const cameraKeyRef = useRef('')
   const idleTimer = useRef<number | null>(null)
   const doneRef = useRef(false)
   /** Per-scene camera frames, measured from the finished mural. */
@@ -108,6 +108,7 @@ export default function MuralPlayer(props: MuralProps) {
       const extent = extents[sceneOf(act.at)]
       for (const id of ids) {
         all.push(id)
+        if (act.focus) continue
         const b = editor.getShapePageBounds(id)
         if (!b) continue
         extent.minX = Math.min(extent.minX, b.x)
@@ -223,19 +224,27 @@ export default function MuralPlayer(props: MuralProps) {
           tweensRef.current = still
         }
 
-        // The camera follows the narration from station to station.
+        // The camera follows the narration — station to station, except when
+        // an act asks to be said full screen: then only its box is shown.
         let scene = 0
         for (let i = 0; i < sheet.scenes.length; i++) if (t >= sheet.scenes[i].start) scene = i
-        if (scene !== cameraSceneRef.current) {
-          cameraSceneRef.current = scene
-          setSceneIndex(scene)
-          const frame = framesRef.current[scene]
-          if (frame) {
-            editor.zoomToBounds(frame, {
-              inset: 60,
-              animation: { duration: 1100, easing: EASINGS.easeInOutCubic },
-            })
+        setSceneIndex(scene)
+        let key = `s${scene}`
+        let target = framesRef.current[scene] ?? null
+        const list = actsRef.current
+        for (let i = 0; i < list.length; i++) {
+          const f = list[i].focus
+          if (f && t >= list[i].at && t < f.until) {
+            key = `m${i}`
+            target = new Box(f.x, f.y, f.w, f.h)
           }
+        }
+        if (key !== cameraKeyRef.current && target) {
+          cameraKeyRef.current = key
+          editor.zoomToBounds(target, {
+            inset: 60,
+            animation: { duration: 900, easing: EASINGS.easeInOutCubic },
+          })
         }
       }
       frame = requestAnimationFrame(tick)

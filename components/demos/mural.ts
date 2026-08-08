@@ -5,6 +5,7 @@ import { code, icon } from './svg-cards'
 import {
   arrow,
   geo,
+  phraseAct,
   station,
   stroke,
   txt,
@@ -30,10 +31,15 @@ export function buildActs(sheet: CueSheet): Act[] {
     if (Number.isFinite(at)) acts.push({ at, make })
   }
 
-  /** The plain-words opening line every station gets instead of a title. */
+  /** The station's opening line, said full screen before the drawing starts. */
+  let slot = 0
   const opening = (scene: number, text: string) => {
-    const { x, y } = station(scene)
-    act(beat(scene, 1), (e) => txt(e, { x, y, text, size: 'l' }))
+    const s_ = sheet.scenes[scene - 1]
+    if (!s_) return
+    slot++
+    acts.push(
+      phraseAct({ slot, scene, at: s_.beats[0] ?? s_.start, until: s_.beats[1] ?? s_.end, text })
+    )
   }
 
   /* ——— 1 · behind the command ——— */

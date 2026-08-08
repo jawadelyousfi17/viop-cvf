@@ -26,6 +26,12 @@ export interface Act {
   /** When this lands, in seconds of the recording. */
   at: number
   make: (editor: Editor) => TLShapeId[]
+  /**
+   * A spoken interstitial: while [at, until) the camera shows only this box —
+   * one phrase, full screen, nothing else — then returns to the station.
+   * Shapes of a focused act are kept out of the station's camera frame.
+   */
+  focus?: { x: number; y: number; w: number; h: number; until: number }
 }
 
 export interface CueSheet {
@@ -258,3 +264,36 @@ export function stroke(
   return [id]
 }
 
+
+/**
+ * A phrase said full screen — the only thing on the paper while it is said.
+ *
+ * The text lives far to the right of the wall's single column, one empty slot
+ * per phrase, so no station frame ever includes it and no two phrases share a
+ * screen. The camera dives out to it at `at` and comes home at `until`.
+ */
+export function phraseAct(opts: {
+  slot: number
+  scene: number
+  at: number
+  until: number
+  text: string
+  sub?: string
+  color?: Tone
+}): Act {
+  const { y } = station(opts.scene)
+  const px = 3200 + opts.slot * 2800
+  const py = y + 420
+  const longest = Math.max(...opts.text.split('\n').map((line) => line.length))
+  const w = Math.max(1100, longest * 46)
+  return {
+    at: opts.at,
+    focus: { x: px - 180, y: py - 240, w: w + 360, h: 780, until: opts.until },
+    make: (e) => [
+      ...txt(e, { x: px, y: py, text: opts.text, size: 'xl', color: opts.color }),
+      ...(opts.sub
+        ? txt(e, { x: px + 6, y: py + 200 + (opts.text.split('\n').length - 1) * 130, text: opts.sub, color: 'grey', size: 's' })
+        : []),
+    ],
+  }
+}
