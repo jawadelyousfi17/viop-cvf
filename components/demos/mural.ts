@@ -254,21 +254,21 @@ export function buildActs(sheet: CueSheet): Act[] {
         '212422656',
       ], { title: 'the whole mechanism' })
     )
-    act(beat(8, 4), (e) =>
+    act(beat(8, 2, 2.5), (e) =>
       txt(e, { x: x + 40, y: y + 480, text: 'a number, written into a file', color: 'grey', size: 's' })
     )
-    act(beat(8, 5), (e) => [
+    act(beat(8, 3), (e) => [
       ...icon(e, 'gauge', x + 850, y + 190, 210, 'orange'),
       ...txt(e, { x: x + 820, y: y + 440, text: 'the kernel tracks every byte', color: 'grey', size: 's' }),
     ])
-    act(beat(8, 6), (e) =>
+    act(beat(8, 4), (e) =>
       geo(e, { x: x + 1250, y: y + 180, w: 460, h: 100, text: 'over the limit? reclaim first', color: 'orange', size: 's' })
     )
-    act(beat(8, 7), (e) => [
+    act(beat(8, 5), (e) => [
       ...arrow(e, { from: [x + 1480, y + 290], to: [x + 1480, y + 360], color: 'red' }),
       ...geo(e, { x: x + 1250, y: y + 370, w: 460, h: 100, text: 'not enough? kill the process', color: 'red', size: 's' }),
     ])
-    act(beat(8, 8), (e) =>
+    act(beat(8, 6), (e) =>
       txt(e, { x: x + 850, y: y + 570, text: 'one runaway container cannot starve the server', color: 'green' })
     )
   }
@@ -341,7 +341,7 @@ export function buildActs(sheet: CueSheet): Act[] {
         geo(e, { x: x + 800, y: y + 310 + i * 105, w: 380, h: 84, text: name, color: 'blue', size: 's' })
       )
     })
-    act(beat(10, 7), (e) => [
+    act(beat(10, 6, 1.5), (e) => [
       ...icon(e, 'layers', x + 1300, y + 700, 100, 'blue'),
       ...txt(e, { x: x + 1420, y: y + 720, text: 'a docker image is exactly that, pre-filled', size: 's' }),
     ])
@@ -361,7 +361,7 @@ export function buildActs(sheet: CueSheet): Act[] {
       ], { title: 'dockerfile' })
     )
     const layers = [
-      ['FROM — the base image', 4], ['RUN — the dependencies', 5], ['COPY — your source code', 6],
+      ['FROM — the base image', 5], ['RUN — the dependencies', 6], ['COPY — your source code', 7],
     ] as const
     layers.forEach(([label, b], i) => {
       act(beat(11, b as number), (e) => [
@@ -369,14 +369,14 @@ export function buildActs(sheet: CueSheet): Act[] {
         ...arrow(e, { from: [x + 500, y + 240 + i * 40], to: [x + 690, y + 500 - i * 105], color: 'grey', dash: 'dashed', size: 's' }),
       ])
     })
-    act(beat(11, 7), (e) =>
+    act(beat(11, 8), (e) =>
       txt(e, { x: x + 700, y: y + 610, text: 'ENV and CMD add nothing — they only attach settings', color: 'grey', size: 's' })
     )
-    act(beat(11, 8), (e) => [
+    act(beat(11, 10), (e) => [
       ...txt(e, { x: x + 1380, y: y + 260, text: 'overlayfs', color: 'blue', size: 'l' }),
       ...arrow(e, { from: [x + 1270, y + 300], to: [x + 1420, y + 380], color: 'blue', bend: 20 }),
     ])
-    act(beat(11, 9), (e) =>
+    act(beat(11, 10, 0.8), (e) =>
       geo(e, { x: x + 1330, y: y + 400, w: 380, h: 120, text: 'one merged file system', color: 'blue', size: 's' })
     )
   }
@@ -402,11 +402,11 @@ export function buildActs(sheet: CueSheet): Act[] {
       ...txt(e, { x: x + 40, y: y + 690, text: 'the new version simply hides it', color: 'grey', size: 's' }),
     ])
     for (let i = 0; i < 10; i++) {
-      act(beat(12, 6, i * 0.08), (e) =>
+      act(beat(12, 7, i * 0.08), (e) =>
         icon(e, 'container', x + 1000 + (i % 5) * 140, y + 200 + Math.floor(i / 5) * 130, 92, 'red')
       )
     }
-    act(beat(12, 7), (e) => [
+    act(beat(12, 7, 0.9), (e) => [
       ...txt(e, { x: x + 1000, y: y + 480, text: 'ten containers — one copy of the layers,', color: 'green', size: 's' }),
       ...txt(e, { x: x + 1000, y: y + 530, text: 'shared on disk and in memory', color: 'grey', size: 's' }),
     ])
@@ -419,10 +419,10 @@ export function buildActs(sheet: CueSheet): Act[] {
   {
     const { x, y } = station(13)
     opening(13, 'Networking: a virtual cable into a virtual switch.')
-    act(beat(13, 2), (e) =>
+    act(beat(13, 3), (e) =>
       txt(e, { x, y: y + 150, text: 'its own network stack — and no interface at all', color: 'grey', size: 's' })
     )
-    act(beat(13, 3), (e) => [
+    act(beat(13, 2), (e) => [
       ...icon(e, 'container', x + 80, y + 380, 170, 'red'),
       ...txt(e, { x: x + 60, y: y + 590, text: 'the container', color: 'red', size: 's' }),
     ])
@@ -430,15 +430,15 @@ export function buildActs(sheet: CueSheet): Act[] {
       ...stroke(e, [[x + 270, y + 470], [x + 420, y + 470], [x + 500, y + 540], [x + 650, y + 540]], { size: 'm' }),
       ...txt(e, { x: x + 330, y: y + 400, text: 'a virtual ethernet pair — one cable, two ends', size: 's' }),
     ])
-    act(beat(13, 6), (e) => [
+    act(beat(13, 7), (e) => [
       ...icon(e, 'switch', x + 680, y + 480, 150, 'blue'),
       ...txt(e, { x: x + 660, y: y + 660, text: 'docker0 — a bridge on the host', color: 'blue', size: 's' }),
     ])
-    act(beat(13, 8), (e) => [
+    act(beat(13, 9), (e) => [
       ...arrow(e, { from: [x + 850, y + 550], to: [x + 1080, y + 550], color: 'blue' }),
       ...geo(e, { x: x + 1090, y: y + 500, w: 320, h: 100, text: 'physical adapter', size: 's' }),
     ])
-    act(beat(13, 9), (e) =>
+    act(beat(13, 8), (e) =>
       code(e, x + 1090, y + 650, ['$ ip addr show docker0', 'inet 172.17.0.1/16'], { title: 'on the host' })
     )
   }
@@ -454,21 +454,21 @@ export function buildActs(sheet: CueSheet): Act[] {
       ...icon(e, 'container', x + 400, y + 300, 150, 'red'),
       ...txt(e, { x: x + 150, y: y + 500, text: 'they reach each other by internal IP', color: 'grey', size: 's' }),
     ])
-    act(beat(14, 3), (e) =>
+    act(beat(14, 2), (e) =>
       code(e, x + 780, y + 200, [
         '$ docker run -p 8080:80 myapp',
         '$ sudo iptables -t nat -L DOCKER',
         'DNAT tcp dpt:8080 to:172.17.0.2:80',
       ], { title: 'port mapping is NAT' })
     )
-    act(beat(14, 3, 0.6), (e) => [
+    act(beat(14, 3), (e) => [
       ...txt(e, { x: x + 780, y: y + 520, text: 'host 8080', size: 's' }),
       ...arrow(e, { from: [x + 950, y + 535], to: [x + 1090, y + 535], color: 'blue' }),
       ...geo(e, { x: x + 1100, y: y + 500, w: 150, h: 70, text: 'NAT', color: 'blue', size: 's' }),
       ...arrow(e, { from: [x + 1260, y + 535], to: [x + 1400, y + 535], color: 'blue' }),
       ...txt(e, { x: x + 1410, y: y + 520, text: 'container 80', size: 's' }),
     ])
-    act(beat(14, 4), (e) =>
+    act(beat(14, 3, 1.2), (e) =>
       txt(e, { x: x + 780, y: y + 650, text: 'without it the app runs fine — and nothing can reach it', color: 'red', size: 's' })
     )
   }
@@ -493,10 +493,10 @@ export function buildActs(sheet: CueSheet): Act[] {
         )
       }
     })
-    act(beat(15, 3, 0.6), (e) =>
+    act(beat(15, 4, 0.5), (e) =>
       code(e, x + 40, y + 470, ['POST /v1.51/containers/create', 'POST /v1.51/containers/{id}/start'], { title: 'what the cli actually sends' })
     )
-    act(beat(15, 8), (e) =>
+    act(beat(15, 9), (e) =>
       txt(e, { x: x + 200, y: y + 700, text: 'and even containerd does not create the process', color: 'red', size: 'l' })
     )
   }
@@ -505,34 +505,34 @@ export function buildActs(sheet: CueSheet): Act[] {
   {
     const { x, y } = station(16)
     opening(16, 'runc builds the container, then walks away.')
-    act(beat(16, 2), (e) => [
+    act(beat(16, 1, 0.5), (e) => [
       ...geo(e, { x: x + 40, y: y + 190, w: 360, h: 140, text: 'runc', size: 'l' }),
       ...txt(e, { x: x + 40, y: y + 350, text: 'its only job is to talk to the kernel', color: 'grey', size: 's' }),
     ])
     const jobs = ['sets up the namespaces', 'configures the cgroups', 'unpacks the root file system', 'starts the process']
     jobs.forEach((job, i) => {
-      act(beat(16, 4, i * 0.3), (e) => [
+      act(beat(16, 2, 0.8 + i * 1.1), (e) => [
         ...icon(e, 'check', x + 520, y + 190 + i * 84, 52, 'green'),
         ...txt(e, { x: x + 600, y: y + 200 + i * 84, text: job, size: 's' }),
       ])
     })
-    act(beat(16, 4, 1.4), (e) =>
+    act(beat(16, 2, 0.4), (e) =>
       code(e, x + 1150, y + 190, [
         'clone(CLONE_NEWPID | CLONE_NEWNS | …)',
         'pivot_root(…) + cgroup limits',
         'execve("/usr/local/bin/python")',
       ], { title: 'what runc says to the kernel' })
     )
-    act(beat(16, 5), (e) =>
+    act(beat(16, 3), (e) =>
       txt(e, { x: x + 520, y: y + 560, text: 'and the moment the process runs, runc terminates', color: 'red', size: 's' })
     )
-    act(beat(16, 7), (e) =>
+    act(beat(16, 5), (e) =>
       txt(e, { x: x + 40, y: y + 680, text: 'but on Linux, every process needs a parent', size: 's' })
     )
-    act(beat(16, 8), (e) =>
+    act(beat(16, 6), (e) =>
       geo(e, { x: x + 40, y: y + 750, w: 360, h: 120, text: 'the shim', color: 'blue', size: 'l' })
     )
-    act(beat(16, 9), (e) => [
+    act(beat(16, 7), (e) => [
       ...txt(e, { x: x + 440, y: y + 770, text: 'adopts the container and stays for its whole life —', color: 'grey', size: 's' }),
       ...txt(e, { x: x + 440, y: y + 820, text: 'alive through restarts, holding the exit code at the end', color: 'grey', size: 's' }),
     ])

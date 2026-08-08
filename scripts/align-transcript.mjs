@@ -37,21 +37,21 @@ const SCENE_STARTS = [
   18, // the problem: processes can see each other
   24, // the PID namespace
   33, // the other namespaces
-  42, // namespaces control sight, not appetite
-  47, // how cgroups are actually configured
-  55, // the container needs a root directory
-  62, // pivot_root, and what has to be in the new root
-  69, // an image is a stack of layers
-  78, // read-only layers and the thin writable one
-  87, // the virtual cable and the bridge
-  96, // talking to each other, and to the internet
-  101, // the CLI does not start the container
-  109, // runc builds it and walks away
-  119, // what a container is, in one breath
+  41, // namespaces control sight, not appetite
+  47, // a cgroup limit is a number in a file
+  53, // the container needs a root directory
+  60, // pivot_root, and what has to be in the new root
+  66, // an image is a stack of layers
+  76, // read-only layers and the thin writable one
+  85, // the virtual cable and the bridge
+  95, // opening one door to the internet
+  98, // the CLI does not start the container
+  108, // runc builds it and walks away
+  116, // what a container is, in one breath
 ]
 
 /** Everything after this is "like and subscribe", not the lesson. */
-const LAST_SENTENCE = 123
+const LAST_SENTENCE = 120
 
 const doc = JSON.parse(readFileSync(source, 'utf8'))
 
