@@ -35,7 +35,9 @@ const ELEVENLABS_VOICE_SETTINGS = {
   similarity_boost: 0.8,
   style: 0.3,
   use_speaker_boost: true,
-  speed: 0.96,
+  // Deliberately slow — a teacher pacing the board, not a narrator. 0.7 is
+  // the provider's floor; this leaves room to hear every term land.
+  speed: 0.82,
 }
 
 /** What the player receives, whichever provider produced it. */
@@ -91,7 +93,13 @@ export async function POST(request: Request) {
   // Nothing about a recording changes between runs, and testing a board means
   // playing the same script over and over. Pay for it once.
   const { voice, model } = speechIdentity(voiceId)
-  const key = cacheKey({ text: input, provider, voice, model })
+  const key = cacheKey({
+    text: input,
+    provider,
+    voice,
+    model,
+    ...(provider === 'elevenlabs' ? { pace: ELEVENLABS_VOICE_SETTINGS.speed } : {}),
+  })
   const cached = await readSpeech(key)
   if (cached) {
     return Response.json(cached satisfies SpeechResponse, {
