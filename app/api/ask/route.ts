@@ -1,71 +1,23 @@
-import { isEngine, type Engine } from '@/lib/engines'
 import { DEFAULT_PROVIDER, isProvider } from '@/lib/providers'
 import { LlmError, completeStructured } from '@/lib/llm'
 import {
-  ANSWER_JSON_SCHEMA as WHITEBOARD_SCHEMA,
-  isRenderableScene as isWhiteboardScene,
-  normalizeScene as normalizeWhiteboardScene,
-  type Scene as WhiteboardScene,
+  ANSWER_JSON_SCHEMA,
+  isRenderableScene,
+  normalizeScene,
+  type Scene,
 } from '@/lib/lesson'
-import {
-  ANSWER_SYSTEM_PROMPT as WHITEBOARD_PROMPT,
-  answerPrompt as whiteboardAnswerPrompt,
-} from '@/lib/prompt'
-import {
-  SCENE_JSON_SCHEMA as SLIDES_SCHEMA,
-  isRenderableScene as isSlidesScene,
-  normalizeScene as normalizeSlidesScene,
-  type TemplateScene,
-} from '@/lib/template-lesson'
-import {
-  ANSWER_SYSTEM_PROMPT as SLIDES_PROMPT,
-  answerPrompt as slidesAnswerPrompt,
-} from '@/lib/template-prompt'
-import {
-  MANIM_ANSWER_JSON_SCHEMA as MANIM_SCHEMA,
-  isRenderableManimScene,
-  normalizeManimScene,
-  type ManimScene,
-} from '@/lib/manim-lesson'
-import {
-  ANSWER_SYSTEM_PROMPT as MANIM_PROMPT,
-  answerPrompt as manimAnswerPrompt,
-} from '@/lib/manim-prompt'
+import { ANSWER_SYSTEM_PROMPT, answerPrompt } from '@/lib/prompt'
 
 export const maxDuration = 120
 
-function engineConfig(engine: Engine) {
-  if (engine === 'whiteboard' || engine === 'canvas') {
-    return {
-      system: WHITEBOARD_PROMPT,
-      prompt: whiteboardAnswerPrompt,
-      schema: WHITEBOARD_SCHEMA,
-      parse: (raw: unknown) => {
-        const scene = raw as WhiteboardScene
-        return isWhiteboardScene(scene) ? normalizeWhiteboardScene(scene, 0) : null
-      },
-    }
-  }
-  if (engine === 'manim') {
-    return {
-      system: MANIM_PROMPT,
-      prompt: manimAnswerPrompt,
-      schema: MANIM_SCHEMA,
-      parse: (raw: unknown) => {
-        const scene = raw as ManimScene
-        return isRenderableManimScene(scene) ? normalizeManimScene(scene, 0) : null
-      },
-    }
-  }
-  return {
-    system: SLIDES_PROMPT,
-    prompt: slidesAnswerPrompt,
-    schema: SLIDES_SCHEMA,
-    parse: (raw: unknown) => {
-      const scene = raw as TemplateScene
-      return isSlidesScene(scene) ? normalizeSlidesScene(scene, 0) : null
-    },
-  }
+const config = {
+  system: ANSWER_SYSTEM_PROMPT,
+  prompt: answerPrompt,
+  schema: ANSWER_JSON_SCHEMA,
+  parse: (raw: unknown) => {
+    const scene = raw as Scene
+    return isRenderableScene(scene) ? normalizeScene(scene, 0) : null
+  },
 }
 
 /**
@@ -77,10 +29,9 @@ export async function POST(request: Request) {
   let question: unknown
   let title: unknown
   let current: unknown
-  let engine: unknown
   let provider: unknown
   try {
-    ;({ question, title, current, engine, provider } = await request.json())
+    ;({ question, title, current, provider } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -92,7 +43,6 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Keep the question under 400 characters.' }, { status: 400 })
   }
 
-  const config = engineConfig(isEngine(engine) ? engine : 'slides')
   try {
     const content = await completeStructured({
       provider: isProvider(provider) ? provider : DEFAULT_PROVIDER,

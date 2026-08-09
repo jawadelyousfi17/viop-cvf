@@ -13,7 +13,6 @@ import {
 } from '@/lib/lesson'
 import type { LessonEvent } from '@/lib/lesson-stream'
 import type { Engine } from '@/lib/engines'
-import type { Provider } from '@/lib/providers'
 import { DEFAULT_VOICE_ID, type VoiceId } from '@/lib/voices'
 import type { BoardPainter } from './paint'
 import { ImageBank } from '../images'
@@ -97,17 +96,7 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Les
   }
 }
 
-export default function Studio({
-  engine,
-  provider,
-  model,
-  chooser,
-}: {
-  engine: Engine
-  provider: Provider
-  model: string
-  chooser: React.ReactNode
-}) {
+export default function Studio({ engine }: { engine: Engine }) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [topic, setTopic] = useState('')
   /** A finished script to draw, instead of a topic to invent one for. */
@@ -260,6 +249,10 @@ export default function Studio({
     imagesRef.current?.prefetch(imageQueries(event.scene))
 
     const scenes = [...current.scenes, event.scene]
+    // Each section's voice is its own TTS request, kicked off the moment the
+    // scene arrives — the first section starts as soon as it is ready, and by
+    // the time playback reaches the rest their audio is already on hand.
+    narratorRef.current?.prefetch(scenes.length - 1, event.scene.narration)
     const next = { ...current, scenes }
     lessonRef.current = next
     setLesson(next)
@@ -294,8 +287,8 @@ export default function Studio({
           from: pending.next,
           count: 1,
           engine,
-          provider,
-          model,
+          provider: 'openai',
+          model: 'gpt-5.6-luna',
         }),
       })
       if (!response.ok || !response.body) {
@@ -328,7 +321,7 @@ export default function Studio({
       drawingRef.current = false
       setDrawing(false)
     }
-  }, [addScene, engine, provider, model])
+  }, [addScene, engine])
 
   /**
    * Draws the scene the lesson is waiting on, and plays it.
@@ -364,9 +357,11 @@ export default function Studio({
     planRef.current = null
     setPlan(null)
 
-    // A script is drawn one scene at a time; a topic is written straight
-    // through, because there is no script to divide until the model writes one.
-    const onDemand = scripted.length > 0
+    // A pasted script is drawn one scene at a time. A topic is first written
+    // out as a script by gpt-5.6-terra, then drawn straight through by luna —
+    // the writer never thinks about boxes, the illustrator never edits prose.
+    const pasted = scripted
+    const onDemand = pasted.length > 0
 
     let started = false
     let pendingMeta: Extract<LessonEvent, { type: 'meta' }> | null = null
@@ -383,16 +378,31 @@ export default function Studio({
     }
 
     try {
+      let drawScript = pasted
+      if (!drawScript) {
+        setPendingTitle(trimmed)
+        const written = await fetch('/api/script', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ topic: trimmed, history }),
+        })
+        const data = await written.json().catch(() => null)
+        if (!written.ok) throw new Error(data?.error ?? `Request failed (${written.status})`)
+        if (!isCurrent()) return
+        drawScript = String(data?.script ?? '').trim()
+        if (!drawScript) throw new Error('No script came back.')
+      }
+
       const response = await fetch('/api/lesson', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           topic: trimmed,
-          script: scripted,
+          script: drawScript,
           history,
           engine,
-          provider,
-          model,
+          provider: 'openai',
+          model: 'gpt-5.6-luna',
           ...(onDemand ? { from: 0, count: 1 } : {}),
         }),
       })
@@ -409,7 +419,7 @@ export default function Studio({
         if (event.type === 'plan') {
           // How many scenes the script comes to. Only the first is on its way.
           if (onDemand) {
-            planRef.current = { script: scripted, total: event.total, next: 0 }
+            planRef.current = { script: drawScript, total: event.total, next: 0 }
             setPlan({ total: event.total, next: 0 })
           }
         } else if (event.type === 'meta') {
@@ -701,7 +711,7 @@ export default function Studio({
           title: current.title,
           current: current.scenes[sceneIndex]?.narration ?? '',
           engine,
-          provider,
+          provider: 'openai',
         }),
       })
       const data = await response.json()
@@ -777,7 +787,6 @@ export default function Studio({
         busy={phase === 'generating'}
         pendingTitle={pendingTitle}
         error={error}
-        chooser={chooser}
       />
     )
   }
@@ -1001,7 +1010,6 @@ function TopicScreen({
   busy,
   pendingTitle,
   error,
-  chooser,
   onSlate,
 }: {
   topic: string
@@ -1013,7 +1021,6 @@ function TopicScreen({
   busy: boolean
   pendingTitle: string | null
   error: string | null
-  chooser: React.ReactNode
 }) {
   const scenes = script.trim() ? parseScript(script).length : 0
   const [saved, setSaved] = useState<SavedScript[]>([])
@@ -1141,8 +1148,6 @@ function TopicScreen({
           the way a good teacher does. Or give me a script you have already written, and I
           will draw the board for it and leave your words alone.
         </p>
-
-        <div className="mt-8">{chooser}</div>
 
         {/* Scripts already written, ready to draw. */}
         {saved.length > 0 && (

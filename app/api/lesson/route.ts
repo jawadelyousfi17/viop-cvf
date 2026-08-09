@@ -1,81 +1,18 @@
-import { isEngine, type Engine } from '@/lib/engines'
 import { parseScript } from '@/lib/script-import'
 import { DEFAULT_PROVIDER, isProvider } from '@/lib/providers'
 import { LlmError, streamStructured } from '@/lib/llm'
-import { LESSON_JSON_SCHEMA as WHITEBOARD_SCHEMA } from '@/lib/lesson'
-import { LessonStreamParser as WhiteboardParser } from '@/lib/lesson-stream'
-import {
-  SYSTEM_PROMPT as WHITEBOARD_PROMPT,
-  scriptPrompt as whiteboardScript,
-  userPrompt as whiteboardUser,
-} from '@/lib/prompt'
-import { LESSON_JSON_SCHEMA as SLIDES_SCHEMA } from '@/lib/template-lesson'
-import { LessonStreamParser as SlidesParser } from '@/lib/template-stream'
-import { SYSTEM_PROMPT as SLIDES_PROMPT, userPrompt as slidesUser } from '@/lib/template-prompt'
-import { IT_LESSON_JSON_SCHEMA as IT_SCHEMA } from '@/lib/it-lesson'
-import { ITStreamParser } from '@/lib/it-stream'
-import { SYSTEM_PROMPT as IT_PROMPT, userPrompt as itUser } from '@/lib/it-prompt'
-import { MATH_LESSON_JSON_SCHEMA as MATH_SCHEMA } from '@/lib/math-lesson'
-import { MathStreamParser } from '@/lib/math-stream'
-import {
-  MATH_SYSTEM_PROMPT as MATH_PROMPT,
-  mathScriptPrompt as mathScript,
-  mathTopicPrompt as mathUser,
-} from '@/lib/math-prompt'
-import { MANIM_LESSON_JSON_SCHEMA as MANIM_SCHEMA } from '@/lib/manim-lesson'
-import { ManimStreamParser } from '@/lib/manim-stream'
-import { SYSTEM_PROMPT as MANIM_PROMPT, userPrompt as manimUser } from '@/lib/manim-prompt'
+import { LESSON_JSON_SCHEMA } from '@/lib/lesson'
+import { LessonStreamParser } from '@/lib/lesson-stream'
+import { SYSTEM_PROMPT, scriptPrompt, userPrompt } from '@/lib/prompt'
 
 export const maxDuration = 300
 
-/** Everything that differs between the engines, in one place. */
-function engineConfig(engine: Engine) {
-  // The whiteboard and canvas engines share a board language, so they share a
-  // prompt and a schema; only the renderer differs.
-  if (engine === 'whiteboard' || engine === 'canvas') {
-    return {
-      system: WHITEBOARD_PROMPT,
-      user: whiteboardUser,
-      // Only the board engines can be given a finished script: the others
-      // write their own narration as part of planning a slide or an animation.
-      script: whiteboardScript,
-      schema: WHITEBOARD_SCHEMA,
-      parser: () => new WhiteboardParser(),
-    }
-  }
-  if (engine === 'it') {
-    return {
-      system: IT_PROMPT,
-      user: itUser,
-      schema: IT_SCHEMA,
-      parser: () => new ITStreamParser(),
-    }
-  }
-  // A worked solution can be given a script, the same way a board can: the
-  // words are the lesson, and the page is what goes with them.
-  if (engine === 'math') {
-    return {
-      system: MATH_PROMPT,
-      user: mathUser,
-      script: mathScript,
-      schema: MATH_SCHEMA,
-      parser: () => new MathStreamParser(),
-    }
-  }
-  if (engine === 'manim') {
-    return {
-      system: MANIM_PROMPT,
-      user: manimUser,
-      schema: MANIM_SCHEMA,
-      parser: () => new ManimStreamParser(),
-    }
-  }
-  return {
-    system: SLIDES_PROMPT,
-    user: slidesUser,
-    schema: SLIDES_SCHEMA,
-    parser: () => new SlidesParser(),
-  }
+const config = {
+  system: SYSTEM_PROMPT,
+  user: userPrompt,
+  script: scriptPrompt,
+  schema: LESSON_JSON_SCHEMA,
+  parser: () => new LessonStreamParser(),
 }
 
 /**
@@ -87,13 +24,12 @@ export async function POST(request: Request) {
   let topic: unknown
   let script: unknown
   let history: unknown
-  let engine: unknown
   let provider: unknown
   let model: unknown
   let from: unknown
   let count: unknown
   try {
-    ;({ topic, script, history, engine, provider, model, from, count } = await request.json())
+    ;({ topic, script, history, provider, model, from, count } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -117,8 +53,6 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
-
-  const config = engineConfig(isEngine(engine) ? engine : 'slides')
 
   const past = Array.isArray(history)
     ? history
