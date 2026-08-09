@@ -13,17 +13,17 @@ Layout rules:
 - NEVER draw a title, heading or scene name. No "text" shape whose job is to announce what the scene is about. Go straight to the substance — the first thing drawn is part of the explanation, not a label for it.
 - A Mermaid "diagram" is placed as ONE block in this flow — you do not give it a row or a position, and it never collides with anything. See the diagram section below.
 - **Work down the board, in rows.** A scene reads TOP TO BOTTOM, like a page. Put the first thing you talk about at the top, the next below it, the conclusion at the bottom. Never scatter things around the board and never work right-to-left.
-- Plan 4 to 6 rows. Give every shape in a row the SAME y, and lay them left to right in the order you mention them. Start a new row for the next idea.
+- Plan 3 or 4 rows — never more. Give every shape in a row the SAME y, and lay them left to right in the order you mention them. Start a new row for the next idea.
 - Rows are spaced for you and everything is centred for you, so approximate y values are fine — what matters is that shapes meant to sit side by side share a y, and shapes meant to sit below start a clearly larger one.
-- A row holds 2 or 3 large shapes, or up to 4 when they are small — a label, a number, an icon.
+- A row holds 2 large shapes, or 3 when they are small — a label, a number, an icon.
 - FILL THE BOARD. It is ${SCENE_W} wide by ${SCENE_H} tall — a wide 16:9 surface, and the most common failure is a scene using only the middle of it. Every row should reach out toward both edges.
-- A box carrying an idea is 260-360 wide and 100-140 tall. Wide rather than tall: height is the scarce dimension on a ${SCENE_W} x ${SCENE_H} board, and a box 200 tall costs a fifth of the whole scene for one sentence of text.
-- 3 or 4 shapes across a row is the normal case, and they should together span most of the ${SCENE_W}. Two shapes in a row means each one is large.
-- **Count your rows, not just your shapes.** The board is ${SCENE_H} tall and a row costs about 150. A photograph costs 340 — two rows on its own. So a scene has room for the image plus FOUR OR FIVE more rows, and no more. Six rows of content will not fit and the whole scene gets shrunk to compensate, which is worse than leaving something out.
-- **9 to 13 shapes per scene, counting the diagram's nodes**, arranged in those rows — 3 across is the normal case. A scene with a six-node diagram has six of its budget spent, so it wants another four or five shapes around it, not another twelve. That is a ceiling and not a target: a scene that says what it needs in seven shapes is finished at seven.
-- **Two to four "symbol" shapes a scene.** They are the cheapest way to stop a board being a wall of rectangles: one beside each label in a row, or one inside each box. A scene with none is almost always a scene of boxes with words in them.
+- A box carrying an idea is 320-460 wide and 110-150 tall. Wide rather than tall: height is the scarce dimension on a ${SCENE_W} x ${SCENE_H} board, and a box 200 tall costs a fifth of the whole scene for one sentence of text.
+- 2 or 3 shapes across a row is the normal case, and they should together span most of the ${SCENE_W} — fewer, larger shapes, not more, smaller ones.
+- **Count your rows, not just your shapes.** The board is ${SCENE_H} tall and a row costs about 150. A photograph costs 340 — two rows on its own. So a scene with an image has room for TWO OR THREE more rows, and no more. More will not fit and the whole scene gets shrunk to compensate, which is worse than leaving something out.
+- **5 to 8 shapes per scene, counting the diagram's nodes.** That is a ceiling and not a target: a scene that says what it needs in five is finished at five. ONE idea per scene — the viewer is listening and reading at once, and every extra shape splits their attention. When the narration covers two things, the second thing is the next scene's board, not two more rows on this one. When in doubt, leave it out.
+- **One or two "symbol" shapes a scene.** They are the cheapest way to stop a board being a wall of rectangles: one beside each label in a row, or one inside each box. A scene with none is almost always a scene of boxes with words in them.
 - Annotations cost nothing. A "ring", "highlight", "curve" or "line" is drawn over the top of what is already there and takes no row of its own, so it is never the thing to cut. A "ring" goes straight over the shape it circles — give it the same x/y/w/h as that shape and it will be fitted around it.
-- **At most three loose "text" shapes in a scene.** Text that names a thing goes inside that thing; text that measures it goes inside it too. Reserve a free-standing "text" for the three cases where nothing else will do: a red or green remark in the margin, a formula, and the one line the scene is arguing for. If you find yourself writing a fourth, it belongs in a box, a table, a stack, an arrow label or a caption on a chart.
+- **At most ONE loose "text" shape in a scene**: the single line the scene is arguing for, or one formula. Text that names a thing goes inside that thing; text that measures it goes inside it too. Anything more belongs in a box, a table, a stack, an arrow label or a caption on a chart — or in the next scene.
 - Shapes must NOT overlap. Give boxes at least 40px of breathing room, and leave 60-100px between rows.
 - Keep a 40px margin on all sides. Nothing may extend past the board.
 - Prefer one clear structure per scene (a row of steps, a hierarchy, a comparison, a cycle) with supporting detail around it, over a scatter of unrelated boxes.
@@ -44,12 +44,12 @@ flowchart TD
 - Node shapes: \`[box]\` for a thing or a step, \`{diamond}\` for a decision, \`([rounded])\` for a start or an end, \`((round))\` for a store or a pool, \`{{hexagon}}\` for a transform.
 - Edges: \`-->\` normal, \`-.->\` for something conditional or weak. **Label almost every edge** — the label is where the real information is. It is written beside the line, not squeezed into it, so it can be a real phrase: "asks where next", "validate and store", "read user, write login logs". Keep it under 40 characters; past that the diagram shrinks to make room and everything in it gets harder to read.
 - \`flowchart TD\` for top-down, \`flowchart LR\` for a left-to-right chain. A long chain is turned sideways automatically if it won't fit, so pick whichever reads better.
-- **3 to 5 nodes.** Six or more will not fit a board at a readable size — it gets shrunk until nobody can read it. A longer chain is two scenes, not one crowded diagram.
+- **3 or 4 nodes.** Five or more will not fit a board at a readable size — it gets shrunk until nobody can read it. A longer chain is two scenes, not one crowded diagram.
 - Keep node labels under 30 characters.
 
 **Timing.** For each node, add an entry to "diagram.timing" giving its id, the phrase from the narration that introduces it, and roughly when in the scene that falls. The node is drawn as you say those words, exactly like a shape's "anchor". Every node should have one.
 
-**What still goes in "shapes".** The diagram is only the connected part. Everything around it — the photograph, the chart, the underlined heading label, the numbers, the red annotation, the sticky note, the worked example — stays in "shapes" as before, and is laid out around the diagram. A scene that is *only* a flowchart is a poor scene; the diagram is one element among several.
+**What still goes in "shapes".** The diagram is only the connected part. Around it, ONE or TWO supporting shapes are enough — a photograph or a red annotation, laid out around the diagram. A scene that is a clear diagram plus one support is a good scene; a diagram buried in six other shapes is not.
 
 Leave "diagram.source" as an empty string when the scene has no connected structure. Most scenes will have one; some genuinely do not.
 
@@ -125,9 +125,9 @@ These three are drawn from "points" — a list of absolute scene coordinates. x/
 
 # Images
 
-EVERY SCENE MUST CONTAIN AN "image". Not most scenes — every single one. A "symbol" does not count: a symbol is a drawing of an idea, a photograph is evidence that the thing is real, and a scene wants both. A scene of drawn boxes with no photograph in it is not finished. If a lesson has six scenes it has at least six images.
+AT MOST one "image" per scene, and only where a photograph genuinely is the evidence — a real place, a real machine, a real specimen. Many scenes are better with none: a photograph that merely decorates costs two rows of the board and a slice of the viewer's attention. Never two images in one scene.
 
-A second image in a scene is welcome wherever a comparison, a before-and-after, or a second real example would help.
+Across a lesson, two or three photographs in total is the right feel — evidence where it counts, drawings everywhere else.
 
 An image shows you THE THING ITSELF. A real object, in the world, photographed.
 

@@ -13,12 +13,9 @@ import { fishVoiceFor, isKnownVoice, openAIVoiceFor } from './voices'
 export const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini-tts'
 /** Fish Audio's current high-quality general TTS model. */
 export const FISH_DEFAULT_MODEL = 's2-pro'
-/**
- * Flash v2.5: the latency-optimised model. Sections are synthesised one by
- * one the moment they stream in, so what matters is how fast the FIRST one
- * comes back — and flash returns character timestamps like the rest.
- */
-export const ELEVENLABS_DEFAULT_MODEL = 'eleven_flash_v2_5'
+/** Multilingual v2 — the quality voice, and it still returns character
+ * timestamps through the with-timestamps endpoint. */
+export const ELEVENLABS_DEFAULT_MODEL = 'eleven_multilingual_v2'
 
 export type TtsProvider = 'openai' | 'elevenlabs' | 'fish'
 
