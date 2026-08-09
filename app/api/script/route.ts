@@ -3,20 +3,16 @@ import { LlmError, streamText } from '@/lib/llm'
 export const maxDuration = 300
 
 /**
- * Writes the narration script for a topic — and nothing else.
+ * Writes the narration for a topic — and nothing else.
  *
- * Generation is split in two on purpose: gpt-5.6-terra writes the words,
- * gpt-5.6-luna draws the board for them. The writer never thinks about
- * boxes and the illustrator never rewrites the prose.
+ * Deliberately under-instructed: terra answers the way a good chatbot
+ * answers, and that natural, paragraph-at-a-time explanation IS the script.
+ * The paragraphs become the scenes; luna draws a board for each one.
  */
-const SYSTEM = `You write narration scripts for a spoken whiteboard lesson.
-
-Rules:
-- Write 6 to 10 sections, separated by exactly one blank line.
-- Each section is 2 to 4 spoken sentences — the words a teacher would actually say, out loud, to one student.
-- Plain prose only: no headings, no lists, no markdown, no stage directions.
-- One idea per section. Concrete and vivid; simple words; explain like the listener has never met the topic.
-- Open by hooking the question the topic raises; end with the one-sentence takeaway.`
+const SYSTEM =
+  'Explain the topic you are given, out loud, as if teaching one person. ' +
+  'Plain text only — no markdown, no headings, no lists. Short paragraphs. ' +
+  'Keep the whole thing under 400 words.'
 
 export async function POST(request: Request) {
   let topic: unknown
@@ -37,13 +33,13 @@ export async function POST(request: Request) {
     ? history
         .filter((h) => h && typeof h.title === 'string')
         .slice(-6)
-        .map((h) => `- ${h.title}`)
-        .join('\n')
+        .map((h) => h.title)
+        .join(', ')
     : ''
 
-  const user =
-    `Write the narration script for a lesson on: ${topic.trim()}` +
-    (past ? `\n\nThe student has already had lessons on:\n${past}\nDo not repeat them.` : '')
+  // The topic goes through as the user typed it — the model is a chatbot
+  // being asked a question, not a copywriter being briefed.
+  const user = topic.trim() + (past ? `\n\n(Already covered earlier: ${past}.)` : '')
 
   try {
     let text = ''
@@ -52,6 +48,7 @@ export async function POST(request: Request) {
       model: 'gpt-5.6-terra',
       system: SYSTEM,
       user,
+      maxTokens: 1_500,
     })) {
       text += delta
     }
