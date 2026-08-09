@@ -114,6 +114,8 @@ export async function POST(request: Request) {
 
   const headers = new Headers(response.headers)
   headers.set('x-tts-cache', 'miss')
+  // Which engine actually spoke — so "are we on flash?" is a curl, not a hunch.
+  headers.set('x-tts-identity', `${provider}/${model}/${voice}`)
   return new Response(response.body, { status: response.status, headers })
 }
 
