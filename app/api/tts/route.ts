@@ -2,7 +2,7 @@ import OpenAI from 'openai'
 import { cacheKey, readSpeech, writeSpeech } from '@/lib/tts-cache'
 import {
   ELEVENLABS_DEFAULT_MODEL,
-  FISH_DEFAULT_MODEL,
+  fishModel,
   OPENAI_DEFAULT_MODEL,
   resolveProvider,
   speechIdentity,
@@ -21,8 +21,6 @@ const OPENAI_DEFAULT_VOICE = 'sage'
 
 // "EVE". Alternatives: Hope uYXf8XasLslADfZ2MB4u, Ivy MClEFoImJXBTgLwdLI5n.
 const ELEVENLABS_DEFAULT_VOICE = DEFAULT_VOICE_ID
-// The quality model, not the latency-optimised turbo/flash ones. Scenes are
-// prefetched a scene ahead, so the extra generation time is hidden anyway.
 
 /**
  * Tuned for a teacher reading aloud rather than an announcer.
@@ -151,9 +149,9 @@ async function speakWithOpenAI(input: string, voice?: string) {
 }
 
 /**
- * Fish Audio. Its speech endpoint returns audio and nothing else, so the timing
- * the board needs is recovered afterwards by transcribing what it just said —
- * see alignFish.
+ * Fish Audio streams both audio and word timestamps. Reading the whole stream
+ * here still gives the player one ordinary MP3 response, while its alignment
+ * data lets the board draw with the teacher rather than after the fact.
  */
 async function speakWithFish(input: string, requested?: string) {
   const apiKey = process.env.FISH_API_KEY
@@ -166,24 +164,28 @@ async function speakWithFish(input: string, requested?: string) {
     return Response.json({ error: 'No Fish Audio voice configured.' }, { status: 501 })
   }
 
-  let audio: ArrayBuffer
+  let speech: FishSpeech
   try {
-    const response = await fetch('https://api.fish.audio/v1/tts', {
+    const response = await fetch('https://api.fish.audio/v1/tts/stream/with-timestamp', {
       method: 'POST',
       headers: {
         authorization: `Bearer ${apiKey}`,
         'content-type': 'application/json',
-        // Chooses the synthesis model; the header, oddly, not the body.
-        model: process.env.FISH_MODEL ?? FISH_DEFAULT_MODEL,
+        // Fish chooses the synthesis model from this required header.
+        model: fishModel(),
       },
       body: JSON.stringify({
         text: input,
         reference_id: referenceId,
         format: 'mp3',
+        sample_rate: 44100,
         mp3_bitrate: 128,
+        normalize: true,
+        chunk_length: 300,
+        latency: 'balanced',
         // Unhurried, to match the teaching register the other providers get
         // through their own settings.
-        prosody: { speed: 0.96 },
+        prosody: { speed: 0.96, normalize_loudness: true },
       }),
     })
 
@@ -193,33 +195,199 @@ async function speakWithFish(input: string, requested?: string) {
       return Response.json({ error: `Fish Audio returned ${response.status}.` }, { status: 502 })
     }
 
-    audio = await response.arrayBuffer()
+    speech = await readFishStream(response)
   } catch (error) {
     console.error('[tts] fish request failed', error)
     const message = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: `Fish Audio failed: ${message}` }, { status: 502 })
   }
 
-  if (!audio.byteLength) {
+  if (!speech.audio.byteLength) {
     return Response.json({ error: 'Fish Audio returned no audio.' }, { status: 502 })
   }
 
   return Response.json(
     {
-      audio: Buffer.from(audio).toString('base64'),
-      alignment: await alignFish(audio, input, apiKey),
+      audio: speech.audio.toString('base64'),
+      alignment:
+        process.env.FISH_ALIGNMENT === 'off'
+          ? null
+          : alignmentFromFish(input, speech.segments) ??
+            (await alignFishWithAsr(speech.audio, input, apiKey)),
     } satisfies SpeechResponse,
     { headers: { 'cache-control': 'no-store' } }
   )
 }
 
 /**
- * Recovers character timings for Fish audio by transcribing it.
+ * The finished events from Fish's timestamped stream. `alignment` is a
+ * snapshot, not an append-only delta, so it is retained by chunk sequence and
+ * only the newest snapshot for each text chunk reaches this function.
+ */
+interface FishSegment {
+  text?: string
+  start?: number
+  end?: number
+}
+
+interface FishSpeech {
+  audio: Buffer
+  segments: FishSegment[]
+}
+
+interface FishStreamEvent {
+  audio_base64?: string
+  chunk_seq?: number
+  chunk_audio_offset_sec?: number
+  alignment?: { segments?: FishSegment[] } | null
+}
+
+/** Read Fish's SSE stream into one MP3 and its last alignment snapshots. */
+async function readFishStream(response: Response): Promise<FishSpeech> {
+  if (!response.body) throw new Error('Fish Audio returned an empty stream.')
+
+  const decoder = new TextDecoder()
+  const audio: Buffer[] = []
+  const alignments = new Map<number, { offset: number; segments: FishSegment[] }>()
+  let pending = ''
+
+  const receive = (event: string) => {
+    const payload = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trimStart())
+      .join('\n')
+    if (!payload || payload === '[DONE]') return
+
+    let data: FishStreamEvent
+    try {
+      data = JSON.parse(payload) as FishStreamEvent
+    } catch {
+      // A malformed progress event must not throw away usable audio from the
+      // rest of the stream. Fish will still close the response with the real
+      // error status if synthesis itself failed.
+      console.warn('[tts] ignored malformed Fish stream event')
+      return
+    }
+
+    if (data.audio_base64) audio.push(Buffer.from(data.audio_base64, 'base64'))
+    if (
+      typeof data.chunk_seq === 'number' &&
+      data.alignment?.segments?.length
+    ) {
+      alignments.set(data.chunk_seq, {
+        offset: data.chunk_audio_offset_sec ?? 0,
+        segments: data.alignment.segments,
+      })
+    }
+  }
+
+  const reader = response.body.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    pending += decoder.decode(value, { stream: true })
+    // Normalise after appending, rather than per network chunk: a CRLF pair
+    // is allowed to arrive split across two chunks.
+    pending = pending.replace(/\r\n/g, '\n')
+    let boundary = pending.indexOf('\n\n')
+    while (boundary !== -1) {
+      receive(pending.slice(0, boundary))
+      pending = pending.slice(boundary + 2)
+      boundary = pending.indexOf('\n\n')
+    }
+  }
+  pending += decoder.decode()
+  if (pending.trim()) receive(pending)
+
+  const segments = [...alignments.entries()]
+    .sort(([a], [b]) => a - b)
+    .flatMap(([, snapshot]) =>
+      snapshot.segments.map((segment) => ({
+        ...segment,
+        start: typeof segment.start === 'number' ? segment.start + snapshot.offset : undefined,
+        end: typeof segment.end === 'number' ? segment.end + snapshot.offset : undefined,
+      }))
+    )
+
+  return { audio: Buffer.concat(audio), segments }
+}
+
+/**
+ * Converts Fish word/phrase timings into character start times for the player.
  *
- * ElevenLabs hands back where every character falls, which is what lets a shape
- * be drawn on the word that describes it. Fish returns bare audio, so the clip
- * is sent straight back to Fish's own transcriber, which times every word it
- * hears.
+ * Alignment text is close to the script but loses punctuation and can combine
+ * a few words into one segment. Match words back to the source instead of
+ * trusting offsets, then spread a phrase's duration across its words.
+ */
+function alignmentFromFish(
+  input: string,
+  segments: FishSegment[]
+): SpeechResponse['alignment'] {
+  const usable = segments.filter(
+    (segment) =>
+      typeof segment.start === 'number' &&
+      typeof segment.end === 'number' &&
+      segment.end >= segment.start &&
+      segment.text?.trim()
+  )
+  if (!usable.length) return null
+
+  const characters = input.split('')
+  const starts = new Array<number>(characters.length).fill(0)
+  const WORD = /[\p{L}\p{N}']+/gu
+  const words = [...input.matchAll(WORD)].map((match) => ({
+    text: match[0].toLowerCase(),
+    from: match.index!,
+    to: match.index! + match[0].length,
+  }))
+  if (!words.length) return null
+
+  const timed: { from: number; to: number; start: number; end: number }[] = []
+  let next = 0
+
+  for (const segment of usable) {
+    const spoken = [...segment.text!.matchAll(WORD)].map((match) => match[0].toLowerCase())
+    for (const [index, text] of spoken.entries()) {
+      let found = -1
+      for (let candidate = next; candidate < Math.min(words.length, next + 12); candidate++) {
+        if (words[candidate].text === text) {
+          found = candidate
+          break
+        }
+      }
+      if (found === -1) continue
+
+      next = found + 1
+      const start = segment.start! + ((segment.end! - segment.start!) * index) / spoken.length
+      const end = segment.start! + ((segment.end! - segment.start!) * (index + 1)) / spoken.length
+      timed.push({ ...words[found], start, end })
+    }
+  }
+  if (!timed.length) return null
+
+  let cursor = 0
+  let previous = 0
+  for (const word of timed) {
+    for (let i = cursor; i < word.from; i++) starts[i] = previous
+    const span = Math.max(1, word.to - word.from)
+    for (let i = word.from; i < word.to; i++) {
+      starts[i] = word.start + ((word.end - word.start) * (i - word.from)) / span
+    }
+    previous = word.end
+    cursor = word.to
+  }
+  for (let i = cursor; i < starts.length; i++) starts[i] = previous
+
+  return { characters, starts }
+}
+
+/**
+ * Last-resort timing recovery for a Fish response without stream timestamps.
+ *
+ * This should be unusual: the timestamped endpoint above is the normal route.
+ * Retaining the fallback means a provider-side partial response still plays in
+ * sync when its audio is valid but its timing snapshot is absent.
  *
  * Those words are then matched back onto the narration the model wrote, rather
  * than used in its place — the player looks up anchor phrases in the original
@@ -231,8 +399,8 @@ async function speakWithFish(input: string, requested?: string) {
  *
  * Returns null on any failure — an unsynced lesson still plays.
  */
-async function alignFish(
-  audio: ArrayBuffer,
+async function alignFishWithAsr(
+  audio: Buffer,
   input: string,
   apiKey: string
 ): Promise<SpeechResponse['alignment']> {
@@ -240,7 +408,12 @@ async function alignFish(
 
   try {
     const form = new FormData()
-    form.append('audio', new Blob([audio], { type: 'audio/mpeg' }), 'speech.mp3')
+    // Buffer can be backed by a SharedArrayBuffer in recent Node typings,
+    // while Blob deliberately accepts only a transferable ArrayBuffer. Make a
+    // compact copy for this exceptional ASR fallback.
+    const audioBytes = new Uint8Array(audio.byteLength)
+    audioBytes.set(audio)
+    form.append('audio', new Blob([audioBytes], { type: 'audio/mpeg' }), 'speech.mp3')
     form.append('language', process.env.FISH_LANGUAGE ?? 'en')
     form.append('ignore_timestamps', 'false')
 

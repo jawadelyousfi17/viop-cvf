@@ -21,10 +21,6 @@ import { renderChart } from '../charts'
 import { Narrator } from '../narrator'
 import { VoicePicker } from '../VoicePicker'
 import { parseScript } from '@/lib/script-import'
-import { compileSlate } from '@/lib/slate-board'
-import { splitSentences } from '@/lib/slate'
-import { SLATE_SYSTEM, slateScriptPrompt } from '@/lib/slate-prompt'
-import type { SavedScript } from '@/app/api/scripts/route'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
 // the critical path for the topic screen.
@@ -36,25 +32,6 @@ const SUGGESTIONS = [
   'The Krebs cycle, but only the parts that matter',
   'What causes the northern lights?',
 ]
-
-/** What goes in the Slate box when it is empty — the language in ten lines. */
-const SLATE_EXAMPLE = `~ name    blue
-~ address green
-~ inert   grey
-
---- 4
-box #root ROOT / the silent dot at the end ~inert |1
-box #tld TOP-LEVEL DOMAIN [.uk] ~name |3
--> root tld : read right to left |2
-
-stk ~name |4
-  uk — the top-level domain |4
-  co — the second level |5
-  example — the registered name |6
-
-sym signpost |2
-img road signs at a junction photograph |5
-callout you read a domain backwards ~inert |6`
 
 const LOADING_LINES = [
   'Reading up on your topic…',
@@ -219,24 +196,6 @@ export default function Studio({ engine }: { engine: Engine }) {
     setIsPlaying(true)
     setPhase('board')
   }, [voiceId])
-
-  /**
-   * Plays a lesson compiled from Slate in the browser.
-   *
-   * No model, no stream, nothing to wait for: the board is already a board by
-   * the time it gets here, so there is no plan to keep and nothing more to draw.
-   */
-  const drawSlate = useCallback(
-    (compiled: Lesson) => {
-      runIdRef.current++
-      streamingRef.current = false
-      planRef.current = null
-      setPlan(null)
-      setError(null)
-      start(compiled)
-    },
-    [start]
-  )
 
   /** Appends a streamed scene and, if playback was holding for it, resumes. */
   const addScene = useCallback((event: Extract<LessonEvent, { type: 'scene' }>) => {
@@ -783,7 +742,6 @@ export default function Studio({ engine }: { engine: Engine }) {
         onSubmit={generate}
         script={script}
         setScript={setScript}
-        onSlate={drawSlate}
         busy={phase === 'generating'}
         pendingTitle={pendingTitle}
         error={error}
@@ -1010,130 +968,18 @@ function TopicScreen({
   busy,
   pendingTitle,
   error,
-  onSlate,
 }: {
   topic: string
   setTopic: (value: string) => void
   onSubmit: (topic: string, script?: string) => void
   script: string
   setScript: (value: string) => void
-  onSlate: (lesson: Lesson) => void
   busy: boolean
   pendingTitle: string | null
   error: string | null
 }) {
   const scenes = script.trim() ? parseScript(script).length : 0
-  const [saved, setSaved] = useState<SavedScript[]>([])
-  const [loading, setLoading] = useState<string | null>(null)
-  /** The saved script being looked at, before deciding what to do with it. */
-  const [picked, setPicked] = useState<{ title: string; text: string } | null>(null)
-  const [slate, setSlate] = useState('')
-  const [slateNote, setSlateNote] = useState<string | null>(null)
-  const [writing, setWriting] = useState(false)
-  const [copied, setCopied] = useState(false)
 
-  // The scripts sitting in scripts/. Fetched once, and a failure just means the
-  // row of buttons doesn't appear.
-  useEffect(() => {
-    let live = true
-    void fetch('/api/scripts')
-      .then((r) => r.json())
-      .then((data) => {
-        if (live) setSaved(data.scripts ?? [])
-      })
-      .catch(() => {})
-    return () => {
-      live = false
-    }
-  }, [])
-
-  /**
-   * Loads a saved script and offers what can be done with it.
-   *
-   * It used to go straight to the model, which is the expensive way to draw a
-   * script you have already written. The words are on disk and so is their
-   * voiceover; the only thing missing is the board, and there are two ways to
-   * get one.
-   */
-  async function pickSaved(name: string, title: string) {
-    setLoading(name)
-    setSlateNote(null)
-    try {
-      const response = await fetch(`/api/scripts?name=${encodeURIComponent(name)}`)
-      if (!response.ok) throw new Error(String(response.status))
-      const data = (await response.json()) as { text: string }
-      setScript(data.text)
-      setPicked({ title, text: data.text })
-    } catch {
-      setPicked(null)
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  /**
-   * The whole input for a model asked to write Slate for the picked script.
-   *
-   * The sentences are numbered here rather than described, because those
-   * numbers ARE the beats — a model that can count to six can time a board,
-   * and cannot paraphrase an integer.
-   */
-  const promptForSlate = picked
-    ? `${SLATE_SYSTEM}\n\n${slateScriptPrompt(
-        parseScript(picked.text).map((scene, i) => ({
-          n: i + 1,
-          sentences: splitSentences(scene.narration),
-        }))
-      )}`
-    : ''
-
-  async function copyPrompt() {
-    try {
-      await navigator.clipboard.writeText(promptForSlate)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Clipboard blocked — the textarea below is still there to select from.
-    }
-  }
-
-  /** Compiles what is in the Slate box and puts it on the board. */
-  function drawSlate() {
-    const source = slate.trim()
-    if (!source) return
-
-    // The words come from the script, not from the Slate: they are already
-    // written, already recorded, and copying them through a compiler is one
-    // more chance to change them. Keyed by scene number, so a document can draw
-    // scenes seven to nine of a fifteen-scene script.
-    const narration = picked
-      ? new Map(parseScript(picked.text).map((scene, i) => [i + 1, scene.narration]))
-      : undefined
-    const { lesson, errors, warnings } = compileSlate(source, narration ? { narration } : {})
-
-    if (!lesson.scenes.length) {
-      setSlateNote(
-        errors[0]
-          ? `${errors[0].line ? `Line ${errors[0].line}: ` : ''}${errors[0].msg}`
-          : 'Nothing there to draw.'
-      )
-      return
-    }
-
-    // Both are worth saying, and they mean different things: a dropped line is
-    // missing from the board, a flagged anchor is on it but off the beat.
-    const notes = [
-      errors.length
-        ? `${errors.length} error${errors.length === 1 ? '' : 's'}${errors[0].line ? ` — line ${errors[0].line}` : ' —'}: ${errors[0].msg}`
-        : '',
-      warnings.length
-        ? `${warnings.length} warning${warnings.length === 1 ? '' : 's'}${warnings[0].line ? ` — line ${warnings[0].line}` : ' —'}: ${warnings[0].msg}`
-        : '',
-    ].filter(Boolean)
-
-    setSlateNote(notes.length ? notes.join(' · ') : null)
-    onSlate(normalizeLesson(lesson))
-  }
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
       <div className="w-full max-w-2xl">
@@ -1148,148 +994,6 @@ function TopicScreen({
           the way a good teacher does. Or give me a script you have already written, and I
           will draw the board for it and leave your words alone.
         </p>
-
-        {/* Scripts already written, ready to draw. */}
-        {saved.length > 0 && (
-          <div className="mt-6">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
-              Saved scripts
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {saved.map((entry) => (
-                <button
-                  key={entry.name}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void pickSaved(entry.name, entry.title)}
-                  className="group flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="text-sm font-medium text-zinc-800">{entry.title}</span>
-                  <span className="text-xs text-zinc-400">
-                    {loading === entry.name ? 'opening…' : `${entry.scenes} scenes`}
-                  </span>
-                  {/* Whether the narration is already recorded. A script with
-                      its voice on disk starts instantly and costs nothing. */}
-                  {loading !== entry.name &&
-                    (entry.recorded >= entry.scenes ? (
-                      <span
-                        title="Narration already recorded"
-                        className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
-                      >
-                        voice ready
-                      </span>
-                    ) : entry.recorded > 0 ? (
-                      <span
-                        title="Some scenes still need synthesising"
-                        className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
-                      >
-                        voice {entry.recorded}/{entry.scenes}
-                      </span>
-                    ) : null)}
-                </button>
-              ))}
-            </div>
-
-            {/* What to do with the one you picked. The words and their voice
-                are already on disk; only the board is missing, and the model
-                is the expensive of the two ways to get one. */}
-            {picked && (
-              <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-                <p className="text-sm text-zinc-800">
-                  <span className="font-medium">{picked.title}</span>
-                  <span className="text-zinc-400">
-                    {' '}
-                    — {parseScript(picked.text).length} scenes, written and recorded
-                  </span>
-                </p>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setWriting((value) => !value)}
-                    className="rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-[13px] font-medium text-zinc-700 transition hover:border-zinc-400 disabled:opacity-50"
-                  >
-                    {writing ? 'Hide the Slate' : 'Paste the Slate'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onSubmit(topic, picked.text)}
-                    className="rounded-xl bg-zinc-900 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50"
-                  >
-                    Send it to the model &rarr;
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPicked(null)}
-                    className="rounded-xl px-2.5 py-2 text-[13px] text-zinc-400 transition hover:text-zinc-700"
-                  >
-                    Cancel
-                  </button>
-                </div>
-
-                {writing && (
-                  <div className="mt-4 border-t border-zinc-100 pt-4">
-                    {/* Step one: the exact input to hand a model somewhere else.
-                        The language is small enough that any model can write it,
-                        and a board written this way costs nothing here. */}
-                    <div className="flex items-baseline justify-between gap-3">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
-                        1 · The prompt for this script
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => void copyPrompt()}
-                        className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-900"
-                      >
-                        {copied ? 'Copied' : 'Copy'}
-                      </button>
-                    </div>
-                    <textarea
-                      readOnly
-                      value={promptForSlate}
-                      rows={4}
-                      onFocus={(event) => event.currentTarget.select()}
-                      className="mt-2 w-full resize-y rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-500 outline-none"
-                    />
-
-                    <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">
-                      2 · What it wrote back
-                    </p>
-                    <textarea
-                      value={slate}
-                      onChange={(event) => setSlate(event.target.value)}
-                      rows={10}
-                      spellCheck={false}
-                      placeholder={SLATE_EXAMPLE}
-                      className="mt-2 w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 font-mono text-[12px] leading-relaxed text-zinc-800 shadow-sm outline-none transition placeholder:text-zinc-300 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/5"
-                    />
-
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        disabled={!slate.trim()}
-                        onClick={drawSlate}
-                        className="rounded-xl bg-zinc-900 px-4 py-2 text-[13px] font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Draw it
-                      </button>
-                      <span className="text-xs text-zinc-400">
-                        Costs nothing — the words and the voice are already here.
-                      </span>
-                    </div>
-                    {slateNote && (
-                      <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        {slateNote}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         <form
           onSubmit={(event) => {
