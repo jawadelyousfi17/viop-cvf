@@ -56,7 +56,7 @@ export async function GET() {
 
     const solutions = rows.map(({ userId, ...solution }) => ({
       ...solution,
-      demo: isDemo({ userId }),
+      demo: isDemo({ userId }, identity),
     }))
 
     return Response.json({ solutions })

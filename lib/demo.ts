@@ -11,12 +11,17 @@ import type { Identity } from './owner'
  *
  * A user id rather than an email, because that is what the rows carry. There
  * is no service key on this deployment, so an email cannot be resolved to an
- * id at request time; the id is configuration, and /profile prints it for the
- * account that needs it so it can be copied into the environment.
+ * id at request time — which is why the id is written here rather than looked
+ * up. It identifies an account and authorises nothing: every request is still
+ * checked against the caller's own session, and this only ever widens what may
+ * be READ.
  *
- * Unset and nothing changes: every list is your own work, exactly as before.
+ * The default is jawad.pro17@gmail.com, established as the only account in the
+ * database holding any work. The environment overrides it, and setting it to
+ * an empty string turns sharing off entirely.
  */
-export const DEMO_OWNER_ID = process.env.DEMO_OWNER_ID?.trim() ?? ''
+export const DEMO_OWNER_ID =
+  process.env.DEMO_OWNER_ID?.trim() ?? '2d88ca65-0098-470e-aafa-f58fe5fac27c'
 
 /**
  * A Prisma `where` for "mine, or the demo account's".
@@ -31,6 +36,12 @@ export function visible({ ownerKey, userId }: Identity) {
   return { OR: [mine, { userId: DEMO_OWNER_ID }] }
 }
 
-/** Whether a row belongs to the demo account rather than to whoever is asking. */
-export const isDemo = (row: { userId: string | null }) =>
-  Boolean(DEMO_OWNER_ID) && row.userId === DEMO_OWNER_ID
+/**
+ * Whether a row belongs to the demo account rather than to whoever is asking.
+ *
+ * The viewer is part of the question. Without it the demo account sees its own
+ * work labelled as somebody's demo — true of the row and nonsense to the person
+ * who made it, whose whole history would carry a badge saying it was not theirs.
+ */
+export const isDemo = (row: { userId: string | null }, viewer: Identity) =>
+  Boolean(DEMO_OWNER_ID) && row.userId === DEMO_OWNER_ID && viewer.userId !== DEMO_OWNER_ID

@@ -43,7 +43,7 @@ export async function GET() {
       orderBy: { updatedAt: 'desc' },
       take: 40,
     })
-    const maps = rows.map(({ userId, ...map }) => ({ ...map, demo: isDemo({ userId }) }))
+    const maps = rows.map(({ userId, ...map }) => ({ ...map, demo: isDemo({ userId }, identity) }))
 
     return Response.json({ maps, signedIn: Boolean(identity.userId) })
   } catch (error) {

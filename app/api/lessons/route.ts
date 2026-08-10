@@ -42,7 +42,7 @@ export async function GET() {
       take: 40,
     })
 
-    const lessons = rows.map(({ userId, ...lesson }) => ({ ...lesson, demo: isDemo({ userId }) }))
+    const lessons = rows.map(({ userId, ...lesson }) => ({ ...lesson, demo: isDemo({ userId }, identity) }))
 
     return Response.json({ lessons })
   } catch (error) {
