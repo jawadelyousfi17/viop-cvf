@@ -75,8 +75,14 @@ export default function MindmapStudio() {
    * over to check something does not stop what it was saying.
    */
   const [mode, setMode] = useState<Mode>('lesson')
-  /** Open once, just after someone's first lesson has finished saving. */
-  const [raising, setRaising] = useState(false)
+  /**
+   * Why the raise is being mentioned, or null for not.
+   *
+   * Two moments earn it: the first lesson someone makes, and the moment the
+   * free plan runs out. Both are points where what happens next is a real
+   * question, which is the only kind of moment this belongs in.
+   */
+  const [raising, setRaising] = useState<'first-lesson' | 'limit' | null>(null)
   /** Fast or thinking. One choice, read by both sides. */
   const [speed, setSpeed] = useState<Speed>('fast')
   /** What the composer last asked the lesson player for. */
@@ -285,11 +291,13 @@ export default function MindmapStudio() {
           try {
             if (!localStorage.getItem(RAISING_SEEN)) {
               localStorage.setItem(RAISING_SEEN, '1')
-              setRaising(true)
+              setRaising('first-lesson')
             }
           } catch {
             // Private browsing with storage denied. Not worth a word.
           }
+        } else if (response.status === 402) {
+          setRaising('limit')
         } else if (body.error) {
           setError(body.error)
         }
@@ -602,6 +610,8 @@ export default function MindmapStudio() {
       if (saved.map) {
         setSavedId(saved.map.id)
         setHistory((current) => [saved.map!, ...current.filter((m) => m.id !== saved.map!.id)])
+      } else if (stored.status === 402) {
+        setRaising('limit')
       } else if (saved.error) {
         setError(saved.error)
       }
@@ -948,7 +958,7 @@ export default function MindmapStudio() {
         </section>
       </main>
 
-      <RaisingDialog open={raising} onClose={() => setRaising(false)} />
+      <RaisingDialog open={raising} onClose={() => setRaising(null)} />
     </div>
   )
 }

@@ -73,25 +73,49 @@ export function RaisingChip({ className = '' }: { className?: string }) {
  * Shown once ever — a second showing is an advert, and this is not one.
  *
  */
-export function RaisingDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function RaisingDialog({
+  open,
+  onClose,
+}: {
+  /**
+   * What prompted it, or null for closed.
+   *
+   *   'first-lesson'  they have just watched their first one work
+   *   'limit'         the free plan is spent
+   *
+   * Two different moments and two different sentences. The second one owes
+   * them an explanation first — they have just been stopped — and the ask only
+   * makes sense after it.
+   */
+  open: 'first-lesson' | 'limit' | null
+  onClose: () => void
+}) {
+  const limit = open === 'limit'
+
   return (
     // Narrower than the dialog's own 44rem: this is a paragraph and a button,
     // and a paragraph set across seven hundred pixels is one nobody finishes.
-    <Dialog open={open} onClose={onClose} label="nipsol is raising" className="!w-[min(100%-1.5rem,30rem)]">
+    <Dialog
+      open={open !== null}
+      onClose={onClose}
+      label="nipsol is raising"
+      className="!w-[min(100%-1.5rem,30rem)]"
+    >
       <div className="p-7 text-center">
         <span className="inline-flex h-[22px] items-center rounded-full bg-[#e3edff] px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#2f70ee]">
-          Raising now
+          {limit ? "That's the free plan" : 'Raising now'}
         </span>
 
         <h2 className="mt-4 text-[23px] font-semibold leading-snug tracking-tight text-zinc-900">
-          That was your first lesson. We&rsquo;re raising to build a lot more of them.
+          {limit
+            ? "You've used everything the free plan includes."
+            : "That was your first lesson. We're raising to build a lot more of them."}
         </h2>
 
         <p className="mt-3 text-[15px] leading-relaxed text-[#41506b]">
-          nipsol is early — a teacher that draws, explains and keeps going as deep as you
-          follow it. We&rsquo;re raising a round to make it faster, sharper and wider, and
-          we&rsquo;re talking to investors now. If you invest, or know someone who does,
-          we&rsquo;d like to hear from you.
+          {limit
+            ? "Paid plans aren't open yet — we're in beta, and we're raising a round to get there. Everything you have made is still here and still yours. If you invest, or know someone who does, that is the fastest way to see the rest of this built."
+            : 'nipsol is early — a teacher that draws, explains and keeps going as deep as you follow it. We are raising a round to make it faster, sharper and wider, and we are talking to investors now. If you invest, or know someone who does, we would like to hear from you.'}
         </p>
 
         <div className="mt-6 flex flex-col gap-2">
@@ -107,7 +131,7 @@ export function RaisingDialog({ open, onClose }: { open: boolean; onClose: () =>
             onClick={onClose}
             className="h-10 text-[14px] font-medium text-zinc-500 transition hover:text-zinc-800"
           >
-            Back to my lesson
+            {limit ? 'Back to my work' : 'Back to my lesson'}
           </button>
         </div>
       </div>
