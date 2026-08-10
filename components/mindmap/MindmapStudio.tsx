@@ -29,6 +29,7 @@ import { RaisingChip, RaisingDialog } from '../marketing/Raising'
 import { FeedbackDialog } from './FeedbackDialog'
 import { CreditsBadge, CreditsDialog } from './CreditsDialog'
 import { GENERATION_PAUSED } from '@/lib/credits'
+import { WORKSPACE, routeFor, showRoute, type WorkKind } from '@/lib/routes'
 import type { UsageView } from '@/app/api/usage/route'
 import type { SavedSolution } from '@/app/api/solutions/route'
 
@@ -67,10 +68,16 @@ import type { SavedMap } from './Sidebar'
 
 type Phase = 'idle' | 'thinking' | 'board'
 
+/** What a deep link asks the workspace to open on arrival. */
+export interface OpenRequest {
+  kind: WorkKind
+  id: string
+}
+
 /** Remembers that the raise has been mentioned. Once is a remark; twice is an advert. */
 const RAISING_SEEN = 'nipsol.raising.seen'
 
-export default function MindmapStudio() {
+export default function MindmapStudio({ open: initial }: { open?: OpenRequest | null } = {}) {
   /**
    * Which of the two this workspace is doing.
    *
@@ -357,6 +364,10 @@ export default function MindmapStudio() {
         if (body.lesson) {
           setLessonId(body.lesson.id)
           setLessons((current) => [body.lesson!, ...current])
+          // A lesson that has just been taught is now a thing with an address,
+          // so the tab it is playing in gets one — reload and it replays
+          // rather than going back to an empty box.
+          showRoute(routeFor('lesson', body.lesson.id))
 
           // The moment the product has just proved itself to them, and the
           // only one where asking lands as a remark rather than an advert.
@@ -402,6 +413,7 @@ export default function MindmapStudio() {
       setMode('math')
       setSolution(body.solution.document)
       setView({ type: 'fit' })
+      showRoute(routeFor('math', body.solution.id))
     } catch {
       setError('Could not reach the tutor service.')
     } finally {
@@ -426,6 +438,7 @@ export default function MindmapStudio() {
       setMode('lesson')
       setLessonId(body.lesson.id)
       setLesson({ topic: body.lesson.topic, replay: body.lesson.document, key: Date.now() })
+      showRoute(routeFor('lesson', body.lesson.id))
     } catch {
       setError('Could not reach the lesson service.')
     } finally {
@@ -578,6 +591,7 @@ export default function MindmapStudio() {
       setPending(new Set())
       setView({ type: 'fit' })
       setPhase('board')
+      showRoute(routeFor('map', body.map.id))
     } catch {
       setError('Could not reach the map service.')
     } finally {
@@ -669,6 +683,7 @@ export default function MindmapStudio() {
   )
 
   const startOver = useCallback(() => {
+    showRoute(WORKSPACE)
     setMap(null)
     setFolded(new Set())
     setPending(new Set())
@@ -828,6 +843,27 @@ export default function MindmapStudio() {
     }
     void draw(topic, '')
   }, [mode, topic, draw, transport, jobs, work, paused])
+
+  /**
+   * Opens whatever the address asked for.
+   *
+   * Once, on arrival, and never again: the openers rewrite the URL as they go,
+   * so reacting to the address on every change would have the workspace
+   * re-opening the thing it had just opened.
+   */
+  const arrivedRef = useRef(false)
+  useEffect(() => {
+    if (arrivedRef.current || !initial) return
+    arrivedRef.current = true
+
+    // A tick later, not in the effect body: each opener sets state as its very
+    // first act, and doing that synchronously here is a cascading render.
+    queueMicrotask(() => {
+      if (initial.kind === 'lesson') void openLesson(initial.id)
+      else if (initial.kind === 'math') void openSolution(initial.id)
+      else void open(initial.id)
+    })
+  }, [initial, open, openLesson, openSolution])
 
   const fitToScreen = useCallback(() => setView({ type: 'fit' }), [])
   const centreOnRoot = useCallback(() => setView({ type: 'focus', id: ROOT_ID }), [])
