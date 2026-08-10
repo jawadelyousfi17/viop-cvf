@@ -384,6 +384,31 @@ export default function MindmapStudio() {
   )
 
   /** Plays a saved lesson again, exactly as it was taught. */
+  /** Reopens a worked solution, exactly as it was left. */
+  const openSolution = useCallback(async (id: string) => {
+    setOpening(id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/solutions/${id}`)
+      const body = (await response.json()) as {
+        solution?: { id: string; topic: string; document: MathSolution }
+        error?: string
+      }
+      if (!response.ok || !body.solution) {
+        setError(body.error ?? 'Could not open that solution.')
+        return
+      }
+
+      setMode('math')
+      setSolution(body.solution.document)
+      setView({ type: 'fit' })
+    } catch {
+      setError('Could not reach the tutor service.')
+    } finally {
+      setOpening(null)
+    }
+  }, [])
+
   const openLesson = useCallback(async (id: string) => {
     setOpening(id)
     setError(null)
@@ -856,6 +881,12 @@ export default function MindmapStudio() {
         mode={mode}
         onOpen={async (id) => {
           if (mode === 'lesson') return openLesson(id)
+          // A worked solution is not a map. The rail lists three kinds of
+          // thing and this used to open two of them, so clicking a problem
+          // handed its id to the map loader and switched sides on the way —
+          // which is the one thing a history list must never do: take you
+          // somewhere other than the thing you clicked.
+          if (mode === 'math') return openSolution(id)
           // Opening a map is also a way of saying which side you want.
           setMode('map')
           await open(id)
