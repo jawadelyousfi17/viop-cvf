@@ -16,6 +16,13 @@ export interface SavedMap {
   nodeCount: number
   depth: number
   updatedAt: string
+  /**
+   * Made by the demo account rather than by whoever is looking.
+   *
+   * Readable by anyone and writable by nobody, so the row says where it came
+   * from and hides the delete — a bin that answers 404 is worse than no bin.
+   */
+  demo?: boolean
 }
 
 /**
@@ -43,10 +50,20 @@ export interface SavedLesson {
   summary: string
   sceneCount: number
   updatedAt: string
+  demo?: boolean
+}
+
+/** One worked solution in the rail. */
+export interface SolvedView {
+  id: string
+  title: string
+  updatedAt: string
+  demo?: boolean
 }
 
 export function Sidebar({
   history,
+  solved,
   lessons,
   currentId,
   opening,
@@ -60,19 +77,30 @@ export function Sidebar({
   currentId: string | null
   opening: string | null
   mode: Mode
+  /** Worked solutions, newest first. See `solvedJobs` in lib/jobs.ts. */
+  solved: SolvedView[]
   onOpen: (id: string) => Promise<void>
   onNew: () => void
   onIdentityChange: () => void
 }) {
   const [query, setQuery] = useState('')
 
-  // The two sides keep separate lists; the rail shows the one you are in.
+  // The three sides keep separate lists; the rail shows the one you are in.
   const rows = useMemo<SavedMap[]>(
     () =>
       mode === 'map'
         ? history
         : mode === 'math'
-          ? []
+          ? solved.map((entry) => ({
+            id: entry.id,
+            title: entry.title,
+            topic: entry.title,
+            source: 'math',
+            nodeCount: 0,
+            depth: 0,
+            updatedAt: entry.updatedAt,
+            demo: entry.demo,
+          }))
           : lessons.map((entry) => ({
             id: entry.id,
             title: entry.title,
@@ -81,8 +109,9 @@ export function Sidebar({
             nodeCount: entry.sceneCount,
             depth: 0,
             updatedAt: entry.updatedAt,
+            demo: entry.demo,
           })),
-    [mode, history, lessons]
+    [mode, history, lessons, solved]
   )
 
   const groups = useMemo(() => group(rows, query), [rows, query])
@@ -130,7 +159,7 @@ export function Sidebar({
               : mode === 'lesson'
                 ? 'Lessons you watch are kept here.'
                 : mode === 'math'
-                  ? 'Worked solutions are not kept yet.'
+                  ? 'Problems you work through are kept here.'
                   : 'Maps you make are kept here.'}
           </p>
         ) : (

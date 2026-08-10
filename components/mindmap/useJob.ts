@@ -17,6 +17,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * no other reason to hold one open.
  */
 
+/** One finished worked solution, as the rail lists it. */
+export interface Solved {
+  id: string
+  title: string
+  updatedAt: string
+  demo?: boolean
+}
+
 export interface Job {
   id: string
   kind: 'map' | 'expand' | 'math' | 'lesson'
@@ -31,6 +39,8 @@ const EVERY = 1200
 
 export function useJobs(onDone: (job: Job) => void) {
   const [running, setRunning] = useState<Job[]>([])
+  /** Worked solutions already finished — history, not the live feed. */
+  const [solved, setSolved] = useState<Solved[]>([])
   /** The callback, where the poll loop can reach the latest one. */
   const handler = useRef(onDone)
   useEffect(() => {
@@ -69,8 +79,13 @@ export function useJobs(onDone: (job: Job) => void) {
     const sweep = async () => {
       try {
         const response = await fetch('/api/jobs')
-        const body = (await response.json()) as { jobs?: Job[] }
-        if (!cancelled) take(body.jobs ?? [])
+        const body = (await response.json()) as { jobs?: Job[]; solved?: Solved[] }
+        if (cancelled) return
+        take(body.jobs ?? [])
+        // History rides along with the live feed rather than on a poll of its
+        // own: the answer changes at exactly the moment a job finishes, which
+        // is the moment this request already tells us about.
+        setSolved(body.solved ?? [])
       } catch {
         // Offline, or signed out. The next tick tries again.
       }
@@ -108,6 +123,8 @@ export function useJobs(onDone: (job: Job) => void) {
   return {
     /** Everything in flight, whoever started it and on whichever page. */
     running,
+    /** Everything already worked out, newest first. */
+    solved,
     busy: (kind: Job['kind']) => running.some((job) => job.kind === kind),
     start,
   }

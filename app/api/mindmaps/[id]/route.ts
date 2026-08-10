@@ -1,5 +1,6 @@
 import { db, dbConfigured } from '@/lib/db'
 import { owned, requireIdentity } from '@/lib/owner'
+import { visible } from '@/lib/demo'
 import { sanitizeTree, treeStats } from '@/lib/mindmap'
 
 export const runtime = 'nodejs'
@@ -20,7 +21,9 @@ export async function GET(_request: Request, ctx: RouteContext<'/api/mindmaps/[i
   const identity = await requireIdentity()
   if (!identity) return Response.json({ error: 'Sign in first.' }, { status: 401 })
 
-  const found = await db.mindmap.findFirst({ where: { id, ...owned(identity) } })
+  // A demo may be opened by anyone. PATCH and DELETE below still ask for
+  // `owned`, so it can be read and never written.
+  const found = await db.mindmap.findFirst({ where: { id, ...visible(identity) } })
   if (!found) return Response.json({ error: 'No such map.' }, { status: 404 })
 
   const tree = sanitizeTree(safeParse(found.tree))

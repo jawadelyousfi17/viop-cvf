@@ -1,5 +1,6 @@
 import { db } from './db'
 import { owned, type Identity } from './owner'
+import { isDemo, visible } from './demo'
 import { DEFAULT_PROVIDER } from './providers'
 import { completeStructured, streamStructured } from './llm'
 import {
@@ -62,11 +63,52 @@ export async function startJob(identity: Identity, kind: JobKind, input: unknown
   })
 }
 
-/** One job, if it belongs to the caller. */
+/** One job, if it belongs to the caller — or to the demo account. */
 export async function readJob(identity: Identity, id: string): Promise<JobView | null> {
-  const row = await db.job.findFirst({ where: { id, ...owned(identity) } })
+  const row = await db.job.findFirst({ where: { id, ...visible(identity) } })
   if (!row) return null
   return view(row)
+}
+
+/**
+ * Worked solutions that are finished, newest first.
+ *
+ * Separate from `openJobs`, which answers "what is happening right now" and is
+ * acted on — a job it returns opens itself. This one is history: the solutions
+ * were being written to the database and then never shown again, so the rail
+ * said worked solutions were not kept when in fact they were kept and lost.
+ *
+ * Only `math`. A finished map or lesson is already filed in its own table and
+ * listed from there; its job row is the receipt, not the thing.
+ */
+export interface SolvedView {
+  id: string
+  /** The problem as it was typed. What the rail lists it under. */
+  title: string
+  updatedAt: string
+  demo: boolean
+}
+
+export async function solvedJobs(identity: Identity): Promise<SolvedView[]> {
+  const rows = await db.job.findMany({
+    where: { ...visible(identity), kind: 'math', status: 'done' },
+    orderBy: { updatedAt: 'desc' },
+    take: 40,
+    // The result is the whole worked solution and this is a list of forty —
+    // it is fetched when one is opened, not to write its name in the rail.
+    select: { id: true, input: true, userId: true, updatedAt: true },
+  })
+
+  return rows.map((row) => {
+    const asked = parse(row.input) as { question?: unknown } | null
+    const question = typeof asked?.question === 'string' ? asked.question.trim() : ''
+    return {
+      id: row.id,
+      title: question || 'A problem',
+      updatedAt: row.updatedAt.toISOString(),
+      demo: isDemo(row),
+    }
+  })
 }
 
 /**

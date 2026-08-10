@@ -1,5 +1,6 @@
 import { db, dbConfigured } from '@/lib/db'
-import { claim, owned, requireIdentity } from '@/lib/owner'
+import { claim, requireIdentity } from '@/lib/owner'
+import { isDemo, visible } from '@/lib/demo'
 import { allowance, atLimit, spend } from '@/lib/quota'
 import { isRenderableScene, normalizeScene, type Lesson } from '@/lib/lesson'
 
@@ -33,12 +34,15 @@ export async function GET() {
     if (!identity) return Response.json({ lessons: [] }, { status: 401 })
     await claim(identity)
 
-    const lessons = await db.lesson.findMany({
-      where: owned(identity),
-      select: LIST_FIELDS,
+    // Yours, plus the demo account's — see lib/demo.ts. Reading only.
+    const rows = await db.lesson.findMany({
+      where: visible(identity),
+      select: { ...LIST_FIELDS, userId: true },
       orderBy: { updatedAt: 'desc' },
       take: 40,
     })
+
+    const lessons = rows.map(({ userId, ...lesson }) => ({ ...lesson, demo: isDemo({ userId }) }))
 
     return Response.json({ lessons })
   } catch (error) {

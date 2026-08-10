@@ -1,5 +1,6 @@
 import { db, dbConfigured } from '@/lib/db'
-import { claim, owned, requireIdentity } from '@/lib/owner'
+import { claim, requireIdentity } from '@/lib/owner'
+import { isDemo, visible } from '@/lib/demo'
 import { allowance, atLimit, spend } from '@/lib/quota'
 import { sanitizeTree, treeStats, type MindNode } from '@/lib/mindmap'
 
@@ -34,12 +35,15 @@ export async function GET() {
     if (!identity) return Response.json({ maps: [], signedIn: false }, { status: 401 })
     await claim(identity)
 
-    const maps = await db.mindmap.findMany({
-      where: owned(identity),
-      select: LIST_FIELDS,
+    // Yours, plus the demo account's — see lib/demo.ts. Reading only: every
+    // write below still goes through `owned`.
+    const rows = await db.mindmap.findMany({
+      where: visible(identity),
+      select: { ...LIST_FIELDS, userId: true },
       orderBy: { updatedAt: 'desc' },
       take: 40,
     })
+    const maps = rows.map(({ userId, ...map }) => ({ ...map, demo: isDemo({ userId }) }))
 
     return Response.json({ maps, signedIn: Boolean(identity.userId) })
   } catch (error) {

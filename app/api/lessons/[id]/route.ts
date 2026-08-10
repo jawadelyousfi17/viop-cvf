@@ -1,5 +1,6 @@
 import { db, dbConfigured } from '@/lib/db'
 import { owned, requireIdentity } from '@/lib/owner'
+import { visible } from '@/lib/demo'
 import { clean } from '../route'
 
 export const runtime = 'nodejs'
@@ -19,7 +20,8 @@ export async function GET(_request: Request, ctx: RouteContext<'/api/lessons/[id
   const identity = await requireIdentity()
   if (!identity) return Response.json({ error: 'Sign in first.' }, { status: 401 })
 
-  const found = await db.lesson.findFirst({ where: { id, ...owned(identity) } })
+  // A demo may be watched by anyone. DELETE below still asks for `owned`.
+  const found = await db.lesson.findFirst({ where: { id, ...visible(identity) } })
   if (!found) return Response.json({ error: 'No such lesson.' }, { status: 404 })
 
   let stored: unknown = null

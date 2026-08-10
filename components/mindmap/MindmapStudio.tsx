@@ -806,6 +806,7 @@ export default function MindmapStudio() {
         currentId={mode === 'lesson' ? lessonId : savedId}
         opening={opening}
         lessons={lessons}
+        solved={jobs.solved}
         mode={mode}
         onOpen={async (id) => {
           if (mode === 'lesson') return openLesson(id)
