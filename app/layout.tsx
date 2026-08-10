@@ -75,6 +75,13 @@ export const metadata: Metadata = {
   title: "nipsol — an AI teacher at the whiteboard",
   description:
     "Name a topic and watch it explained on an infinite whiteboard, drawn and narrated as it goes.",
+  // Proves to Google Search Console that whoever set this up owns the domain.
+  // Written through `verification` rather than as a hand-written <meta> so it
+  // goes in the head Next builds, and stays there if this file ever stops
+  // rendering its own <head>.
+  verification: {
+    google: "MhUYosBn4YlA1ZjcNy090Tv907xLA3t3B8TXDsf8vms",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
