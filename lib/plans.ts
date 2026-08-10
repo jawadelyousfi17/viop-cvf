@@ -49,7 +49,22 @@ export const YEARLY_SAVING = PRICES.monthly * 12 - PRICES.yearly
  * what they draw. It says nothing secret — only whether the shop is open,
  * which anyone can see by looking at it.
  */
-export const CHECKOUT_ENABLED = process.env.NEXT_PUBLIC_CHECKOUT_ENABLED === 'true'
+/**
+ * A shop-is-shut switch, above the environment.
+ *
+ * Held closed on purpose while the plans behind the buttons are sorted out —
+ * the yearly plan currently renews every 30 days, so buying it would charge
+ * the yearly price monthly. Nothing is wrong with the code path; it is the
+ * thing being sold that is not ready, and the environment cannot say that
+ * because the environment is where "ready" is configured.
+ *
+ * Flip to true to reopen. The env var still has to agree, so a deployment
+ * without plan ids stays shut regardless.
+ */
+const OPEN_FOR_BUSINESS = false
+
+export const CHECKOUT_ENABLED =
+  OPEN_FOR_BUSINESS && process.env.NEXT_PUBLIC_CHECKOUT_ENABLED === 'true'
 
 /**
  * Which cycles can be bought, when checkout is open at all.
