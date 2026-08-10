@@ -30,7 +30,7 @@ export const SPEED_MODELS: Record<Speed, string> = {
 }
 
 export function Composer({
-  mode = 'map',
+  mode = 'lesson',
   onMode,
   centred = false,
   transport = null,
@@ -106,8 +106,8 @@ export function Composer({
             not navigation, it is what the next sentence you type will mean. */}
         <div className="mb-2 flex justify-center gap-6">
           {([
-            ['map', 'Mindmap', IconMap],
             ['lesson', 'Lesson', IconBoard],
+            ['map', 'Mindmap', IconMap],
             ['math', 'Math tutor', IconSigma],
           ] as const).map(([value, label, Glyph]) => (
             <button

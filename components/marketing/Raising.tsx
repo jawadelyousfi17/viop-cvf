@@ -1,4 +1,7 @@
+'use client'
+
 import { mailto } from '@/lib/contact'
+import { Dialog } from '../ui/Dialog'
 
 /**
  * That we are raising, said plainly and where it will actually be read.
@@ -58,5 +61,56 @@ export function RaisingChip({ className = '' }: { className?: string }) {
       </span>
       We&rsquo;re raising — invest
     </a>
+  )
+}
+
+/**
+ * The ask, once, just after someone's first lesson has finished.
+ *
+ * Timing is the whole point: this is the moment the product has just proved
+ * itself to them, and it is the only moment where "we are raising to build
+ * more of this" lands as a natural thing to say rather than an interruption.
+ * Shown once ever — a second showing is an advert, and this is not one.
+ *
+ */
+export function RaisingDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    // Narrower than the dialog's own 44rem: this is a paragraph and a button,
+    // and a paragraph set across seven hundred pixels is one nobody finishes.
+    <Dialog open={open} onClose={onClose} label="nipsol is raising" className="!w-[min(100%-1.5rem,30rem)]">
+      <div className="p-7 text-center">
+        <span className="inline-flex h-[22px] items-center rounded-full bg-[#e3edff] px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#2f70ee]">
+          Raising now
+        </span>
+
+        <h2 className="mt-4 text-[23px] font-semibold leading-snug tracking-tight text-zinc-900">
+          That was your first lesson. We&rsquo;re raising to build a lot more of them.
+        </h2>
+
+        <p className="mt-3 text-[15px] leading-relaxed text-[#41506b]">
+          nipsol is early — a teacher that draws, explains and keeps going as deep as you
+          follow it. We&rsquo;re raising a round to make it faster, sharper and wider, and
+          we&rsquo;re talking to investors now. If you invest, or know someone who does,
+          we&rsquo;d like to hear from you.
+        </p>
+
+        <div className="mt-6 flex flex-col gap-2">
+          <a
+            href={mailto('investment')}
+            onClick={onClose}
+            className="flex h-12 items-center justify-center rounded-[14px] bg-gradient-to-b from-[#2f70ee] to-[#2363df] text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,.15)] transition hover:brightness-[1.06]"
+          >
+            Talk to us about investing
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 text-[14px] font-medium text-zinc-500 transition hover:text-zinc-800"
+          >
+            Back to my lesson
+          </button>
+        </div>
+      </div>
+    </Dialog>
   )
 }

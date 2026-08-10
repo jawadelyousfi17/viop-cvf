@@ -25,7 +25,7 @@ import { useTutorVoice } from './useTutorVoice'
 import { useJobs, type Job } from './useJob'
 import { Sidebar, type Mode, type SavedLesson } from './Sidebar'
 import { IconClose, IconFit, IconFold, IconHint, IconShare, IconTarget } from './icons'
-import { RaisingChip } from '../marketing/Raising'
+import { RaisingChip, RaisingDialog } from '../marketing/Raising'
 
 import type { SavedMap } from './Sidebar'
 
@@ -62,6 +62,9 @@ import type { SavedMap } from './Sidebar'
 
 type Phase = 'idle' | 'thinking' | 'board'
 
+/** Remembers that the raise has been mentioned. Once is a remark; twice is an advert. */
+const RAISING_SEEN = 'nipsol.raising.seen'
+
 export default function MindmapStudio() {
   /**
    * Which of the two this workspace is doing.
@@ -71,7 +74,9 @@ export default function MindmapStudio() {
    * lesson player stays mounted while you are on the map side, so wandering
    * over to check something does not stop what it was saying.
    */
-  const [mode, setMode] = useState<Mode>('map')
+  const [mode, setMode] = useState<Mode>('lesson')
+  /** Open once, just after someone's first lesson has finished saving. */
+  const [raising, setRaising] = useState(false)
   /** Fast or thinking. One choice, read by both sides. */
   const [speed, setSpeed] = useState<Speed>('fast')
   /** What the composer last asked the lesson player for. */
@@ -272,6 +277,19 @@ export default function MindmapStudio() {
         if (body.lesson) {
           setLessonId(body.lesson.id)
           setLessons((current) => [body.lesson!, ...current])
+
+          // The moment the product has just proved itself to them, and the
+          // only one where asking lands as a remark rather than an advert.
+          // Once ever: the flag is written before the dialog opens, so a
+          // second lesson in the same session cannot re-arm it.
+          try {
+            if (!localStorage.getItem(RAISING_SEEN)) {
+              localStorage.setItem(RAISING_SEEN, '1')
+              setRaising(true)
+            }
+          } catch {
+            // Private browsing with storage denied. Not worth a word.
+          }
         } else if (body.error) {
           setError(body.error)
         }
@@ -929,6 +947,8 @@ export default function MindmapStudio() {
           />
         </section>
       </main>
+
+      <RaisingDialog open={raising} onClose={() => setRaising(false)} />
     </div>
   )
 }
