@@ -1,6 +1,7 @@
 import { after } from 'next/server'
 import { dbConfigured } from '@/lib/db'
 import { requireIdentity } from '@/lib/owner'
+import { allowance, atLimit } from '@/lib/quota'
 import { openJobs, runJob, startJob, type JobKind } from '@/lib/jobs'
 
 export const runtime = 'nodejs'
@@ -31,6 +32,19 @@ export async function POST(request: Request) {
 
   const kind = KINDS.find((known) => known === body.kind)
   if (!kind) return Response.json({ error: 'Unknown kind of work.' }, { status: 400 })
+
+  // Expanding a map or working a problem is not making a new one, so only
+  // these two are counted against the plan.
+  const counts = kind === 'map' ? 'mindmaps' : kind === 'lesson' ? 'lessons' : null
+  if (counts) {
+    const room = await allowance(identity, counts)
+    if (!room.ok) {
+      return Response.json(
+        { error: atLimit(counts, room.limit), limit: room.limit, used: room.used },
+        { status: 402 }
+      )
+    }
+  }
 
   const input = (body.input ?? {}) as Record<string, unknown>
   const job = await startJob(identity, kind, input)

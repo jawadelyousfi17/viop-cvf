@@ -26,6 +26,8 @@ import { useJobs, type Job } from './useJob'
 import { Sidebar, type Mode, type SavedLesson } from './Sidebar'
 import { IconClose, IconFit, IconFold, IconHint, IconShare, IconTarget } from './icons'
 import { RaisingChip, RaisingDialog } from '../marketing/Raising'
+import { FeedbackDialog } from './FeedbackDialog'
+import type { UsageView } from '@/app/api/usage/route'
 
 import type { SavedMap } from './Sidebar'
 
@@ -83,6 +85,24 @@ export default function MindmapStudio() {
    * question, which is the only kind of moment this belongs in.
    */
   const [raising, setRaising] = useState<'first-lesson' | 'limit' | null>(null)
+
+  /**
+   * What is left of the plan, per kind.
+   *
+   * Asked for up front so the box can refuse before someone types rather than
+   * after they have waited for an answer.
+   */
+  const [usage, setUsage] = useState<UsageView | null>(null)
+  const [feedback, setFeedback] = useState(false)
+
+  const refreshUsage = useCallback(() => {
+    void fetch('/api/usage')
+      .then((response) => (response.ok ? (response.json() as Promise<UsageView>) : null))
+      .then((found) => found && setUsage(found))
+      .catch(() => null)
+  }, [])
+
+  useEffect(refreshUsage, [refreshUsage])
   /** Fast or thinking. One choice, read by both sides. */
   const [speed, setSpeed] = useState<Speed>('fast')
   /** What the composer last asked the lesson player for. */
@@ -301,11 +321,12 @@ export default function MindmapStudio() {
         } else if (body.error) {
           setError(body.error)
         }
+        refreshUsage()
       } catch {
         setError('That lesson could not be saved.')
       }
     },
-    [lesson]
+    [lesson, refreshUsage]
   )
 
   /** Plays a saved lesson again, exactly as it was taught. */
@@ -615,10 +636,11 @@ export default function MindmapStudio() {
       } else if (saved.error) {
         setError(saved.error)
       }
+      refreshUsage()
     } catch {
       setError('That map could not be saved.')
     }
-  }, [])
+  }, [refreshUsage])
 
   /**
    * Work that outlives this page.
@@ -825,6 +847,13 @@ export default function MindmapStudio() {
             </>
           )}
 
+          <button
+            type="button"
+            onClick={() => setFeedback(true)}
+            className="flex h-9 items-center rounded-xl border border-zinc-200 px-3.5 text-[12.5px] font-medium text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+          >
+            Feedback
+          </button>
           <RaisingChip />
         </div>
 
@@ -917,6 +946,14 @@ export default function MindmapStudio() {
               way, and a board that hides it makes starting again a trip. */}
           <Composer
             mode={mode}
+            spent={
+              mode === 'lesson' && usage?.lessons.limit !== null && usage?.lessons.ok === false
+                ? { limit: usage.lessons.limit!, thing: 'lessons' }
+                : mode === 'map' && usage?.mindmaps.limit !== null && usage?.mindmaps.ok === false
+                  ? { limit: usage!.mindmaps.limit!, thing: 'mindmaps' }
+                  : null
+            }
+            onFund={() => setRaising('limit')}
             onMode={setMode}
             centred={mode === 'map' ? !scene : mode === 'math' ? !solution : !transport}
             transport={
@@ -959,6 +996,7 @@ export default function MindmapStudio() {
       </main>
 
       <RaisingDialog open={raising} onClose={() => setRaising(null)} />
+      <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} from={mode} />
     </div>
   )
 }

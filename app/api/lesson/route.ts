@@ -1,3 +1,5 @@
+import { requireIdentity } from '@/lib/owner'
+import { allowance, atLimit } from '@/lib/quota'
 import { parseScript } from '@/lib/script-import'
 import { DEFAULT_PROVIDER, isProvider } from '@/lib/providers'
 import { LlmError, streamStructured } from '@/lib/llm'
@@ -53,6 +55,28 @@ export async function POST(request: Request) {
       { error: 'That script is too long — keep it under 24,000 characters.' },
       { status: 400 }
     )
+  }
+
+  // What the plan allows, checked here rather than only where the finished
+  // lesson is filed. Saving was the only gate before, which meant the free
+  // plan stopped you keeping a third lesson but not making one — and the
+  // model call is the part that costs.
+  //
+  // Only a fresh lesson counts. `from` is set when the player comes back for
+  // more scenes of the one it is already drawing, and charging for that would
+  // make a long lesson cost several.
+  const continuing = typeof from === 'number' && from > 0
+  if (!continuing) {
+    const identity = await requireIdentity()
+    if (!identity) return Response.json({ error: 'Sign in first.' }, { status: 401 })
+
+    const room = await allowance(identity, 'lessons')
+    if (!room.ok) {
+      return Response.json(
+        { error: atLimit('lessons', room.limit), limit: room.limit, used: room.used },
+        { status: 402 }
+      )
+    }
   }
 
   const past = Array.isArray(history)

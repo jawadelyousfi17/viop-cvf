@@ -38,6 +38,8 @@ export function Composer({
   onSpeed,
   topic,
   busy,
+  spent = null,
+  onFund,
   onTopic,
   onSubmit,
 }: {
@@ -73,6 +75,16 @@ export function Composer({
   onSpeed: (speed: Speed) => void
   topic: string
   busy: boolean
+  /**
+   * Set when this mode's allowance is gone.
+   *
+   * Per mode, not per account: maps and lessons are counted separately and
+   * running out of one says nothing about the other, so the box is only shut
+   * for the side that is actually spent.
+   */
+  spent?: { limit: number; thing: string } | null
+  /** Opens the ask. Shown instead of a way to pay, because there isn't one yet. */
+  onFund?: () => void
   onTopic: (value: string) => void
   onSubmit: () => void
 }) {
@@ -101,6 +113,31 @@ export function Composer({
       }`}
     >
       <div className="pointer-events-auto w-full max-w-[760px]">
+        {/*
+          Said here rather than after they have typed a topic and waited.
+          Finding out you have run out by asking for something and being
+          refused is a wasted minute and a worse way to be told.
+        */}
+        {spent && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-[#f0d9a8] bg-[#fffaf0] px-4 py-3">
+            <p className="text-[13.5px] leading-snug text-[#6b5322]">
+              <span className="font-semibold">
+                That&rsquo;s all {spent.limit} {spent.thing} on the free plan.
+              </span>{' '}
+              Paid plans aren&rsquo;t open yet — we&rsquo;re in beta and raising to get there.
+              Everything you made is still here.
+            </p>
+            {onFund && (
+              <button
+                type="button"
+                onClick={onFund}
+                className="ml-auto flex h-8 shrink-0 items-center rounded-lg bg-gradient-to-b from-[#2f70ee] to-[#2363df] px-3.5 text-[12.5px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,.15)] transition hover:brightness-[1.06]"
+              >
+                Help us build it
+              </button>
+            )}
+          </div>
+        )}
         {/* Which of the two the box is asking for, directly above the box.
             It was in the rail, next to things you navigate to — but this is
             not navigation, it is what the next sentence you type will mean. */}
@@ -151,7 +188,7 @@ export function Composer({
                 }
               }}
               rows={1}
-              disabled={busy}
+              disabled={busy || Boolean(spent)}
               maxLength={400}
               placeholder={
                 transport
@@ -249,7 +286,7 @@ export function Composer({
 
               <button
                 type="submit"
-                disabled={busy || !ready}
+                disabled={busy || !ready || Boolean(spent)}
                 aria-label={
                   transport
                     ? 'Ask'

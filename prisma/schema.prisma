@@ -199,3 +199,35 @@ model Usage {
 
   @@map("usage")
 }
+
+/// What someone thought, in their own words and on a seven-point face.
+///
+/// Seven because five is not enough to separate "fine" from "good" and nine is
+/// more shades than anyone actually feels — and because an odd number keeps a
+/// true middle, which is the honest answer more often than a scale designed
+/// without one will admit.
+///
+/// The rating without the words is a number nobody can act on, and the words
+/// without the rating are hard to sort. Both are kept, and the words are
+/// optional: making them mandatory is how you get "asdf".
+model Feedback {
+  id String @id @default(cuid())
+
+  /// Who said it — the account when there is one, the browser key otherwise.
+  /// Same rule as everything else people make here. See lib/owner.ts.
+  owner  String
+  userId String?
+  email  String?
+
+  /// 1 (worst) to 7 (best).
+  rating  Int
+  message String @default("")
+
+  /// Where they were when they said it, which is most of the context.
+  from String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("feedback")
+}
