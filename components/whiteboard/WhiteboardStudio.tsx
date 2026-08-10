@@ -236,10 +236,18 @@ export default function Studio({
     else audio.pause()
   }, [isPlaying, sceneIndex])
 
-  // The board fills the ref as it commits, so the first render after it mounts
-  // is the earliest anything can be painted.
-  useEffect(() => {
-    if (painterRef.current) setPainterReady(true)
+  /**
+   * Takes the board as it mounts.
+   *
+   * A callback ref rather than an effect reading painterRef: the board is a
+   * dynamic import, so it mounts some time *after* this component's own
+   * effects have run, and an effect that looked once on mount found nothing
+   * and left the player believing it had no board for the rest of the session.
+   * React calls this the moment the handle exists, whenever that is.
+   */
+  const takeBoard = useCallback((painter: LessonPainter | null) => {
+    painterRef.current = painter
+    setPainterReady(Boolean(painter))
   }, [])
 
   useEffect(() => {
@@ -908,7 +916,7 @@ export default function Studio({
 
   return (
     <div className={embedded ? 'absolute inset-0 bg-white' : 'fixed inset-0 bg-white'}>
-      <Board ref={painterRef} />
+      <Board ref={takeBoard} />
 
       {/* Nothing floats over the board any more. The controls live on the
           composer, where every other instruction to this app is given. */}

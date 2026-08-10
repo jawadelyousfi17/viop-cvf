@@ -74,10 +74,32 @@ export async function readJob(identity: Identity, id: string): Promise<JobView |
  * looking — which is the whole point on a fresh page load.
  */
 export async function openJobs(identity: Identity): Promise<JobView[]> {
+  const now = Date.now()
+
   const rows = await db.job.findMany({
     where: {
       ...owned(identity),
-      updatedAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+      OR: [
+        // Still going. Worth an hour, because that is how long one may run
+        // before it is assumed dead.
+        { status: 'running', updatedAt: { gt: new Date(now - 60 * 60 * 1000) } },
+        /**
+         * Just finished — the window between leaving a page and coming back
+         * to find the work done.
+         *
+         * It used to be an hour for these too, and that is a bug rather than
+         * generosity: the page has no memory of which jobs it has already
+         * seen across a reload, so every finished job in the window was
+         * handed to it again as if it had just landed. A map that finished
+         * forty minutes ago would arrive on load, open itself, and switch the
+         * workspace to the mindmap tab — which is exactly what it does when a
+         * map genuinely finishes.
+         *
+         * Two minutes still covers a reload mid-generation and does not
+         * re-deliver anything from earlier in the session.
+         */
+        { status: { not: 'running' }, updatedAt: { gt: new Date(now - 2 * 60 * 1000) } },
+      ],
     },
     orderBy: { updatedAt: 'desc' },
     take: 10,
