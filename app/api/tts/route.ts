@@ -128,10 +128,10 @@ export async function POST(request: Request) {
   // when a provider rejects a voice, which voice it rejected is the question.
   const sent =
     provider === 'fish'
-      ? (process.env.FISH_VOICE_ID?.trim() || fishVoiceFor(voiceId) || DEFAULT_FISH_VOICE || 'none')
+      ? (voiceIdFrom(process.env.FISH_VOICE_ID) || fishVoiceFor(voiceId) || DEFAULT_FISH_VOICE || 'none')
       : voice
-  headers.set('x-tts-identity', `${provider}/${model}/${voice}`)
-  headers.set('x-tts-voice', String(sent))
+  headers.set('x-tts-identity', header(`${provider}/${model}/${voice}`))
+  headers.set('x-tts-voice', header(String(sent)))
   return new Response(response.body, { status: response.status, headers })
 }
 
@@ -181,6 +181,18 @@ export async function GET() {
     },
     { headers: { 'cache-control': 'no-store' } }
   )
+}
+
+/**
+ * A header value that cannot throw.
+ *
+ * Header values are bytes, so a single character above 255 makes `set` throw —
+ * and this header exists to report configuration, which is exactly where a
+ * stray character comes from. A diagnostic that turns a 502 into a 500 is
+ * worse than no diagnostic: it hides the fault it was added to reveal.
+ */
+function header(value: string) {
+  return value.replace(/[^\x20-\x7e]/g, '?').slice(0, 200) || 'none'
 }
 
 /**
