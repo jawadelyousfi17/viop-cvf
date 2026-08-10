@@ -50,3 +50,5 @@ next-env.d.ts
 # Anything else under .cache/ is a real cache and stays ignored.
 .cache/*
 !.cache/tts/
+
+/lib/generated/prisma

@@ -35,9 +35,9 @@ const ELEVENLABS_VOICE_SETTINGS = {
   similarity_boost: 0.8,
   style: 0.3,
   use_speaker_boost: true,
-  // Deliberately slow — a teacher pacing the board, not a narrator. 0.7 is
-  // the provider's floor; this leaves room to hear every term land.
-  speed: 0.82,
+  // Normal speed. The low `stability` above is what gives the delivery its
+  // unhurried, teacherly feel; slowing the playback on top of that dragged.
+  speed: 1.0,
 }
 
 /** What the player receives, whichever provider produced it. */

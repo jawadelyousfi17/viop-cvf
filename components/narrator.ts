@@ -21,7 +21,21 @@ export interface Narration {
  * with no voice key at all.
  */
 export class Narrator {
-  private readonly cache = new Map<number, Promise<Narration>>()
+  /**
+   * Keyed by the words themselves, not by which scene wanted them.
+   *
+   * It used to be the scene's index, which held right up until a scene was
+   * inserted. Answering a question mid-lesson does exactly that: the answer is
+   * spliced in directly after the scene playing — the same index the next
+   * scene's audio was prefetched under while that scene was still running. So
+   * the answer found a warm entry waiting for it and spoke the next scene's
+   * narration instead of its own: the right voice, in time with the right
+   * board, saying something else entirely.
+   *
+   * The text is the only honest key. It survives insertion, and two scenes that
+   * genuinely say the same words should share one recording anyway.
+   */
+  private readonly cache = new Map<string, Promise<Narration>>()
   private readonly urls: string[] = []
   /** Flips to false after the first 501, so we stop asking. */
   private enabled = true
@@ -40,18 +54,19 @@ export class Narrator {
     this.cache.clear()
   }
 
-  get(index: number, text: string): Promise<Narration> {
-    const existing = this.cache.get(index)
+  get(text: string): Promise<Narration> {
+    const key = text.trim()
+    const existing = this.cache.get(key)
     if (existing) return existing
 
     const pending = this.load(text)
-    this.cache.set(index, pending)
+    this.cache.set(key, pending)
     return pending
   }
 
   /** Warms the next scene's audio while the current one is still playing. */
-  prefetch(index: number, text: string) {
-    if (!this.cache.has(index)) void this.get(index, text).catch(() => {})
+  prefetch(text: string) {
+    if (!this.cache.has(text.trim())) void this.get(text).catch(() => {})
   }
 
   get hasVoice() {

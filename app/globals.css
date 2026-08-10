@@ -1,3 +1,7 @@
+/* KaTeX's own stylesheet. Bundled rather than fetched from a CDN: the
+   board should not wait on someone else's server to typeset an equation. */
+@import "katex/dist/katex.min.css";
+
 @import "tailwindcss";
 
 :root {

@@ -1,4 +1,4 @@
-# viop
+# nipsol
 
 An AI teacher. You give it a topic; it plans a lesson, renders it, and talks you
 through it — visuals and narration timed to each other.

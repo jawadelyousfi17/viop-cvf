@@ -3,8 +3,21 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ImageResult } from '../image/route'
+import { requireIdentity } from '@/lib/owner'
 
 export const maxDuration = 60
+
+/**
+ * Symbols the marketing demos draw, which have to work signed out.
+ *
+ * The wall covers every route that spends money, and this one does — so the
+ * landing page's demo was quietly getting 401s and rendering a map with no
+ * pictures on it, to exactly the audience the page exists for. An allowlist
+ * rather than an exception for the whole route: these few terms may be drawn
+ * for anyone, everything else still needs an account. Each is drawn once, ever,
+ * and served from disk afterwards.
+ */
+const PUBLIC = new Set(['magnet', 'staircase', 'hourglass', 'stopwatch', 'ladder', 'brain'])
 
 /**
  * Draws one line-art symbol for a board — with the OpenAI API, not an icon
@@ -78,6 +91,13 @@ async function draw(query: string): Promise<string | null> {
 export async function GET(request: Request) {
   const query = new URL(request.url).searchParams.get('q')?.trim()
   if (!query) return Response.json({ error: 'Missing query.' }, { status: 400 })
+
+  // The wall lets this route through so the landing page's demo can draw; the
+  // route decides what a stranger may ask for. Anything outside the demo's own
+  // handful of terms still needs an account.
+  if (!PUBLIC.has(query.toLowerCase()) && !(await requireIdentity())) {
+    return Response.json({ error: 'Sign in first.' }, { status: 401 })
+  }
   if (!process.env.OPENAI_API_KEY) {
     return Response.json({ error: 'No OPENAI_API_KEY configured.' }, { status: 501 })
   }

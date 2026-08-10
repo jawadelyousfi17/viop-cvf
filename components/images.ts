@@ -2,6 +2,11 @@
 
 import type { ImageResult } from '@/app/api/image/route'
 
+/** A photograph, searched for; or a symbol, drawn to order. */
+type Kind = 'image' | 'symbol'
+
+const GIVE_UP_AFTER: Record<Kind, number> = { image: 3, symbol: 6 }
+
 /**
  * Looks up and caches one image per search query.
  *
@@ -11,21 +16,29 @@ import type { ImageResult } from '@/app/api/image/route'
  */
 export class ImageBank {
   private readonly cache = new Map<string, Promise<ImageResult | null>>()
-  /** Flips to false after a 501, so we stop asking when no key is configured. */
-  private enabled = true
   /**
-   * Consecutive hard failures. A spent quota fails every lookup in the lesson,
-   * a dozen round trips per scene, so give up after a few in a row — but not on
-   * the first, since one dead host shouldn't cost the rest of the pictures.
+   * Kept per kind, because the two are different services behind different
+   * keys: photographs come from an image search, symbols are drawn by a model.
+   * Shared, one missing key or one spent quota silently took the other down
+   * with it — and a board is now mostly symbols, so that trade is the wrong way
+   * round.
    */
-  private failures = 0
+  private readonly enabled: Record<Kind, boolean> = { image: true, symbol: true }
+  /**
+   * Consecutive hard failures, again per kind. A spent quota fails every lookup
+   * in the lesson, a dozen round trips per scene, so give up after a few in a
+   * row — but not on the first, since one dead host shouldn't cost the rest of
+   * the pictures. Symbols are drawn one model call at a time and a single call
+   * can fail on its own, so they get a longer rope than a search does.
+   */
+  private readonly failures: Record<Kind, number> = { image: 0, symbol: 0 }
 
   /**
-   * @param kind `symbol` looks in The Noun Project for a line-art glyph rather
-   *   than in the photo search. Cached under the same key space, since a scene
+   * @param kind `symbol` has the line art drawn to order by a model rather than
+   *   searching the photo index. Cached under the same key space, since a scene
    *   never asks for both a photograph and a symbol of the same phrase.
    */
-  get(query: string, kind: 'image' | 'symbol' = 'image'): Promise<ImageResult | null> {
+  get(query: string, kind: Kind = 'image'): Promise<ImageResult | null> {
     const key = query.trim().toLowerCase()
     if (!key) return Promise.resolve(null)
 
@@ -38,29 +51,29 @@ export class ImageBank {
   }
 
   /** Kicks off every lookup a scene will need, all at once. */
-  prefetch(queries: { query: string; kind: 'image' | 'symbol' }[] | string[]) {
+  prefetch(queries: { query: string; kind: Kind }[] | string[]) {
     for (const entry of queries) {
       if (typeof entry === 'string') void this.get(entry).catch(() => null)
       else void this.get(entry.query, entry.kind).catch(() => null)
     }
   }
 
-  private async load(query: string, kind: 'image' | 'symbol' = 'image'): Promise<ImageResult | null> {
-    if (!this.enabled) return null
+  private async load(query: string, kind: Kind = 'image'): Promise<ImageResult | null> {
+    if (!this.enabled[kind]) return null
 
     try {
       const endpoint = kind === 'symbol' ? '/api/icon' : '/api/image'
       const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`)
       if (response.status === 501) {
-        this.enabled = false
+        this.enabled[kind] = false
         return null
       }
       // A 404 is just "nothing suitable for this query" — it says nothing
       // about the next one. Only server-side failures count against us.
       if (response.status >= 500) {
-        if (++this.failures >= 3) {
-          this.enabled = false
-          console.warn('[images] search keeps failing — see /api/image/test')
+        if (++this.failures[kind] >= GIVE_UP_AFTER[kind]) {
+          this.enabled[kind] = false
+          console.warn(`[images] ${kind} lookups keep failing — see /api/image/test`)
         }
         return null
       }
@@ -68,7 +81,7 @@ export class ImageBank {
 
       const result = (await response.json()) as ImageResult
       if (!result?.src) return null
-      this.failures = 0
+      this.failures[kind] = 0
 
       // Decode before handing it to the canvas so the shape doesn't pop in
       // blank and then fill.

@@ -446,7 +446,7 @@ async function searchCommons(query: string, wantsMotion: boolean): Promise<Candi
 }
 
 /** Wikimedia blocks unidentified clients, and it is polite besides. */
-const UA = 'viop/1.0 (teaching tool; https://github.com/jel-yous/viop)'
+const UA = 'nipsol/1.0 (teaching tool; https://github.com/jel-yous/viop)'
 
 /** Ignore results that are tiny, enormous, or the wrong shape for a board. */
 const MIN_EDGE = 200

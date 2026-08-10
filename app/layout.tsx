@@ -72,7 +72,7 @@ const hand = Patrick_Hand({
 });
 
 export const metadata: Metadata = {
-  title: "viop — an AI teacher at the whiteboard",
+  title: "nipsol — an AI teacher at the whiteboard",
   description:
     "Name a topic and watch it explained on an infinite whiteboard, drawn and narrated as it goes.",
 };

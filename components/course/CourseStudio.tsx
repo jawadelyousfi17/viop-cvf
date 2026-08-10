@@ -215,7 +215,7 @@ export default function CourseStudio({ slug }: { slug: string }) {
     cuesRef.current = cues
     let duration = at
 
-    void narrator.get(stepIndex, step.narration).then((spoken) => {
+    void narrator.get(step.narration).then((spoken) => {
       if (cancelled) return
       audio = spoken.audio
       audioRef.current = audio
@@ -233,7 +233,7 @@ export default function CourseStudio({ slug }: { slug: string }) {
       cuesRef.current = cues
 
       const next = course?.steps[stepIndex + 1]
-      if (next?.narration) narrator.prefetch(stepIndex + 1, next.narration)
+      if (next?.narration) narrator.prefetch(next.narration)
 
       if (audio && playingRef.current) {
         audio.currentTime = clockRef.current

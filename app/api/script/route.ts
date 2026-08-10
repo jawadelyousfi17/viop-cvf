@@ -7,7 +7,8 @@ export const maxDuration = 300
  *
  * Deliberately under-instructed: terra answers the way a good chatbot
  * answers, and that natural, paragraph-at-a-time explanation IS the script.
- * The paragraphs become the scenes; luna draws a board for each one.
+ * The paragraphs become the scenes, and terra is asked again — under a very
+ * different prompt — to draw a board for each one.
  */
 const SYSTEM =
   'Explain the topic you are given, out loud, as if teaching one person. ' +

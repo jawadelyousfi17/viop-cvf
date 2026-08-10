@@ -24,7 +24,7 @@ export async function generateMetadata({
   const { slug } = await params
   const course = await read(slug)
   if (!course) return { title: 'Lesson not found' }
-  return { title: `${course.title} — viop`, description: course.takeaway }
+  return { title: `${course.title} — nipsol`, description: course.takeaway }
 }
 
 export default async function CoursePage({ params }: PageProps<'/course/[slug]'>) {

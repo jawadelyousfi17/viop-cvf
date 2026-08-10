@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import { parseCourse } from '@/lib/course'
 
 export const metadata: Metadata = {
-  title: 'Courses — viop',
+  title: 'Courses — nipsol',
   description: 'Written lessons you work through, with the code in front of you.',
 }
 

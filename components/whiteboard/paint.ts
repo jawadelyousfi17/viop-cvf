@@ -130,28 +130,6 @@ function pathLength(path: Vec2[]) {
   return total
 }
 
-/** Point at fraction `t` along a polyline, by arc length. */
-function pointAt(path: Vec2[], t: number): Vec2 {
-  if (path.length === 1) return path[0]
-
-  const target = pathLength(path) * Math.min(1, Math.max(0, t))
-  let travelled = 0
-
-  for (let i = 1; i < path.length; i++) {
-    const seg = Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y)
-    if (travelled + seg >= target) {
-      const f = seg === 0 ? 0 : (target - travelled) / seg
-      return {
-        x: path[i - 1].x + (path[i].x - path[i - 1].x) * f,
-        y: path[i - 1].y + (path[i].y - path[i - 1].y) * f,
-      }
-    }
-    travelled += seg
-  }
-
-  return path[path.length - 1]
-}
-
 /** Perimeter of a box, starting top-left and closing a little past the start. */
 function boxPath(x: number, y: number, w: number, h: number): Vec2[] {
   return [
@@ -241,7 +219,6 @@ export class BoardPainter {
   private tracing = false
   /** Jobs queued or mid-trace, so they can be completed instantly on a skip. */
   private readonly inFlight = new Map<TLShapeId, TraceJob>()
-  private pen: HTMLElement | null = null
   /** Resolved image lookups, keyed by lowercased search query. */
   private readonly images = new Map<
     string,
@@ -357,7 +334,6 @@ export class BoardPainter {
     this.queue.length = 0
     this.inFlight.clear()
     this.tracing = false
-    this.hidePen()
 
     const ids = this.editor.getCurrentPageShapeIds()
     if (ids.size) this.editor.deleteShapes([...ids])
@@ -1390,13 +1366,6 @@ export class BoardPainter {
     this.paint(pending.sceneIndex, pending.shape, pending.siblings, false)
   }
 
-  /** Attaches the DOM element the pen cursor lives in. */
-  attachPen(element: HTMLElement | null) {
-    this.pen = element
-    if (!element) return
-    element.style.opacity = '0'
-  }
-
   /**
    * tldraw's `updateShape` is a discriminated union over `type`, so a value
    * typed as a union of shape types can't satisfy it directly. Widening once
@@ -1439,7 +1408,6 @@ export class BoardPainter {
 
     this.inFlight.clear()
     this.tracing = false
-    this.hidePen()
   }
 
   /**
@@ -1464,7 +1432,6 @@ export class BoardPainter {
     }
 
     this.tracing = false
-    this.hidePen()
   }
 
   private trace(job: TraceJob, speed: number) {
@@ -1476,12 +1443,9 @@ export class BoardPainter {
       const step = (now: number) => {
         const t = Math.min(1, (now - start) / duration)
         const eased = t * t * (3 - 2 * t) // smoothstep: eases both ends
-        const point = pointAt(job.path, eased)
 
-        this.movePen(point)
-
-        // Ink appears under the pen. Stroke kinds grow their real points, so
-        // the line genuinely extends; everything else fades in as it's circled.
+        // Stroke kinds grow their real points, so the line genuinely extends;
+        // everything else fades in over the same beat.
         if (job.stroke) {
           const take = Math.max(2, Math.ceil(job.stroke.points.length * eased))
           this.setShape({
@@ -1523,16 +1487,6 @@ export class BoardPainter {
     })
   }
 
-  private movePen(point: Vec2) {
-    if (!this.pen) return
-    const screen = this.editor.pageToScreen(point)
-    this.pen.style.transform = `translate3d(${screen.x}px, ${screen.y}px, 0)`
-    this.pen.style.opacity = '1'
-  }
-
-  private hidePen() {
-    if (this.pen) this.pen.style.opacity = '0'
-  }
 }
 
 function center(rect: Rect) {

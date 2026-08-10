@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { FOLLOWUP_SYSTEM_PROMPT, followupPrompt } from '@/lib/prompt'
+import { FAST_MODELS } from '@/lib/providers'
 
 export const maxDuration = 60
 
@@ -33,7 +34,9 @@ export async function POST(request: Request) {
 
   try {
     const completion = await new OpenAI({ apiKey }).chat.completions.create({
-      model: process.env.OPENAI_ASK_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-5.6-luna',
+      // Also a wait: the lesson has ended and the screen is empty until these
+      // land. Same fast model as the mid-lesson answer.
+      model: process.env.OPENAI_ASK_MODEL ?? FAST_MODELS.openai,
       reasoning_effort: 'none',
       messages: [
         { role: 'system', content: FOLLOWUP_SYSTEM_PROMPT },

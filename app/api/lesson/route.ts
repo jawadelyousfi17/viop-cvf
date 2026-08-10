@@ -28,8 +28,9 @@ export async function POST(request: Request) {
   let model: unknown
   let from: unknown
   let count: unknown
+  let forms: unknown
   try {
-    ;({ topic, script, history, provider, model, from, count } = await request.json())
+    ;({ topic, script, history, provider, model, from, count, forms } = await request.json())
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 })
   }
@@ -82,11 +83,19 @@ export async function POST(request: Request) {
     const wanted = Math.max(1, Math.trunc(num(count, blocks.length)))
     const windowed = start > 0 || wanted < blocks.length
 
+    // Only what the client has actually drawn, and only the recent past: a
+    // dozen form names is noise, and the rule that matters is about the last
+    // few boards the viewer has just watched.
+    const drawn = Array.isArray(forms)
+      ? forms.filter((form): form is string => typeof form === 'string' && form.length > 0).slice(-6)
+      : []
+
     userPrompt = windowed
       ? config.script(blocks.slice(start, start + wanted), past, {
           from: start,
           total: blocks.length,
           previous: start > 0 ? blocks[start - 1] : undefined,
+          forms: drawn,
         })
       : config.script(blocks, past)
   } else {

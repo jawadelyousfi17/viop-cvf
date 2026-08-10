@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Editor } from 'tldraw'
 import {
   estimateNarrationSeconds,
@@ -9,6 +9,7 @@ import {
   holdInsideParents,
   normalizeLesson,
   oneAtATime,
+  sceneHold,
   type Lesson,
 } from '@/lib/lesson'
 import type { LessonEvent } from '@/lib/lesson-stream'
@@ -19,8 +20,8 @@ import { ImageBank } from '../images'
 import { CHART_KINDS, chartKey } from '@/lib/chart'
 import { renderChart } from '../charts'
 import { Narrator } from '../narrator'
-import { VoicePicker } from '../VoicePicker'
 import { parseScript } from '@/lib/script-import'
+import { Logo } from '../ui/Logo'
 
 // tldraw is browser-only and heavy — keep it out of the server bundle and off
 // the critical path for the topic screen.
@@ -73,7 +74,88 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Les
   }
 }
 
-export default function Studio({ engine }: { engine: Engine }) {
+/**
+ * Driven from outside, when the player is embedded in the workspace.
+ *
+ * `key` is what starts a lesson: the same topic asked for twice is two
+ * lessons, and a value-only comparison would silently refuse the second.
+ */
+/**
+ * What writes and draws a lesson.
+ *
+ * Fixed, and not the composer's fast/thinking switch. A lesson is a script
+ * written by one model and a board drawn by another from that script, and the
+ * quality of both is what the whole thing is; the faster model writes a
+ * noticeably worse lesson. The switch belongs to the map and the tutor, where
+ * the trade is worth offering.
+ */
+const LESSON_MODEL = 'gpt-5.6-terra'
+
+export interface LessonRequest {
+  topic: string
+  script?: string
+  /**
+   * A lesson that has already been taught, to play again.
+   *
+   * Replay is not regeneration: asking the model for the same topic twice
+   * returns a different lesson, and what someone reopening their history wants
+   * is the one they watched.
+   */
+  replay?: Lesson
+  key: number
+}
+
+/**
+ * The lesson's controls, handed to whoever is drawing the chrome.
+ *
+ * The transport used to float over the board in a pill of its own. It belongs
+ * with the composer instead: that is where every other instruction to this app
+ * is typed, and a board with its own controls means two places to look
+ * depending on which half of the product you are in.
+ */
+export interface LessonTransport {
+  playing: boolean
+  finished: boolean
+  /** The script goes on, but the next scene has not been drawn (and costs money). */
+  atEdge: boolean
+  drawing: boolean
+  hasPrev: boolean
+  hasNext: boolean
+  /** How much of a script is drawn, when the lesson came from one. */
+  progress: string | null
+  asking: boolean
+  toggle: () => void
+  prev: () => void
+  next: () => void
+  ask: (question: string) => void
+  reset: () => void
+}
+
+export default function Studio({
+  engine,
+  embedded = false,
+  request = null,
+  onBusy,
+  onTransport,
+  onTaught,
+}: {
+  engine: Engine
+  /**
+   * Rendered inside the workspace panel rather than owning the window.
+   *
+   * Two differences, both about who is in charge: the board fills its parent
+   * instead of the viewport, and the topic screen is gone — the workspace's
+   * composer asks for the lesson, so a second input inside the panel would be
+   * two ways to do one thing.
+   */
+  embedded?: boolean
+  request?: LessonRequest | null
+  onBusy?: (busy: boolean) => void
+  /** Publishes the controls upward, and null once there is nothing to control. */
+  onTransport?: (transport: LessonTransport | null) => void
+  /** A lesson that has finished streaming, for the workspace to keep. */
+  onTaught?: (lesson: Lesson) => void
+}) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [topic, setTopic] = useState('')
   /** A finished script to draw, instead of a topic to invent one for. */
@@ -86,12 +168,10 @@ export default function Studio({ engine }: { engine: Engine }) {
   const [sceneIndex, setSceneIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [finished, setFinished] = useState(false)
-  const [hasVoice, setHasVoice] = useState(true)
-  const [voiceId, setVoiceId] = useState<VoiceId>(DEFAULT_VOICE_ID)
+  // One voice, set by the deployment. The picker is gone, so nothing changes it.
+  const voiceId: VoiceId = DEFAULT_VOICE_ID
   const [question, setQuestion] = useState('')
   const [asking, setAsking] = useState(false)
-  /** Suggested next topics, fetched once the lesson has fully streamed in. */
-  const [followups, setFollowups] = useState<string[]>([])
   /**
    * Everything taught this session, oldest first. Threaded into each new
    * lesson so a series builds instead of restarting from scratch each time.
@@ -104,7 +184,6 @@ export default function Studio({ engine }: { engine: Engine }) {
   const imagesRef = useRef<ImageBank | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playingRef = useRef(false)
-  const penRef = useRef<HTMLDivElement>(null)
   const [painterReady, setPainterReady] = useState(false)
 
   // The lesson grows while it plays, so the animation loop reads it through a
@@ -137,6 +216,8 @@ export default function Studio({ engine }: { engine: Engine }) {
    * for. Play and next both mean "draw it and carry on" while this is set.
    */
   const [atEdge, setAtEdge] = useState(false)
+  /** Set while the board is showing something out of history, not a new lesson. */
+  const replayingRef = useRef(false)
   /** Bumped per lesson so a stale stream can't write into a newer one. */
   const runIdRef = useRef(0)
 
@@ -157,7 +238,6 @@ export default function Studio({ engine }: { engine: Engine }) {
     editorRef.current = editor
     void import('./paint').then(({ BoardPainter }) => {
       const painter = new BoardPainter(editor)
-      painter.attachPen(penRef.current)
       painterRef.current = painter
       setPainterReady(true)
     })
@@ -169,6 +249,35 @@ export default function Studio({ engine }: { engine: Engine }) {
       audioRef.current?.pause()
     }
   }, [])
+
+  /**
+   * A lesson asked for from the workspace's composer.
+   *
+   * Keyed on `request.key` rather than the topic: asking for the same topic
+   * twice is two lessons, and comparing values would quietly refuse the second.
+   * `generate` is redefined on every render, so it is deliberately not a
+   * dependency — this fires when a new request arrives and at no other time.
+   */
+  const requestKey = request?.key
+  useEffect(() => {
+    if (!requestKey || !request) return
+
+    // A saved lesson goes straight to the board; nothing is written again.
+    if (request.replay) {
+      replayingRef.current = true
+      start(request.replay)
+      return
+    }
+    replayingRef.current = false
+    if (!request.topic.trim()) return
+    void generate(request.topic, request.script)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey])
+
+  // What the composer shows while a lesson is being written.
+  useEffect(() => {
+    onBusy?.(phase === 'generating')
+  }, [phase, onBusy])
 
   const start = useCallback((next: Lesson) => {
     narratorRef.current?.dispose()
@@ -183,16 +292,14 @@ export default function Studio({ engine }: { engine: Engine }) {
     // it overlaps the TTS request with tldraw mounting, which is otherwise
     // several seconds of dead time.
     if (next.scenes[0]) {
-      narratorRef.current.prefetch(0, next.scenes[0].narration)
+      narratorRef.current.prefetch(next.scenes[0].narration)
       imagesRef.current.prefetch(imageQueries(next.scenes[0]))
     }
 
-    setFollowups([])
     setLesson(next)
     setSceneIndex(0)
     setFinished(false)
     setAtEdge(false)
-    setHasVoice(true)
     setIsPlaying(true)
     setPhase('board')
   }, [voiceId])
@@ -211,7 +318,7 @@ export default function Studio({ engine }: { engine: Engine }) {
     // Each section's voice is its own TTS request, kicked off the moment the
     // scene arrives — the first section starts as soon as it is ready, and by
     // the time playback reaches the rest their audio is already on hand.
-    narratorRef.current?.prefetch(scenes.length - 1, event.scene.narration)
+    narratorRef.current?.prefetch(event.scene.narration)
     const next = { ...current, scenes }
     lessonRef.current = next
     setLesson(next)
@@ -245,9 +352,13 @@ export default function Studio({ engine }: { engine: Engine }) {
           script: pending.script,
           from: pending.next,
           count: 1,
+          // What the boards so far were built on. Each scene is drawn in its
+          // own request, so without this the model has no way of knowing it
+          // has already made this exact board four times.
+          forms: (lessonRef.current?.scenes ?? []).map((scene) => scene.form).filter(Boolean),
           engine,
           provider: 'openai',
-          model: 'gpt-5.6-luna',
+          model: LESSON_MODEL,
         }),
       })
       if (!response.ok || !response.body) {
@@ -303,6 +414,7 @@ export default function Studio({ engine }: { engine: Engine }) {
   }, [start])
 
   async function generate(nextTopic: string, script?: string) {
+
     const trimmed = nextTopic.trim()
     const scripted = script?.trim() ?? ''
     if (!trimmed && !scripted) return
@@ -317,8 +429,9 @@ export default function Studio({ engine }: { engine: Engine }) {
     setPlan(null)
 
     // A pasted script is drawn one scene at a time. A topic is first written
-    // out as a script by gpt-5.6-terra, then drawn straight through by luna —
-    // the writer never thinks about boxes, the illustrator never edits prose.
+    // out as a script, then drawn — the writer never thinks about boxes, the
+    // illustrator never edits prose. gpt-5.6-terra does both jobs, in separate
+    // calls with separate prompts.
     const pasted = scripted
     const onDemand = pasted.length > 0
 
@@ -361,7 +474,7 @@ export default function Studio({ engine }: { engine: Engine }) {
           history,
           engine,
           provider: 'openai',
-          model: 'gpt-5.6-luna',
+          model: LESSON_MODEL,
           ...(onDemand ? { from: 0, count: 1 } : {}),
         }),
       })
@@ -426,18 +539,9 @@ export default function Studio({ engine }: { engine: Engine }) {
           ...prev,
           { title: finishedLesson.title, summary: finishedLesson.summary },
         ])
-
-        // Nobody is waiting on these; a failure just means no suggestions.
-        void fetch('/api/followups', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ lesson: finishedLesson }),
-        })
-          .then((r) => r.json())
-          .then((data) => {
-            if (isCurrent()) setFollowups(data.questions ?? [])
-          })
-          .catch(() => {})
+        // Fully streamed in, so it is worth keeping — but a replay is already
+        // in history, and saving it again would file a duplicate every watch.
+        if (!replayingRef.current) onTaught?.(finishedLesson)
       }
 
       // Playback was holding for a scene that will now never arrive.
@@ -524,14 +628,16 @@ export default function Studio({ engine }: { engine: Engine }) {
       ),
       duration
     )
+    // How long to stay on the finished board after the voice stops, so what
+    // was drawn last can actually be read. Usually zero.
+    let hold = sceneHold(schedule, duration)
 
-    void narrator.get(sceneIndex, scene.narration).then((narration) => {
+    void narrator.get(scene.narration).then((narration) => {
       if (cancelled) return
 
       audio = narration.audio
       audioRef.current = audio
       duration = narration.duration
-      setHasVoice(narrator.hasVoice)
 
       // Re-time against the real clip: anchored shapes now land on their words.
       schedule = oneAtATime(
@@ -546,9 +652,10 @@ export default function Studio({ engine }: { engine: Engine }) {
         ),
         narration.duration
       )
+      hold = sceneHold(schedule, narration.duration)
 
       const next = lessonRef.current?.scenes[sceneIndex + 1]
-      if (next) narrator.prefetch(sceneIndex + 1, next.narration)
+      if (next) narrator.prefetch(next.narration)
 
       if (audio) {
         // From the top, so the learner hears the whole scene. Anything already
@@ -560,6 +667,7 @@ export default function Studio({ engine }: { engine: Engine }) {
 
     void (async () => {
       let elapsed = 0
+      let held = 0
       let last = performance.now()
       let advanced = false
 
@@ -577,7 +685,12 @@ export default function Studio({ engine }: { engine: Engine }) {
           if (entry.time <= seconds) painter.paint(sceneIndex, entry.shape, scene.shapes)
         }
 
-        const ended = audio ? audio.ended || fraction >= 1 : fraction >= 1
+        // The clip has finished, but the scene has not: `audio.currentTime`
+        // stops at the end of the audio, so the hold is timed on its own clock.
+        const spoken = audio ? audio.ended || fraction >= 1 : fraction >= 1
+        if (spoken && playingRef.current) held += delta
+
+        const ended = spoken && held >= hold
         if (ended && !advanced) {
           advanced = true
           const total = lessonRef.current?.scenes.length ?? 0
@@ -653,8 +766,8 @@ export default function Studio({ engine }: { engine: Engine }) {
    * scene that was coming next. Inserting after the current index is safe:
    * every later scene is unpainted, so renumbering them costs nothing.
    */
-  async function ask() {
-    const text = question.trim()
+  async function ask(asked?: string) {
+    const text = (asked ?? question).trim()
     const current = lessonRef.current
     if (!text || !current || asking) return
 
@@ -694,17 +807,6 @@ export default function Studio({ engine }: { engine: Engine }) {
     }
   }
 
-  /**
-   * Swaps the narration voice. The scene already playing keeps its audio —
-   * cutting it off mid-sentence would be worse than finishing in the old voice
-   * — but everything cached ahead is dropped so the next scene speaks in the
-   * new one.
-   */
-  function changeVoice(next: VoiceId) {
-    setVoiceId(next)
-    narratorRef.current?.setVoice(next)
-  }
-
   function restart() {
     painterRef.current?.reset()
     waitingRef.current = false
@@ -734,7 +836,63 @@ export default function Studio({ engine }: { engine: Engine }) {
     narratorRef.current = null
   }
 
+  /**
+   * The controls, published upward for the composer to draw.
+   *
+   * Built from primitives only, with the actions reading through a ref that is
+   * refreshed after each render. The obvious version — putting `goToScene` and
+   * friends in the dependency list — rebuilt this object on every render, and
+   * since publishing it sets state in the parent, that was an infinite loop:
+   * publish, re-render, new object, publish. What the parent needs to hear
+   * about is a change in what the controls *can do*, and that is all
+   * primitives.
+   */
+  const scenes = lesson?.scenes.length ?? 0
+  const progress = plan
+    ? drawing
+      ? `drawing ${plan.next + 1} of ${plan.total}…`
+      : `${plan.next} of ${plan.total} drawn`
+    : null
+
+  const actions = useRef({ goToScene, carryOn, restart, ask, newLesson, finished, atEdge, sceneIndex })
+  useEffect(() => {
+    actions.current = { goToScene, carryOn, restart, ask, newLesson, finished, atEdge, sceneIndex }
+  })
+
+  const transport = useMemo<LessonTransport | null>(() => {
+    if (phase !== 'board') return null
+
+    return {
+      playing: isPlaying,
+      finished,
+      atEdge,
+      drawing,
+      asking,
+      progress,
+      hasPrev: sceneIndex > 0,
+      hasNext: !drawing && scenes > 0 && (sceneIndex < scenes - 1 || hasMore),
+      toggle: () => {
+        const now = actions.current
+        if (now.finished) now.restart()
+        else if (now.atEdge) void now.carryOn()
+        else setIsPlaying((value) => !value)
+      },
+      prev: () => actions.current.goToScene(actions.current.sceneIndex - 1),
+      next: () => actions.current.goToScene(actions.current.sceneIndex + 1),
+      ask: (question: string) => void actions.current.ask(question),
+      reset: () => actions.current.newLesson(),
+    }
+  }, [phase, isPlaying, finished, atEdge, drawing, asking, progress, sceneIndex, scenes, hasMore])
+
+  useEffect(() => {
+    onTransport?.(transport)
+  }, [transport, onTransport])
+
   if (phase !== 'board') {
+    // Embedded, the panel shows the workspace's own welcome until a lesson is
+    // asked for; the loading line lives on the composer.
+    if (embedded) return null
+
     return (
       <TopicScreen
         topic={topic}
@@ -750,199 +908,15 @@ export default function Studio({ engine }: { engine: Engine }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-white">
+    <div className={embedded ? 'absolute inset-0 bg-white' : 'fixed inset-0 bg-white'}>
       <Board onEditor={onEditor} />
 
-      {/* The pen. Positioned by the painter directly, in screen pixels, so it
-          tracks the trace at frame rate without re-rendering React. */}
-      <div
-        ref={penRef}
-        aria-hidden
-        className="pointer-events-none absolute left-0 top-0 z-10 transition-opacity duration-200"
-        style={{ opacity: 0 }}
-      >
-        <svg viewBox="0 0 32 32" className="size-8 -translate-x-1 -translate-y-7 drop-shadow-sm">
-          <path
-            d="M6 26.5 8.2 20l14-14a3 3 0 0 1 4.2 4.2l-14 14L6 26.5Z"
-            fill="#fafafa"
-            stroke="#27272a"
-            strokeWidth="1.4"
-            strokeLinejoin="round"
-          />
-          <path d="M8.2 20l4.2 4.2" stroke="#27272a" strokeWidth="1.4" />
-          <path d="M6 26.5 8.2 24l2 2-4.2.5Z" fill="#27272a" />
-        </svg>
-      </div>
-
-      <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-end p-4">
-        <button
-          type="button"
-          onClick={newLesson}
-          className="pointer-events-auto rounded-xl border border-black/10 bg-white/90 px-3.5 py-2.5 text-sm font-medium text-zinc-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-zinc-900"
-        >
-          New topic
-        </button>
-      </header>
-
-      {/* Where to go next. Only once the lesson has finished playing — offered
-          mid-lesson they compete with the thing being explained. */}
-      {finished && followups.length > 0 && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-24 flex justify-center px-5">
-          <div className="pointer-events-auto flex max-w-3xl flex-wrap justify-center gap-2">
-            {followups.map((next) => (
-              <button
-                key={next}
-                type="button"
-                onClick={() => {
-                  setTopic(next)
-                  void generate(next)
-                }}
-                className="rounded-full border border-black/10 bg-white/95 px-4 py-2 text-sm text-zinc-700 shadow-sm backdrop-blur transition hover:border-zinc-300 hover:text-zinc-900"
-              >
-                {next}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Transport only. The board carries the lesson; a caption panel just
-          competes with the thing it is describing. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-5">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-black/10 bg-white/90 px-3 py-2 shadow-lg shadow-black/5 backdrop-blur">
-            <IconButton
-              label="Previous scene"
-              onClick={() => goToScene(sceneIndex - 1)}
-              disabled={sceneIndex === 0}
-            >
-              <path d="M14 5 8 10l6 5V5Z" />
-              <path d="M6 5v10" />
-            </IconButton>
-
-            <button
-              type="button"
-              onClick={() =>
-                finished
-                  ? restart()
-                  : atEdge
-                    ? void carryOn()
-                    : setIsPlaying((value) => !value)
-              }
-              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700"
-              aria-label={
-                finished
-                  ? 'Replay lesson'
-                  : atEdge
-                    ? 'Draw the next scene and carry on'
-                    : isPlaying
-                      ? 'Pause'
-                      : 'Play'
-              }
-            >
-              {finished ? (
-                <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M16 10a6 6 0 1 1-1.8-4.3" />
-                  <path d="M15 3v3h-3" />
-                </svg>
-              ) : isPlaying ? (
-                <svg viewBox="0 0 20 20" className="size-5" fill="currentColor">
-                  <rect x="6" y="5" width="3" height="10" rx="1" />
-                  <rect x="11" y="5" width="3" height="10" rx="1" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 20 20" className="size-5" fill="currentColor">
-                  <path d="M7 4.8v10.4a.8.8 0 0 0 1.22.68l8.2-5.2a.8.8 0 0 0 0-1.36l-8.2-5.2A.8.8 0 0 0 7 4.8Z" />
-                </svg>
-              )}
-            </button>
-
-            <IconButton
-              label={
-                lesson && sceneIndex >= lesson.scenes.length - 1 && hasMore
-                  ? 'Draw the next scene'
-                  : 'Next scene'
-              }
-              onClick={() => goToScene(sceneIndex + 1)}
-              disabled={
-                drawing || !lesson || (sceneIndex >= lesson.scenes.length - 1 && !hasMore)
-              }
-            >
-              <path d="M6 5l6 5-6 5V5Z" />
-              <path d="M14 5v10" />
-            </IconButton>
-
-            {/* What is left of the script, and whether a scene is on its way.
-                Without this the board looks finished when it is only waiting to
-                be asked for the rest. */}
-            {plan && (
-              <span className="ml-1 whitespace-nowrap text-xs tabular-nums text-zinc-400">
-                {drawing
-                  ? `drawing ${plan.next + 1} of ${plan.total}…`
-                  : `${plan.next} of ${plan.total} drawn`}
-              </span>
-            )}
-
-            {error && (
-              <span className="ml-1 max-w-[16rem] truncate text-xs text-red-600" title={error}>
-                {error}
-              </span>
-            )}
-
-            <span className="mx-1 h-6 w-px bg-black/10" />
-
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                void ask()
-              }}
-            >
-              <input
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                disabled={asking}
-                maxLength={400}
-                placeholder={asking ? 'Working it out…' : 'Ask a question…'}
-                aria-label="Ask a question about this lesson"
-                className="w-52 rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:bg-zinc-50 focus:ring-2 focus:ring-zinc-900/10 disabled:animate-pulse"
-              />
-            </form>
-
-            <span className="mx-1 h-6 w-px bg-black/10" />
-
-            <VoicePicker value={voiceId} onChange={changeVoice} disabled={!hasVoice} />
-
-        </div>
-      </div>
+      {/* Nothing floats over the board any more. The controls live on the
+          composer, where every other instruction to this app is given. */}
     </div>
   )
 }
 
-
-function IconButton({
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className="flex size-9 shrink-0 items-center justify-center rounded-full text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-30"
-    >
-      <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        {children}
-      </svg>
-    </button>
-  )
-}
 
 /** Its own component so each generation remounts it and restarts at line one. */
 function LoadingLine() {
@@ -983,9 +957,9 @@ function TopicScreen({
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6 py-16">
       <div className="w-full max-w-2xl">
-        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-400">
-          viop
-        </p>
+        <div className="mb-5">
+          <Logo height={30} href={null} />
+        </div>
         <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl">
           What should I teach you?
         </h1>

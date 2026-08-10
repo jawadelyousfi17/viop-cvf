@@ -1,0 +1,175 @@
+// The store behind /mindmap.
+//
+// Postgres, over the pooled Neon connection in DATABASE_URL. The tree is a
+// String of JSON rather than a Json column on purpose: a map is read whole,
+// drawn whole and written whole, nothing ever queries inside it, and a String
+// keeps the schema portable to any provider.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// One saved map, tree and all.
+///
+/// The whole tree lives in a single row rather than a table of nodes with
+/// parent pointers. A map is loaded whole, drawn whole and saved whole; nothing
+/// ever queries for "the children of node X" across maps, and a node table
+/// would buy joins for a read pattern that has none.
+model Mindmap {
+  id String @id @default(cuid())
+
+  /// Who it belongs to.
+  ///
+  /// `ownerKey` is an anonymous browser identity — a cookie — so history works
+  /// before anyone has signed in. `userId` is filled in once accounts exist,
+  /// and the two coexist on purpose: at sign-up, the maps made while signed
+  /// out are claimed by stamping the user onto every row with that ownerKey,
+  /// rather than being lost.
+  ownerKey String
+  userId   String?
+
+  /// What was asked for, and what came back.
+  title  String
+  topic  String @default("")
+  /// "model" when the branches were written for you, "outline" when they were
+  /// typed by hand — the two are different products and worth telling apart.
+  source String @default("model")
+
+  /// The MindNode tree as JSON, exactly as lib/mindmap.ts hands it over.
+  tree String
+
+  /// Denormalised for the history list, which would otherwise parse every
+  /// tree it lists just to say how big each one is.
+  nodeCount Int @default(1)
+  depth     Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerKey, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+/// One lesson, kept so it can be watched again.
+///
+/// Stored as the finished lesson document — scenes, narration and all — rather
+/// than as the topic it came from. Regenerating from the topic would cost
+/// another model call and produce a different lesson; what someone wants back
+/// is the one they watched.
+model Lesson {
+  id String @id @default(cuid())
+
+  /// Same two identities as a map: the browser that made it, and the account
+  /// it belongs to once there is one. See lib/owner.ts.
+  ownerKey String
+  userId   String?
+
+  title   String
+  topic   String @default("")
+  summary String @default("")
+
+  /// The Lesson document as JSON, exactly as lib/lesson.ts hands it over.
+  scenes String
+
+  /// For the history list, which should not parse a lesson to count its scenes.
+  sceneCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerKey, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+/// Work that outlives the request that asked for it.
+///
+/// Writing a map takes ten seconds, a lesson closer to a minute. Tying that to
+/// an open connection means a reload, a closed laptop or a tunnel throws away
+/// work that has already been paid for — so the request only *starts* the job,
+/// and the answer is written here whether anyone is still watching or not.
+///
+/// The result is a JSON string for the same reason a map's tree is: it is read
+/// whole by the one client that asked for it, and nothing queries inside it.
+model Job {
+  id String @id @default(cuid())
+
+  ownerKey String
+  userId   String?
+
+  /// "map" | "expand" | "math" | "lesson"
+  kind String
+  /// "running" | "done" | "failed"
+  status String @default("running")
+
+  /// What was asked for, so a job can be understood without its result.
+  input String
+  /// The answer, or as much of it as exists — a lesson writes scenes as they
+  /// arrive, so a reload mid-generation picks up what is already drawn.
+  result String?
+  error  String?
+
+  /// What this job produced, once it has been filed in its own table.
+  lessonId  String?
+  mindmapId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerKey, status, updatedAt])
+  @@index([userId, status, updatedAt])
+}
+
+enum PlanId {
+  free
+  pro
+}
+
+enum BillingCycle {
+  monthly
+  yearly
+}
+
+enum SubscriptionStatus {
+  active
+  trialing
+  past_due
+  canceled
+  expired
+}
+
+/// What an account is paying for.
+///
+/// Keyed by the Supabase user id rather than by a row in a users table, because
+/// there isn't one: identity lives in Supabase and everything here hangs off
+/// that id. One row per user, written only by the Whop webhook.
+model Subscription {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  plan   PlanId             @default(free)
+  status SubscriptionStatus @default(active)
+  cycle  BillingCycle       @default(monthly)
+
+  /// The end of the period already paid for. Access holds until then even
+  /// after a cancellation; once it is in the past the account reads as free
+  /// whatever the status says, so a missed webhook cannot hand out a plan
+  /// forever. Null means no end date — a plan granted by hand.
+  currentPeriodEnd DateTime?
+  /// Set when someone cancels but has time left on the clock.
+  cancelAtPeriodEnd Boolean @default(false)
+
+  /// Whop's own ids, for matching a webhook back to an account.
+  customerId     String? @unique
+  subscriptionId String? @unique
+
+  /// The email the purchase was made with, when that is all we had to go on.
+  email String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

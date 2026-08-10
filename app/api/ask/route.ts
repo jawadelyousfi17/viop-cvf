@@ -1,4 +1,4 @@
-import { DEFAULT_PROVIDER, isProvider } from '@/lib/providers'
+import { DEFAULT_PROVIDER, FAST_MODELS, isProvider } from '@/lib/providers'
 import { LlmError, completeStructured } from '@/lib/llm'
 import {
   ANSWER_JSON_SCHEMA,
@@ -52,8 +52,11 @@ export async function POST(request: Request) {
         current: typeof current === 'string' ? current : '',
       }),
       schema: config.schema,
+      // The lesson is paused on a silent board until this returns, so it runs
+      // on the fast model rather than the one that writes the lesson.
+      model: FAST_MODELS[isProvider(provider) ? provider : DEFAULT_PROVIDER],
       // The student is standing there waiting, so no reasoning budget.
-      // gpt-5.6-luna accepts none/low/medium/high/xhigh — not 'minimal'.
+      // The 5.x models accept none/low/medium/high/xhigh — not 'minimal'.
       effort: process.env.OPENAI_ASK_EFFORT ?? 'none',
       maxTokens: 8_000,
     })

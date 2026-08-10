@@ -79,6 +79,14 @@ export const SHAPE_KINDS = [
   'image',
   /** A line-art symbol, fetched by name from The Noun Project. */
   'symbol',
+  /**
+   * LaTeX, set by KaTeX. Drawn only by the SVG engine in components/engine —
+   * the tldraw painter has no way to typeset it — and deliberately absent from
+   * the lesson prompt, so a lesson never asks for one.
+   */
+  'math',
+  /** A graph, sampled by lib/plot.ts and drawn by the SVG engine. */
+  'plot',
   'icon',
   /** Source, set in a monospace face, with one line boxed. */
   'code',
@@ -102,6 +110,31 @@ export const SHAPE_KINDS = [
 
 /** Kinds whose shape is defined by `points` rather than a bounding box. */
 export const POINT_KINDS = new Set<ShapeKind>(['curve', 'line', 'highlight'])
+
+/**
+ * Outlines whose whole content is the word inside them. Empty, they are an
+ * empty outline — see `dropEmptyOutlines`.
+ */
+const GEO_KINDS = new Set<ShapeKind>([
+  'box',
+  'ellipse',
+  'diamond',
+  'triangle',
+  'hexagon',
+  'star',
+  'cloud',
+  'oval',
+  'heart',
+  'pentagon',
+  'octagon',
+  'trapezoid',
+  'rhombus',
+  'arrowright',
+  'arrowleft',
+  'arrowup',
+  'arrowdown',
+  'note',
+])
 
 const MAX_POINTS: Record<string, number> = { curve: 48, line: 12, highlight: 24 }
 
@@ -194,10 +227,64 @@ export interface BoardShape {
   group?: string
 }
 
+/**
+ * The shapes a scene can be built out of.
+ *
+ * Declared by the model before it writes the shapes, and its only real job is
+ * to be declared: a model asked for six boards in one call will otherwise find
+ * one arrangement it likes and produce it six times, and the fault is not that
+ * the arrangement is bad but that a lesson of six identical boards teaches the
+ * eye to stop looking. Naming the form first forces the choice into the open,
+ * where "I have already used `panels` twice" is visible to it.
+ *
+ * Kept here rather than in the prompt because it is part of the schema the
+ * model answers against.
+ */
+export const SCENE_FORMS = [
+  /** Boxes and arrows: what connects to what. Usually a Mermaid diagram. */
+  'flow',
+  /** Layers resting on each other — a `stack`. */
+  'layers',
+  /** Two things set against each other, side by side or as a `table`. */
+  'comparison',
+  /** Indexed cells — an `array`, a buffer, a string, a tape. */
+  'cells',
+  /** Numbers worth comparing — a `barchart`, `linechart` or `piechart`. */
+  'chart',
+  /** A subject in the middle with labels branching off it on thin lines. */
+  'centre',
+  /** Source, a config file, a query — a `code` card and what it does. */
+  'code',
+  /** A worked example: real values carried through the steps. */
+  'worked',
+  /** One thing drawn large — a photograph or symbol — and annotated. */
+  'closeup',
+  /** A container filling up with its parts. */
+  'anatomy',
+  /** Separate boxes side by side. The weakest, and the easiest to overuse. */
+  'panels',
+] as const
+
+export type SceneForm = (typeof SCENE_FORMS)[number]
+
 export interface Scene {
   id: string
-  heading: string
+  /**
+   * Vestigial, and no longer asked of the model.
+   *
+   * Nothing on the board has ever drawn it — every scene is meant to open on
+   * substance rather than on its own name. But it was a REQUIRED field of the
+   * schema, so the model wrote a title for every scene, read back its own
+   * answer, and did the natural thing with a title it had just written: put it
+   * at the top of the board as a `label`. Asking for something and then not
+   * wanting it drawn is a fight the prompt loses; not asking wins it.
+   *
+   * Kept on the type so hand-authored scenes that still set it compile.
+   */
+  heading?: string
   narration: string
+  /** The scene's primary structure. See {@link SCENE_FORMS}. */
+  form?: SceneForm
   shapes: BoardShape[]
   /**
    * A Mermaid flowchart for the graph-shaped part of the scene, expanded into
@@ -240,11 +327,13 @@ export interface Lesson {
 export const SCENE_JSON_SCHEMA = {
         type: 'object',
         additionalProperties: false,
-        required: ['id', 'heading', 'narration', 'shapes', 'diagram'],
+        required: ['id', 'narration', 'form', 'shapes', 'diagram'],
         properties: {
           id: { type: 'string' },
-          heading: { type: 'string' },
           narration: { type: 'string' },
+          // Answered before the shapes are written, so the choice of structure
+          // is made deliberately and the run of scenes can be seen to vary.
+          form: { type: 'string', enum: SCENE_FORMS },
           diagram: {
             type: 'object',
             additionalProperties: false,
@@ -364,10 +453,14 @@ export function estimateNarrationSeconds(narration: string) {
  */
 export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
   const seen = new Set<string>()
-  const shapes: BoardShape[] = []
+  let shapes: BoardShape[] = []
 
   for (const [i, shape] of (scene.shapes ?? []).entries()) {
     if (!shape) continue
+    // The marker is gone. A translucent swipe over finished words reads as a
+    // smear on a clean board, and the thing it was emphasising was already
+    // being said out loud at that exact moment.
+    if (shape.kind === 'highlight') continue
 
     let id = shape.id || `s${i}`
     while (seen.has(id)) id = `${id}_`
@@ -392,6 +485,19 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
     // A point-based kind with too few points can't be drawn; fall back to text
     // so the label at least survives.
     const usable = POINT_KINDS.has(kind) && points.length >= 2
+
+    const text = bullets(typeof shape.text === 'string' ? shape.text : '')
+
+    // A shape with nothing written in it and nothing to draw is dropped here
+    // rather than laid out. It shows as blank, but it is not free: it takes a
+    // place in a row, pushing real content aside, and a beat of the narration's
+    // time, during which the board appears to be waiting for something that
+    // never comes. Two kinds arrive regularly — an empty "text" or "label", and
+    // a stroke ("curve", "line", "highlight") written with fewer than the two
+    // points it needs, which fell back to text and became a floating blank.
+    if (!text.trim() && (kind === 'text' || kind === 'label' || (POINT_KINDS.has(kind) && !usable))) {
+      continue
+    }
 
     let w = clamp(num(shape.w, isArrow ? 160 : 200), isArrow ? -SCENE_W : 24, SCENE_W)
     let h = clamp(num(shape.h, isArrow ? 0 : 100), isArrow ? -SCENE_H : 24, SCENE_H)
@@ -436,7 +542,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
       kind: POINT_KINDS.has(kind) && !usable ? 'text' : kind,
       points: usable ? points : [],
       data,
-      text: bullets(typeof shape.text === 'string' ? shape.text : ''),
+      text,
       anchor: typeof shape.anchor === 'string' ? shape.anchor.trim().slice(0, 60) : '',
       x,
       y,
@@ -459,32 +565,24 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
 
   const ids = new Set(shapes.map((s) => s.id))
   for (const shape of shapes) {
-    if (shape.from && !ids.has(shape.from)) shape.from = null
-    if (shape.to && !ids.has(shape.to)) shape.to = null
     if (shape.parent && (!ids.has(shape.parent) || shape.parent === shape.id)) shape.parent = null
   }
 
-  // An arrow can never be drawn before the shapes it connects.
-  const byId = new Map(shapes.map((s) => [s.id, s]))
-  for (const shape of shapes) {
-    if (shape.kind !== 'arrow') continue
-    for (const ref of [shape.from, shape.to]) {
-      const target = ref ? byId.get(ref) : undefined
-      if (target) shape.at = Math.max(shape.at, target.at)
-    }
-  }
+  shapes = dropEmptyOutlines(shapes)
 
   // A hand-drawn scene is already laid out — by a person, on the board, at the
   // size they wanted. Every pass below exists to rescue coordinates a model
   // guessed, and running them here would only undo the drawing.
   if (scene.layout === 'fixed') {
+    const drawn = bindArrows([...shapes, ...expandDiagram(scene, sceneIndex)], sceneIndex)
     return {
       id: scene.id || `scene-${sceneIndex + 1}`,
       heading: scene.heading || '',
+      form: scene.form,
       narration: (scene.narration ?? '').trim(),
       diagram: { source: '', timing: [] },
       layout: 'fixed',
-      shapes: [...shapes, ...expandDiagram(scene, sceneIndex)].sort((a, b) => a.at - b.at),
+      shapes: drawn.sort((a, b) => a.at - b.at),
     }
   }
 
@@ -492,8 +590,10 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
   // reserved room between ranks for the diagram's edge labels, and pushing
   // those nodes apart afterwards just dismantles the layout — which showed up
   // as a diagram block wider than the board it was fitted to.
-  const spaced = fitFrames(spaceForArrowLabels(groupFrames(nestChildren(shapes))))
-  const withDiagram = [...spaced, ...expandDiagram(scene, sceneIndex)]
+  const spaced = fitFrames(spaceForArrowLabels(groupFrames(nestChildren(unpackCards(shapes)))))
+  const withDiagram = bindArrows([...spaced, ...expandDiagram(scene, sceneIndex)], sceneIndex)
+
+  dropEchoedLabels(withDiagram)
 
   // Where the model put things, kept before the layout rewrites it — the only
   // record of which shape a ring was drawn around.
@@ -507,6 +607,7 @@ export function normalizeScene(scene: Scene, sceneIndex: number): Scene {
   return {
     id: scene.id || `scene-${sceneIndex + 1}`,
     heading: scene.heading || '',
+    form: scene.form,
     narration: (scene.narration ?? '').trim(),
     diagram: { source: '', timing: [] },
     // Frames are fitted twice: once so the spacing pass leaves them a sane box,
@@ -800,6 +901,17 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
     if (row.length) rows.push(row)
   }
 
+  // Which row each unit started in, remembered before anything is merged.
+  // A merged row still reads left to right, but the rows it was made from are
+  // read in order first: sorting the whole merged row on x alone deals the
+  // lower row's units in among the upper row's, so a symbol written beside its
+  // own label ends up beside someone else's.
+  const startedIn = new Map<Unit, number>()
+  rows.forEach((row, index) => {
+    for (const unit of row) startedIn.set(unit, index)
+  })
+  const leftOf = (unit: Unit) => (startedIn.get(unit) ?? 0) * SCENE_W * 4 + unitX(unit)
+
   // Bands come from the y values the model wrote, and it tends to write more
   // of them than the board needs — six rows of two, where three rows of four
   // would fit and be half as tall. Height is what costs zoom, so merge any two
@@ -817,7 +929,14 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
     // rows lays the sequence out sideways instead and the step is lost — the
     // one case where a shorter scene is the wrong trade.
     const stacked = bridges(a, b, ties.down)
-    if (!rigid && !stacked && together.length <= 4 && width <= available) {
+    // The floor counts things that have to be read, and a glyph is not one:
+    // it rides beside the label it illustrates, so a row of two boxes and
+    // their two symbols reads as two things across, not four. Counting them
+    // stopped these rows merging, and every row a scene fails to merge is
+    // another band of height — which is what decides how far the camera has
+    // to pull back, and therefore how small everything on the board ends up.
+    const readable = together.filter((unit) => !isGlyph(unit)).length
+    if (!rigid && !stacked && readable <= 4 && together.length <= 6 && width <= available) {
       rows.splice(i, 2, together)
     } else {
       i++
@@ -827,7 +946,7 @@ function flowTopToBottom(shapes: BoardShape[]): BoardShape[] {
   // Left to right by where the model put things, except that whatever a unit
   // points at follows it — so a chain of arrows reads as a chain and nothing
   // unrelated is dealt between the two ends of a connector.
-  const laid = rows.map((row) => orderRow(row, at, ties))
+  const laid = rows.map((row) => orderRow(row, at, ties, leftOf))
 
   const heights = laid.map((row) => Math.max(...row.map(unitH)))
   const content = heights.reduce((sum, height) => sum + height, 0)
@@ -971,13 +1090,21 @@ function tiesBetween(shapes: BoardShape[], units: Unit[]): Ties {
  * falling back to anything else tied to it, and only then to the next unit
  * along. Sorting by x alone was enough while scenes were simple, but it puts an
  * unrelated caption between two boxes as readily as not.
+ *
+ * `leftOf` is reading order, not raw x: units that began in an upper row all
+ * come before units from a lower one, however far left the lower ones started.
  */
-function orderRow(row: Unit[], at: (unit: Unit) => number, ties: Ties): Unit[] {
+function orderRow(
+  row: Unit[],
+  at: (unit: Unit) => number,
+  ties: Ties,
+  leftOf: (unit: Unit) => number
+): Unit[] {
   if (row.length < 3 || !ties.joined.size) {
-    return [...row].sort((a, b) => unitX(a) - unitX(b))
+    return [...row].sort((a, b) => leftOf(a) - leftOf(b))
   }
 
-  const rest = [...row].sort((a, b) => unitX(a) - unitX(b))
+  const rest = [...row].sort((a, b) => leftOf(a) - leftOf(b))
   const out: Unit[] = []
 
   while (rest.length) {
@@ -1004,6 +1131,13 @@ interface Unit {
   /** The shape whose position stands for the unit when it isn't a group. */
   lead: BoardShape
   bounds?: { x: number; y: number; w: number; h: number }
+}
+
+/** A drawn glyph, sitting beside the thing it illustrates rather than saying something of its own. */
+const GLYPH_KINDS = new Set<ShapeKind>(['symbol', 'icon'])
+
+function isGlyph(unit: Unit) {
+  return unit.shapes.length === 1 && GLYPH_KINDS.has(unit.shapes[0].kind)
 }
 
 function boundsOf(shapes: BoardShape[]) {
@@ -1093,6 +1227,216 @@ function centreContent(shapes: BoardShape[]): BoardShape[] {
       point.x += dx
       point.y += dy
     }
+  }
+
+  return shapes
+}
+
+/**
+ * Words that carry no content of their own, for comparing two pieces of board
+ * lettering. Deliberately short: "only", "not", "never" and the like change
+ * what a label means and have to count.
+ */
+const EMPTY_WORDS = new Set([
+  'a', 'an', 'the', 'of', 'to', 'for', 'and', 'or', 'in', 'on', 'at', 'as',
+  'is', 'are', 'be', 'with', 'from', 'by', 'into', 'onto', 'that', 'this',
+  'it', 'its', 'so', 'then',
+])
+
+/** Crude stemming — enough to see that "prescribed" and "prescribe" are one word. */
+function contentWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter((word) => word.length > 1 && !EMPTY_WORDS.has(word))
+      .map((word) => word.replace(/(ing|ed|es|s)$/, ''))
+  )
+}
+
+/**
+ * Takes the label off an arrow that only repeats what it points at.
+ *
+ * An arrow's label is supposed to be the one thing on the board that is not
+ * written anywhere else: the relationship between its two ends. "use only as
+ * prescribed" running into a box that reads ONLY THE PRESCRIBED PERSON is not a
+ * relationship, it is the box said twice, in smaller letters, next to itself.
+ * The reader stops, reads it, matches it against the box, and gets nothing —
+ * and they do that for every such label on the board.
+ *
+ * An unlabelled arrow still says everything a repeated label said. So the
+ * echoes come off, and what is left is arrows whose labels are worth the stop.
+ */
+function dropEchoedLabels(shapes: BoardShape[]) {
+  const byId = new Map(shapes.map((shape) => [shape.id, shape]))
+
+  for (const arrow of shapes) {
+    if (arrow.kind !== 'arrow' && arrow.kind !== 'elbow') continue
+    const label = contentWords(arrow.text)
+    if (!label.size) continue
+
+    for (const ref of [arrow.to, arrow.from]) {
+      const end = ref ? byId.get(ref) : undefined
+      if (!end?.text.trim()) continue
+
+      const target = contentWords(end.text)
+      let shared = 0
+      for (const word of label) if (target.has(word)) shared++
+
+      // Most of the label already written in the shape it points at.
+      if (shared / label.size >= 0.6) {
+        arrow.text = ''
+        break
+      }
+    }
+  }
+}
+
+/**
+ * Removes the shapes that are an outline and nothing else.
+ *
+ * An octagon with no word in it is not a picture of anything. On the board it
+ * is a blank shape the eye stops at, and it usually arrives ringed or arrowed —
+ * the model meant it as a thing to point at and then never said what it was.
+ * The empty box in the middle of a good board does more damage than a missing
+ * one, because the learner assumes it is meaningful and looks for the meaning.
+ *
+ * Two exceptions, and both are shapes that are *supposed* to be empty:
+ *
+ * - A container. Its children are its content and its own text is only a
+ *   heading, which a container is entitled not to have.
+ * - A grouping frame — the dashed grey boundary drawn behind a region, whose
+ *   whole job is to be an outline with nothing of its own inside it.
+ */
+function dropEmptyOutlines(shapes: BoardShape[]): BoardShape[] {
+  const holds = new Set(shapes.map((shape) => shape.parent).filter(Boolean))
+
+  const keep = shapes.filter((shape) => {
+    if (shape.text.trim() || !GEO_KINDS.has(shape.kind)) return true
+    if (holds.has(shape.id)) return true
+    // The frame: dashed or dotted, unfilled, and drawn in a background colour.
+    const framing =
+      (shape.dash === 'dashed' || shape.dash === 'dotted') &&
+      shape.fill === 'none' &&
+      (shape.color === 'grey' || shape.color === 'black')
+    return framing
+  })
+
+  if (keep.length === shapes.length) return shapes
+
+  // Only references to what was actually dropped are cut. An unrecognised id
+  // is not this pass's business: at this point the diagram has not been
+  // expanded yet, so every arrow aimed at one of its nodes still looks like a
+  // dangling reference, and cutting those here is what severed them before.
+  const dropped = new Set(
+    shapes.filter((shape) => !keep.includes(shape)).map((shape) => shape.id)
+  )
+  for (const shape of keep) {
+    if (shape.from && dropped.has(shape.from)) shape.from = null
+    if (shape.to && dropped.has(shape.to)) shape.to = null
+  }
+  return keep
+}
+
+/**
+ * Points every arrow at something real, once the diagram exists.
+ *
+ * This used to run on the model's own shapes alone, before the Mermaid diagram
+ * had been expanded into nodes — so an arrow drawn from a remark to a node of
+ * that diagram found no such id and had both ends quietly cut. What is left is
+ * a connector with nowhere to be, and its label, which the label pass then
+ * lifts onto the board as a line of text sitting in open space next to nothing.
+ * That is where a stray "sets a gradual plan" comes from: not a stray thought,
+ * a severed arrow. The prompt spends a whole section telling the model to point
+ * at what is already drawn, and the commonest thing to point at is a node of
+ * the diagram — which was the one target that could not be hit.
+ *
+ * Nodes carry a scene-scoped prefix on the board, so a reference is tried as
+ * written and then again with the prefix: the model writes the Mermaid id it
+ * chose, which is the only id it knows.
+ *
+ * An arrow that asked for ends and got neither is dropped.
+ *
+ * It used to keep its coordinates and be drawn free-floating, which is where
+ * the diagonal strokes across a finished board came from: a connector the
+ * model drew between two things, pointing at ids that were never on the board,
+ * rendered as a bare line from one empty patch of grid to another. An arrow
+ * that never named an end is a different thing — a deliberate free stroke —
+ * and still gets drawn.
+ */
+function bindArrows(shapes: BoardShape[], sceneIndex: number) {
+  const byId = new Map(shapes.map((shape) => [shape.id, shape]))
+  const prefix = `d${sceneIndex}_`
+
+  const resolve = (ref: string | null) => {
+    if (!ref) return null
+    if (byId.has(ref)) return ref
+    return byId.has(prefix + ref) ? prefix + ref : null
+  }
+
+  const severed = new Set<BoardShape>()
+
+  for (const shape of shapes) {
+    if (shape.kind !== 'arrow' && shape.kind !== 'elbow') continue
+
+    const wanted = Boolean(shape.from || shape.to)
+    shape.from = resolve(shape.from)
+    shape.to = resolve(shape.to)
+
+    if (wanted && !shape.from && !shape.to) {
+      severed.add(shape)
+      continue
+    }
+
+    // An arrow can never be drawn before the shapes it connects.
+    for (const ref of [shape.from, shape.to]) {
+      const target = ref ? byId.get(ref) : undefined
+      if (target) shape.at = Math.max(shape.at, target.at)
+    }
+  }
+
+  return severed.size ? shapes.filter((shape) => !severed.has(shape)) : shapes
+}
+
+/**
+ * Takes the lone drawing back out of the box it was put in.
+ *
+ * Containment is for a thing with PARTS — a kernel holding a scheduler and a
+ * filesystem, a packet holding a header and a payload. One symbol inside a box
+ * is not parts, and it lays out as the same object every time: a rectangle, the
+ * heading, a line of small print, and a glyph centred underneath. Four of those
+ * stacked down a board is a deck of cards, and a lesson of them looks generated
+ * whatever the subject was — which is exactly what it is.
+ *
+ * So a container whose only child is a glyph is dissolved: the drawing comes
+ * out and sits beside the box, on the same row, where it reads as a drawing of
+ * that thing rather than an illustration printed inside a panel. The box keeps
+ * its words, the glyph keeps its beat, and the row is composed by the layout
+ * like any other pair.
+ *
+ * A box with two or more things in it is left alone — that is a real container
+ * and the grid is the right picture for it.
+ */
+function unpackCards(shapes: BoardShape[]): BoardShape[] {
+  const children = new Map<string, BoardShape[]>()
+  for (const shape of shapes) {
+    if (!shape.parent || FLOATING.has(shape.kind)) continue
+    children.set(shape.parent, [...(children.get(shape.parent) ?? []), shape])
+  }
+
+  for (const [id, inside] of children) {
+    if (inside.length !== 1) continue
+    const child = inside[0]
+    if (!GLYPH_KINDS.has(child.kind)) continue
+
+    const box = shapes.find((shape) => shape.id === id)
+    if (!box || GLYPH_KINDS.has(box.kind)) continue
+
+    child.parent = null
+    // Beside it, at the same y: the row layout reads shapes that share a y as
+    // belonging side by side, and puts them there.
+    child.y = box.y
+    child.x = box.x + box.w + 40
   }
 
   return shapes
@@ -1274,11 +1618,111 @@ function nestChildren(shapes: BoardShape[]): BoardShape[] {
 /**
  * The least time between one shape being drawn and the next, in seconds.
  *
- * Long enough that the eye follows a hand rather than watching a board assemble
- * itself, short enough that a scene with a dozen shapes still keeps up with the
- * voice.
+ * A shape takes up to about a second to ink, so anything under that reads as
+ * two things arriving together rather than one hand drawing them in turn — and
+ * a board that lands three shapes inside a second is a board the learner has to
+ * stop and re-read while the voice has already moved on. Long enough to follow,
+ * short enough that a scene of a dozen shapes still keeps up with the voice.
  */
-const DRAW_BEAT = 0.4
+const DRAW_BEAT = 0.9
+
+/**
+ * The floor when a scene has more shapes than it has room for. Below this the
+ * reveals stop reading as separate events at all.
+ */
+const MIN_BEAT = 0.3
+
+/** Room left at the end, so the last shape is drawn before the voice stops. */
+const TAIL = 0.35
+
+/**
+ * The most reading time one shape may claim before the next is drawn.
+ *
+ * Reading a dense shape is finished on the held board at the end of the scene,
+ * so the gap after it only has to cover getting the sense of it — and without a
+ * ceiling here a single table would suspend the rest of the scene while the
+ * voice carried on without it.
+ */
+const READ_GAP = 2.5
+
+/**
+ * Words a second, reading lettering on a board.
+ *
+ * Well under a page-reading rate on purpose. Board text is scanned, not read:
+ * it is in a handwriting face, it is laid out in cells and layers rather than
+ * lines, there is a voice talking over it, and the reader is looking for where
+ * the new thing is before they can start reading it at all.
+ */
+const READING_WPS = 3.2
+
+/** A drawing is looked at, not read. Long enough to register what it is. */
+const GLANCE = 0.4
+
+/**
+ * How long the words on a shape take to read, in seconds.
+ *
+ * The point of measuring it is that a scene's shapes are wildly unequal — a
+ * label is one word and a five-layer stack is a paragraph in a grid — and
+ * anything that treats them as the same unit will give the stack the same
+ * instant it gave the label.
+ */
+export function readingSeconds(shape: BoardShape): number {
+  // A gesture says nothing on its own; it marks something already read.
+  if (POINT_KINDS.has(shape.kind) || shape.kind === 'ring') return 0
+
+  // A symbol or a photograph carries its SEARCH QUERY in `text`, and not one
+  // word of it is written on the board. Counting it would charge the viewer
+  // reading time for words they never see.
+  if (shape.kind === 'image' || shape.kind === 'symbol' || shape.kind === 'icon') return GLANCE
+
+  let words = shape.text.split(/[\s|]+/).filter(Boolean).length
+
+  // A chart is read off its axis: every slice or bar is a label and a number.
+  if (CHART_KINDS.has(shape.kind)) words += shape.data.length * 2
+
+  // Code is read a token at a time, not a word at a time.
+  if (shape.kind === 'code') words *= 1.7
+
+  return words / READING_WPS
+}
+
+const CHART_KINDS = new Set<ShapeKind>(['barchart', 'linechart', 'piechart'])
+
+/**
+ * The longest anything on the board goes unread, in seconds.
+ *
+ * A ceiling on the hold below, so one overstuffed table cannot strand the
+ * lesson on a silent board. When a scene needs more than this, the scene is
+ * carrying more than a scene should.
+ */
+const MAX_HOLD = 6
+
+/**
+ * How long to stay on a scene after the voice has stopped.
+ *
+ * The scene used to advance on the last word of the narration, which quietly
+ * imposed a rule nobody would have written down: whatever was drawn last gets
+ * however many seconds the sentence introducing it happened to run to. Draw a
+ * five-row table on a closing clause and the reader gets two seconds with it,
+ * and two seconds is not reading, it is noticing.
+ *
+ * So the board is held until everything on it has been up long enough to be
+ * read TWICE — once to take it in, once to check what you took in — measured
+ * from the moment each shape was actually drawn. Most scenes need none of this
+ * and end exactly as they did; the ones that need it are the ones carrying
+ * something worth reading.
+ */
+export function sceneHold<T extends { shape: BoardShape; time: number }>(
+  schedule: T[],
+  duration: number
+): number {
+  let hold = 0
+  for (const entry of schedule) {
+    const needs = entry.time + readingSeconds(entry.shape) * 2 - duration
+    if (needs > hold) hold = needs
+  }
+  return Math.min(MAX_HOLD, Math.max(0, hold))
+}
 
 /**
  * Draws one thing at a time.
@@ -1289,8 +1733,17 @@ const DRAW_BEAT = 0.4
  * of the scene catching up with a picture that is already complete. So shapes
  * due together are dealt out in order, a beat apart.
  *
- * The beat shrinks rather than overrunning: a scene with more shapes than
- * seconds draws them faster, it does not push half of them past the narration.
+ * The spreading goes BOTH WAYS. Pushing every collision later was the obvious
+ * pass and the wrong one: a cluster of shapes anchored to the closing sentence
+ * has nowhere left to be pushed to, so the beat had to collapse to a tenth of a
+ * second to fit them all in before the clip ended — which is precisely the
+ * pile-up it was meant to prevent, moved to the end of the scene. Spreading
+ * backwards as well means a late cluster opens out into the space before it,
+ * where there is usually plenty, and the beat stays long enough to follow.
+ *
+ * Everything is kept inside the narration either way. The scene advances the
+ * instant the clip ends, so a shape still queued at that point is one the
+ * learner never sees at all.
  *
  * @param duration how long the scene's narration runs, in seconds.
  */
@@ -1302,13 +1755,31 @@ export function oneAtATime<T extends { shape: BoardShape; time: number }>(
 
   const order = [...schedule].sort((a, b) => a.time - b.time)
   const first = Math.max(0, order[0].time)
-  // Whatever is left of the scene, shared out — never longer than a beat.
-  const beat = Math.min(DRAW_BEAT, Math.max(0.1, (duration - first) / order.length))
+  const last = Math.max(first, duration - TAIL)
+  // Whatever room the scene has, shared out — never longer than a beat, and
+  // never so short that the reveals blur into one another.
+  const fits = (last - first) / (order.length - 1)
+  const beat = Math.min(DRAW_BEAT, Math.max(MIN_BEAT, fits))
 
+  // Forward: nothing lands on top of what came before it, and nothing lands
+  // while the thing before it is still being read. A one-word label is done
+  // with in a beat; a table is not, and dealing the next shape onto the board
+  // halfway through it costs the reader their place in both.
   let previous = -Infinity
+  let before: BoardShape | null = null
   for (const entry of order) {
-    entry.time = Math.max(entry.time, previous + beat)
+    const gap = before ? Math.max(beat, Math.min(READ_GAP, readingSeconds(before))) : beat
+    entry.time = Math.max(entry.time, previous + gap)
     previous = entry.time
+    before = entry.shape
+  }
+
+  // Backward: whatever the forward pass pushed past the end of the narration
+  // comes back inside it, taking the shapes before it earlier as it goes.
+  let next = last + beat
+  for (let i = order.length - 1; i >= 0; i--) {
+    order[i].time = Math.max(0, Math.min(order[i].time, next - beat))
+    next = order[i].time
   }
 
   return schedule
@@ -1370,7 +1841,10 @@ export function finishEachBox<T extends { shape: BoardShape; time: number }>(
     // Held to whatever is left of the scene, so a container named late still
     // gets its contents in before the narration runs out.
     const opens = Math.max(root.time + 0.2, members[0].time)
-    const beat = Math.min(DRAW_BEAT, Math.max(0.15, (duration - opens) / (members.length + 1)))
+    const beat = Math.min(
+      DRAW_BEAT,
+      Math.max(MIN_BEAT, (duration - TAIL - opens) / (members.length + 1))
+    )
 
     for (const [index, member] of members.entries()) member.time = opens + index * beat
     const closes = opens + (members.length - 1) * beat
