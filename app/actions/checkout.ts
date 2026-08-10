@@ -1,5 +1,7 @@
 'use server'
 
+import { headers } from 'next/headers'
+
 import { currentUser } from '@/lib/supabase/server'
 import { canBuy, type BillingCycle } from '@/lib/plans'
 import { planFor } from '@/lib/subscription'
@@ -24,6 +26,32 @@ import {
 // It is a different origin, and a returned URL the client navigates to is
 // plainer than relying on how a cross-origin redirect behaves inside a
 // transition — the button knows it is leaving the site.
+
+/**
+ * Where Whop should send someone after they pay, or nothing.
+ *
+ * Taken from the request the button just made rather than from configuration:
+ * this is a server action, so the host in these headers is the site the buyer
+ * is standing on — including which of www/apex they used. An env var for the
+ * same thing is one more thing to set, and when it is missing nothing breaks
+ * loudly; the purchase simply ends on Whop's own page and the buyer is left
+ * wondering whether it worked. NEXT_PUBLIC_SITE_URL still wins if it is set,
+ * for a deployment that wants everyone back on one canonical host.
+ *
+ * Nothing is returned for a non-https origin: Whop rejects those outright, so
+ * a local checkout deliberately ends on their receipt rather than failing to
+ * open at all.
+ */
+async function siteOrigin(): Promise<string | null> {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '')
+  if (configured?.startsWith('https://')) return configured
+
+  const head = await headers()
+  const host = head.get('x-forwarded-host') ?? head.get('host')
+  const proto = head.get('x-forwarded-proto') ?? 'https'
+
+  return host && proto === 'https' ? `https://${host}` : null
+}
 
 export type CheckoutResult =
   | { ok: true; url: string }
@@ -82,8 +110,7 @@ export async function startCheckout(cycle: BillingCycle): Promise<CheckoutResult
   // not. Sent when there is somewhere real to come back to and left off when
   // there is not, so a checkout can still be walked through locally — it ends
   // on Whop's own receipt instead of back in the app.
-  const origin = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  const redirect_url = origin?.startsWith('https://') ? `${origin}/mindmap` : undefined
+  const redirect_url = (await siteOrigin())?.concat('/mindmap')
 
   try {
     const configuration = await whop().checkoutConfigurations.create({
