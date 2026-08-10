@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { cacheKey, readSpeech, writeSpeech } from '@/lib/tts-cache'
+import { storeConfigured } from '@/lib/tts-store'
 import {
   ELEVENLABS_DEFAULT_MODEL,
   fishModel,
@@ -125,6 +126,54 @@ export async function POST(request: Request) {
   // Which engine actually spoke — so "are we on flash?" is a curl, not a hunch.
   headers.set('x-tts-identity', `${provider}/${model}/${voice}`)
   return new Response(response.body, { status: response.status, headers })
+}
+
+/**
+ * What this deployment would use, and whether it can.
+ *
+ * The player falls back to silent captions whenever a voiceover request fails,
+ * for a good reason — a lesson with no sound is worth watching and a lesson
+ * that will not start is not. The cost is that "no voices" looks identical
+ * whether the key is missing, the provider refused, or the request timed out,
+ * and none of that is visible from outside the box.
+ *
+ * So: names and booleans, never a secret, behind the same wall as everything
+ * else. Open /api/tts in a signed-in tab and it says which engine it would
+ * use and what it is missing.
+ */
+export async function GET() {
+  const provider = resolveProvider()
+  const { voice, model } = speechIdentity(undefined)
+
+  const keyFor: Record<string, string> = {
+    fish: 'FISH_API_KEY',
+    elevenlabs: 'ELEVENLABS_API_KEY',
+    openai: 'OPENAI_API_KEY',
+  }
+  const needed = keyFor[provider]
+
+  return Response.json(
+    {
+      provider,
+      voice,
+      model,
+      /** The one that matters: without it every request answers 501. */
+      keyPresent: { name: needed, set: Boolean(process.env[needed]?.trim()) },
+      keysSeen: {
+        FISH_API_KEY: Boolean(process.env.FISH_API_KEY?.trim()),
+        ELEVENLABS_API_KEY: Boolean(process.env.ELEVENLABS_API_KEY?.trim()),
+        OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      },
+      settings: {
+        TTS_PROVIDER: process.env.TTS_PROVIDER ?? null,
+        FISH_VOICE_ID: process.env.FISH_VOICE_ID?.trim() ?? null,
+        FISH_MODEL: process.env.FISH_MODEL ?? null,
+        TTS_CACHE: process.env.TTS_CACHE ?? null,
+      },
+      storage: { configured: storeConfigured(), bucket: process.env.SUPABASE_TTS_BUCKET ?? 'tts-audio' },
+    },
+    { headers: { 'cache-control': 'no-store' } }
+  )
 }
 
 async function speakWithOpenAI(input: string, voice?: string) {
