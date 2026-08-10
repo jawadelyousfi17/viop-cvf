@@ -25,7 +25,7 @@ import { useTutorVoice } from './useTutorVoice'
 import { useJobs, type Job } from './useJob'
 import { Sidebar, type Mode, type SavedLesson } from './Sidebar'
 import { IconClose, IconFit, IconFold, IconHint, IconShare, IconTarget } from './icons'
-import { UpgradeButton } from '../marketing/UpgradeButton'
+import { RaisingChip } from '../marketing/Raising'
 
 import type { SavedMap } from './Sidebar'
 
@@ -307,11 +307,6 @@ export default function MindmapStudio() {
     }
   }, [])
 
-  const forgetLesson = useCallback(async (id: string) => {
-    setLessons((current) => current.filter((entry) => entry.id !== id))
-    await fetch(`/api/lessons/${id}`, { method: 'DELETE' }).catch(() => null)
-  }, [])
-
   // On arrival, and again whenever signing in or out changes whose maps these
   // are. Guarded against the answer landing after the page has gone.
   useEffect(() => {
@@ -463,11 +458,6 @@ export default function MindmapStudio() {
       setOpening(null)
     }
   }, [loadSymbols])
-
-  const forget = useCallback(async (id: string) => {
-    setHistory((current) => current.filter((entry) => entry.id !== id))
-    await fetch(`/api/mindmaps/${id}`, { method: 'DELETE' }).catch(() => null)
-  }, [])
 
   const toggleFold = useCallback(
     (id: string) =>
@@ -751,7 +741,6 @@ export default function MindmapStudio() {
           setMode('map')
           await open(id)
         }}
-        onForget={mode === 'lesson' ? forgetLesson : forget}
         onNew={() => {
           if (mode === 'math') return setSolution(null)
           if (mode === 'map') return startOver()
@@ -808,7 +797,7 @@ export default function MindmapStudio() {
             </>
           )}
 
-          <UpgradeButton className="flex h-9 items-center rounded-xl bg-zinc-900 px-4 text-[12.5px] font-medium text-white transition hover:bg-zinc-700" />
+          <RaisingChip />
         </div>
 
         {/* One panel for both states. The board used to take over the window,
@@ -854,7 +843,7 @@ export default function MindmapStudio() {
               <div className="h-full overflow-y-auto">
                 {/* Narrow screens have no rail, so history lives here instead. */}
                 <div className="px-6 pb-40 pt-6 lg:hidden">
-                  <History history={history} opening={opening} onOpen={open} onForget={forget} />
+                  <History history={history} opening={opening} onOpen={open} />
                   <div className="mt-5">
                     <AuthPanel onChange={refreshHistory} />
                   </div>
@@ -997,12 +986,10 @@ function History({
   history,
   opening,
   onOpen,
-  onForget,
 }: {
   history: SavedMap[]
   opening: string | null
   onOpen: (id: string) => Promise<void>
-  onForget: (id: string) => Promise<void>
 }) {
   if (!history.length) {
     return (
@@ -1031,14 +1018,6 @@ function History({
                 {entry.nodeCount} nodes · {entry.depth} deep · {when(entry.updatedAt)}
                 {opening === entry.id ? ' · opening…' : ''}
               </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void onForget(entry.id)}
-              aria-label={`Delete ${entry.title}`}
-              className="shrink-0 rounded-lg px-2 py-1 text-sm text-transparent transition group-hover:text-zinc-300 hover:!text-zinc-600"
-            >
-              ×
             </button>
           </li>
         ))}

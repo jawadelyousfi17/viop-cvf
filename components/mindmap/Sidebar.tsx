@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import { AuthPanel } from './AuthPanel'
+import { Raising } from '../marketing/Raising'
 import { Logo } from '../ui/Logo'
 import { BetaBadge } from '../ui/BetaBadge'
-import { IconChevron, IconPlus, IconSearch, IconSparkle, IconTrash } from './icons'
+import { IconChevron, IconPlus, IconSearch, IconSparkle } from './icons'
 
 /** One row of the history list. */
 export interface SavedMap {
@@ -51,7 +52,6 @@ export function Sidebar({
   opening,
   mode,
   onOpen,
-  onForget,
   onNew,
   onIdentityChange,
 }: {
@@ -61,7 +61,6 @@ export function Sidebar({
   opening: string | null
   mode: Mode
   onOpen: (id: string) => Promise<void>
-  onForget: (id: string) => Promise<void>
   onNew: () => void
   onIdentityChange: () => void
 }) {
@@ -165,14 +164,6 @@ export function Sidebar({
                         <span className="ml-auto shrink-0 text-[11px] text-zinc-400">opening…</span>
                       )}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => void onForget(entry.id)}
-                      aria-label={`Delete ${entry.title}`}
-                      className="ml-0.5 shrink-0 rounded-md p-1 text-transparent transition group-hover/row:text-zinc-300 hover:!text-zinc-600"
-                    >
-                      <IconTrash className="size-4" />
-                    </button>
                   </li>
                 ))}
               </ul>
@@ -181,7 +172,8 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="border-t border-zinc-100 pt-3">
+      <div className="flex flex-col gap-3 border-t border-zinc-100 pt-3">
+        <Raising />
         <AuthPanel onChange={onIdentityChange} />
       </div>
     </aside>
