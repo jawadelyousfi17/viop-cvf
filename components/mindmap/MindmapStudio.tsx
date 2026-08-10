@@ -29,7 +29,7 @@ import { RaisingChip, RaisingDialog } from '../marketing/Raising'
 import { FeedbackDialog } from './FeedbackDialog'
 import { CreditsBadge, CreditsDialog } from './CreditsDialog'
 import { GENERATION_PAUSED } from '@/lib/credits'
-import { WORKSPACE, routeFor, showRoute, type WorkKind } from '@/lib/routes'
+import { routeFor, sectionFor, showRoute, type WorkKind } from '@/lib/routes'
 import type { UsageView } from '@/app/api/usage/route'
 import type { SavedSolution } from '@/app/api/solutions/route'
 
@@ -77,7 +77,14 @@ export interface OpenRequest {
 /** Remembers that the raise has been mentioned. Once is a remark; twice is an advert. */
 const RAISING_SEEN = 'nipsol.raising.seen'
 
-export default function MindmapStudio({ open: initial }: { open?: OpenRequest | null } = {}) {
+export default function MindmapStudio({
+  section = 'lesson',
+  open: initial,
+}: {
+  /** Which side this address is. `/lessons`, `/mindmap` or `/math-tutor`. */
+  section?: WorkKind
+  open?: OpenRequest | null
+} = {}) {
   /**
    * Which of the two this workspace is doing.
    *
@@ -86,7 +93,19 @@ export default function MindmapStudio({ open: initial }: { open?: OpenRequest | 
    * lesson player stays mounted while you are on the map side, so wandering
    * over to check something does not stop what it was saying.
    */
-  const [mode, setMode] = useState<Mode>('lesson')
+  const [mode, setMode] = useState<Mode>(section)
+
+  /**
+   * Switching sides is a navigation, so it says so.
+   *
+   * Only the section, never the open item: moving from a lesson to the maps
+   * means you want the maps, and landing on whichever map happened to be open
+   * last would be answering a question nobody asked.
+   */
+  const changeMode = useCallback((next: Mode) => {
+    setMode(next)
+    showRoute(sectionFor(next))
+  }, [])
   /**
    * Why the raise is being mentioned, or null for not.
    *
@@ -683,7 +702,9 @@ export default function MindmapStudio({ open: initial }: { open?: OpenRequest | 
   )
 
   const startOver = useCallback(() => {
-    showRoute(WORKSPACE)
+    // Back to the maps with nothing open — not to the app's front door, which
+    // is a different side entirely.
+    showRoute(sectionFor('map'))
     setMap(null)
     setFolded(new Set())
     setPending(new Set())
@@ -937,6 +958,9 @@ export default function MindmapStudio({ open: initial }: { open?: OpenRequest | 
           await open(id)
         }}
         onNew={() => {
+          // Whatever was open is no longer what this tab is showing, so the
+          // address stops claiming it is.
+          showRoute(sectionFor(mode))
           if (mode === 'math') return setSolution(null)
           if (mode === 'map') return startOver()
           // Clears the board as well as the request; otherwise "New lesson"
@@ -1102,7 +1126,7 @@ export default function MindmapStudio({ open: initial }: { open?: OpenRequest | 
                   : null
             }
             onFund={() => setRaising('limit')}
-            onMode={setMode}
+            onMode={changeMode}
             centred={mode === 'map' ? !scene : mode === 'math' ? !solution : !transport}
             transport={
               mode === 'lesson'

@@ -1,28 +1,34 @@
 /**
  * Where each kind of work lives.
  *
- * The workspace used to be one address with everything held in memory, so a
- * lesson someone was halfway through could not be linked to, bookmarked, or
- * recovered by reloading — and the browser's back button walked out of the app
- * rather than back through it. One route per thing fixes all three at once.
+ * The workspace used to be one address with everything held in memory: which
+ * of the three things you were doing was a tab, and which one you had open was
+ * a variable. So nothing could be linked to, bookmarked or got back by
+ * reloading, and the browser's back button walked out of the app rather than
+ * back through it. A section per kind and a route per thing fixes all of it.
  *
- * The three kinds are separate paths rather than `/w/[id]` with a lookup,
- * because the id alone does not say which table to read and guessing across
- * three of them is three queries to answer a question the URL could have
- * answered for free.
+ * The three sections are separate paths rather than `/w?mode=` because they are
+ * three different things to be doing, and a query string is a setting. The item
+ * routes sit under their own section for the same reason a lesson is not found
+ * in a list of maps.
  */
 
 export type WorkKind = 'map' | 'lesson' | 'math'
 
-/** The address of one piece of work. */
-export function routeFor(kind: WorkKind, id: string) {
-  if (kind === 'lesson') return `/lesson/${id}`
-  if (kind === 'math') return `/solution/${id}`
-  return `/mindmap/${id}`
+/** The section a kind of work lives in, with nothing open. */
+export function sectionFor(kind: WorkKind) {
+  if (kind === 'lesson') return '/lessons'
+  if (kind === 'math') return '/math-tutor'
+  return '/mindmap'
 }
 
-/** The workspace with nothing open, which is also where "new" goes. */
-export const WORKSPACE = '/mindmap'
+/** The address of one piece of work. */
+export function routeFor(kind: WorkKind, id: string) {
+  return `${sectionFor(kind)}/${id}`
+}
+
+/** Where "new" goes, and where the app opens when nothing is asked for. */
+export const WORKSPACE = '/lessons'
 
 /**
  * What the address bar should say, without a navigation.

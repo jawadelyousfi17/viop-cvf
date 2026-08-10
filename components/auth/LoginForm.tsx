@@ -13,7 +13,7 @@ import { GoogleButton } from './GoogleButton'
  * email to get stuck in a spam folder, and nothing for this app to store that
  * could leak — the account already exists and Google vouches for it.
  */
-export function LoginForm({ next = '/mindmap', error }: { next?: string; error?: string }) {
+export function LoginForm({ next = '/lessons', error }: { next?: string; error?: string }) {
   const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)
   const [who, setWho] = useState<string | null>(null)
 

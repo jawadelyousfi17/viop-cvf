@@ -73,7 +73,7 @@ export default function FundraisingPage() {
             Contact
           </Link>
           <Link
-            href="/login?next=/mindmap"
+            href="/login?next=/lessons"
             className="flex h-9 items-center rounded-xl bg-zinc-900 px-4 text-[13px] font-medium text-white transition hover:bg-zinc-700"
           >
             Try it
@@ -107,7 +107,7 @@ export default function FundraisingPage() {
                 Talk to us
               </a>
               <Link
-                href="/login?next=/mindmap"
+                href="/login?next=/lessons"
                 className="flex h-12 items-center rounded-[14px] border border-[#d7dbe6] bg-white px-5 text-[16px] font-semibold text-[#22304a] transition hover:border-[#b9c2d4]"
               >
                 See it work
@@ -215,7 +215,7 @@ export default function FundraisingPage() {
               Make a lesson on any topic you already know well. That is the honest test.
             </p>
             <Link
-              href="/login?next=/mindmap"
+              href="/login?next=/lessons"
               className="mt-3 flex h-11 items-center justify-center rounded-xl border border-[#d7dbe6] text-[14.5px] font-semibold text-[#22304a] transition hover:border-[#b9c2d4]"
             >
               Open nipsol

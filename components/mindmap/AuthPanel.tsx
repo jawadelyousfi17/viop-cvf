@@ -49,7 +49,7 @@ export function AuthPanel({ onChange }: { onChange?: () => void }) {
     // The page is walled, so there is nothing here for a signed-out visitor to
     // look at — send them to the door rather than leaving them on a screen the
     // next request would bounce them off anyway.
-    router.replace('/login?next=/mindmap')
+    router.replace('/login?next=/lessons')
     router.refresh()
   }, [router])
 

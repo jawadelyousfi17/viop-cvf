@@ -36,7 +36,7 @@ export default async function ProfilePage() {
     <main className="min-h-dvh bg-[#f4f6f8] px-6 py-12">
       <div className="mx-auto w-full max-w-2xl">
         <div className="flex items-center justify-between">
-          <Logo height={28} href="/mindmap" />
+          <Logo height={28} href="/lessons" />
           <UpgradeButton className="flex h-9 items-center rounded-xl bg-zinc-900 px-4 text-[12.5px] font-medium text-white transition hover:bg-zinc-700" />
         </div>
 

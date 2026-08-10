@@ -53,7 +53,7 @@ export default function Landing() {
               Pricing
             </Link>
             <Link
-              href="/mindmap"
+              href="/lessons"
               className="rounded-lg px-3 py-1.5 text-zinc-500 transition hover:text-zinc-900"
             >
               The app
@@ -86,7 +86,7 @@ export default function Landing() {
                 used yet. */}
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Link
-                href="/login?next=/mindmap"
+                href="/login?next=/lessons"
                 className="flex h-[58px] items-center justify-center rounded-[18px] bg-gradient-to-b from-[#2f70ee] to-[#2363df] px-8 text-[19px] font-semibold text-white shadow-[0_8px_20px_rgba(43,99,223,.28),inset_0_1px_0_rgba(255,255,255,.15)] transition hover:brightness-[1.06]"
               >
                 Get started for free
@@ -234,10 +234,10 @@ export default function Landing() {
           <Link href="/mindmap" className="transition hover:text-zinc-600">
             Mindmaps
           </Link>
-          <Link href="/mindmap" className="transition hover:text-zinc-600">
+          <Link href="/lessons" className="transition hover:text-zinc-600">
             Whiteboard lessons
           </Link>
-          <Link href="/mindmap" className="transition hover:text-zinc-600">
+          <Link href="/math-tutor" className="transition hover:text-zinc-600">
             Math tutor
           </Link>
           <Link href="/contact" className="transition hover:text-zinc-600">

@@ -29,7 +29,7 @@ export default async function LoginPage({
 
   // Only same-site paths are honoured, so this cannot be used to bounce someone
   // to another host after they sign in.
-  const next = typeof asked === 'string' && /^\/[\w\-/]*$/.test(asked) ? asked : '/mindmap'
+  const next = typeof asked === 'string' && /^\/[\w\-/]*$/.test(asked) ? asked : '/lessons'
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-zinc-50 px-6">

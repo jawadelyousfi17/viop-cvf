@@ -202,7 +202,7 @@ function Card({
         />
       ) : (
       <Link
-        href="/login?next=/mindmap"
+        href="/login?next=/lessons"
         className={`absolute inset-x-6 bottom-6 flex items-center justify-center rounded-[18px] font-semibold transition ${
           quiet
             ? 'border border-[#d7dbe6] bg-white text-[#22304a] hover:border-[#b9c2d4]'

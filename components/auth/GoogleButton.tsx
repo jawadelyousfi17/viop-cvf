@@ -15,7 +15,7 @@ import { supabaseBrowser } from '@/lib/supabase/client'
  * that address has to be on Supabase's allowed redirect list.
  */
 export function GoogleButton({
-  next = '/mindmap',
+  next = '/lessons',
   label = 'Continue with Google',
   className,
 }: {

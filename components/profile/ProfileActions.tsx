@@ -19,7 +19,7 @@ export function ProfileActions() {
   const signOut = useCallback(async () => {
     setBusy(true)
     await supabaseBrowser().auth.signOut()
-    router.replace('/login?next=/mindmap')
+    router.replace('/login?next=/lessons')
     router.refresh()
   }, [router])
 
