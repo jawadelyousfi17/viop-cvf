@@ -1,0 +1,713 @@
+/**
+ * The course room.
+ *
+ * Three panels that each belong to someone: the teacher talks on the left, the
+ * work happens in the middle, and the right-hand board is the learner's alone.
+ * That ownership is the only thing the styling is really trying to say, so it
+ * says it with space and one accent colour rather than with chrome.
+ *
+ * Deliberately quiet. A screen with code, output, a quiz and a whiteboard on it
+ * is already busy; anything decorative here competes with the thing being
+ * taught. Hierarchy comes from size and weight, borders stay hairline, and
+ * there is exactly one saturated colour — the accent, which always means "this
+ * is where you are".
+ */
+
+.course {
+  --paper: #faf9f7;
+  --panel: #ffffff;
+  --ink: #1b1a18;
+  --muted: #6b6660;
+  --faint: #9a948c;
+  --rule: rgba(27, 26, 24, 0.1);
+  --accent: #2f5d50;
+  --accent-soft: #e8f0ed;
+  --wrong: #b42318;
+  --wrong-soft: #fdeceb;
+
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.course-error {
+  display: flex;
+  height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: #6b6660;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+
+/* ------------------------------------------------------------------ header */
+
+.course-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+  flex: none;
+}
+
+.course-id {
+  min-width: 0;
+  flex: 1;
+}
+
+.course-id h1 {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.course-id p {
+  margin-top: 0.1rem;
+  color: var(--faint);
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.course-steps {
+  display: flex;
+  gap: 0.3rem;
+  flex: none;
+}
+
+.pip {
+  width: 1.35rem;
+  height: 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(27, 26, 24, 0.13);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s, width 0.2s;
+}
+
+.pip:hover {
+  background: rgba(27, 26, 24, 0.3);
+}
+
+.pip.done {
+  background: var(--accent);
+  opacity: 0.45;
+}
+
+.pip.now {
+  width: 2.4rem;
+  background: var(--accent);
+}
+
+.course-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: none;
+}
+
+.course button.primary {
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 1.1rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.course button.primary:hover {
+  opacity: 0.88;
+}
+
+.course-warning {
+  padding: 0.5rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+  background: #fdf6e7;
+  color: #6b5518;
+  font-size: 0.76rem;
+  flex: none;
+}
+
+.course-warning code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+}
+
+/* -------------------------------------------------------------------- body */
+
+/* The board takes half. That is the whole point of it now: the teacher draws
+   there whenever the explanation is not about a specific line of code, so it
+   has to be big enough to hold a diagram and still leave the learner room to
+   annotate it. The narration and the editor share the other half. */
+.course-body {
+  display: grid;
+  grid-template-columns: minmax(240px, 17rem) minmax(0, 1fr) 50%;
+  min-height: 0;
+  flex: 1;
+}
+
+.course-body > section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--rule);
+}
+
+.course-body > section:last-child {
+  border-right: 0;
+}
+
+/* ----------------------------------------------------------------- teacher */
+
+.teacher {
+  overflow-y: auto;
+  padding: 1.1rem 1.15rem 1.4rem;
+  gap: 1rem;
+}
+
+.teacher-step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  flex: none;
+}
+
+.teacher-step span {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--accent);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  flex: none;
+}
+
+/* The narration, as a transcript. Everything is present from the first frame
+   and only its weight changes, so a sentence landing never reflows the column
+   under the reader's eye. */
+.script {
+  flex: none;
+}
+
+.script .said {
+  font-size: 0.92rem;
+  line-height: 1.62;
+  color: var(--faint);
+  transition: color 0.35s, opacity 0.35s;
+  margin-bottom: 0.35rem;
+}
+
+.script .said.now {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.script .said.ahead {
+  opacity: 0.32;
+}
+
+/* ------------------------------------------------------------------- gates */
+
+.gate {
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.85rem 0.9rem;
+  flex: none;
+}
+
+.gate.passed {
+  border-color: rgba(47, 93, 80, 0.35);
+  background: var(--accent-soft);
+}
+
+.gate h3 {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+
+.gate > p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.gate ul {
+  list-style: none;
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.option {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--paper);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.option:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.option.right {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+
+.option.wrong {
+  border-color: rgba(180, 35, 24, 0.4);
+  background: var(--wrong-soft);
+}
+
+.option.faded {
+  opacity: 0.45;
+}
+
+.verdict {
+  margin-top: 0.55rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.verdict.right {
+  color: var(--accent);
+}
+
+.verdict.wrong {
+  color: var(--wrong);
+}
+
+.gate.task button.primary {
+  margin-top: 0.6rem;
+}
+
+.holding {
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 500;
+  flex: none;
+}
+
+/* --------------------------------------------------------------------- ask */
+
+.ask {
+  margin-top: auto;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+  flex: none;
+}
+
+.ask label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 0.4rem;
+}
+
+.ask-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.ask input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.ask input:focus {
+  border-color: var(--accent);
+}
+
+.ask button {
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.ask button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.answer {
+  margin-top: 0.55rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+/* -------------------------------------------------------------------- work */
+
+.pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+  flex: none;
+}
+
+.pane-name {
+  font-family: var(--font-code), ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.pane-note {
+  font-size: 0.7rem;
+  color: var(--faint);
+  font-style: italic;
+}
+
+.pane-bar .run {
+  margin-left: auto;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  padding: 0.2rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pane-bar .run:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pane-bar .run:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.work {
+  background: var(--panel);
+}
+
+/* ------------------------------------------------------------------ editor */
+
+/* Whole pixels, not a ratio. The highlight band is positioned by multiplying a
+   line number by this, and Editor.tsx hard-codes the same two numbers — a
+   fractional line height drifts a pixel per line and the band ends up marking
+   the gap between two lines instead of a line. */
+.editor {
+  --editor-line: 26px;
+  --editor-pad: 14px;
+
+  display: flex;
+  flex: 3;
+  min-height: 0;
+  overflow: hidden;
+  font-family: var(--font-code), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px;
+  line-height: var(--editor-line);
+  tab-size: 2;
+}
+
+.editor-gutter {
+  display: flex;
+  flex-direction: column;
+  padding: var(--editor-pad) 0.5rem var(--editor-pad) 0.75rem;
+  text-align: right;
+  color: rgba(27, 26, 24, 0.25);
+  user-select: none;
+  flex: none;
+  overflow: hidden;
+}
+
+.editor-code {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The two layers must agree on every metric or the caret drifts off the text
+   it is sitting on. Both inherit from `.editor`; only these four are repeated,
+   and they are repeated identically on purpose. */
+.editor-back,
+.editor-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: var(--editor-pad) 0.9rem;
+  border: 0;
+  font: inherit;
+  line-height: inherit;
+  tab-size: inherit;
+  white-space: pre;
+  overflow: auto;
+}
+
+.editor-back {
+  pointer-events: none;
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.editor-input {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--accent);
+  resize: none;
+  outline: none;
+}
+
+.editor-input::selection {
+  background: rgba(47, 93, 80, 0.2);
+}
+
+.editor-line {
+  min-height: var(--editor-line);
+}
+
+/* ---------------------------------------------------------------- pointing */
+
+/* The teacher's finger. Held until the next point rather than flashed, because
+   the sentence explaining a line is still being spoken well after it lands —
+   an animation that has finished is not pointing at anything. */
+.editor-point {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(226, 178, 42, 0.34);
+  border-left: 4px solid #c8901a;
+  box-shadow:
+    0 0 0 1px rgba(200, 144, 26, 0.45),
+    0 2px 10px rgba(200, 144, 26, 0.22);
+  /* Three beats of pulse, then hold. A single fade is over before someone has
+     finished looking up from the narration; a pulse that never stops becomes
+     furniture you stop seeing. */
+  animation: point-in 0.9s ease-out 3;
+  pointer-events: none;
+}
+
+@keyframes point-in {
+  0% {
+    background: rgba(226, 178, 42, 0.72);
+  }
+  55% {
+    background: rgba(226, 178, 42, 0.28);
+  }
+  100% {
+    background: rgba(226, 178, 42, 0.34);
+  }
+}
+
+/* Everything that is not being pointed at goes back, so the eye has one place
+   to land. The lit lines keep full contrast rather than gaining any, because a
+   board that shouts twice is a board nobody trusts. */
+.editor.pointing .editor-line {
+  opacity: 0.32;
+  transition: opacity 0.25s;
+}
+
+.editor.pointing .editor-line.lit {
+  opacity: 1;
+}
+
+.editor.pointing .editor-gutter span {
+  opacity: 0.3;
+}
+
+.editor.pointing .editor-gutter span.lit {
+  opacity: 1;
+  color: #a8730f;
+  font-weight: 700;
+}
+
+.editor-point-label {
+  position: absolute;
+  right: 0.5rem;
+  top: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 4px;
+  background: #c8901a;
+  color: #fff;
+  padding: 0 0.45rem;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 11px;
+  line-height: calc(var(--editor-line) - 4px);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+/* Pointing at what the code printed rather than at the code. */
+.preview.marked {
+  box-shadow: inset 0 0 0 2px #d7a521;
+}
+
+.pane-flag {
+  margin-left: auto;
+  border-radius: 999px;
+  background: #d7a521;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.5rem;
+}
+
+.tok-key {
+  color: #7c3aed;
+}
+
+.tok-str {
+  color: #b45309;
+}
+
+.tok-num {
+  color: #0369a1;
+}
+
+.tok-com {
+  color: var(--faint);
+  font-style: italic;
+}
+
+.tok-cmd {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ----------------------------------------------------------------- preview */
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  flex: 2;
+  min-height: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.preview-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.preview-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+/* ------------------------------------------------------------------ sketch */
+
+.sketch {
+  background: var(--panel);
+}
+
+.sketch-board {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.sketch-loading {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+/* ------------------------------------------------------------ narrow rooms */
+
+/* Below this the three columns stop being three columns: the board goes under
+   the work rather than shrinking to a stamp nobody can draw on. */
+@media (max-width: 1100px) {
+  .course {
+    height: auto;
+    overflow: visible;
+  }
+
+  .course-body {
+    grid-template-columns: 1fr;
+  }
+
+  .course-body > section {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .teacher {
+    overflow-y: visible;
+  }
+
+  .work {
+    height: 70vh;
+  }
+
+  .sketch-board {
+    height: 60vh;
+  }
+}

@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { Fraunces, Geist, Geist_Mono, Martian_Mono, Patrick_Hand } from "next/font/google";
+import {
+  Fraunces,
+  Geist,
+  Geist_Mono,
+  JetBrains_Mono,
+  Martian_Mono,
+  Patrick_Hand,
+} from "next/font/google";
 import "./globals.css";
 
 /**
@@ -34,6 +41,21 @@ const geistMono = Geist_Mono({
 });
 
 /**
+ * The face code is written in.
+ *
+ * JetBrains Mono rather than the UI mono, because the course editor is the one
+ * place on the site where someone reads code for minutes at a time rather than
+ * glancing at a label. Its tall x-height and unambiguous 1/l/I and 0/O are what
+ * that job actually needs — and a beginner who cannot tell a one from an ell is
+ * debugging the typeface, not the language.
+ */
+const jetbrains = JetBrains_Mono({
+  variable: "--font-code",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+});
+
+/**
  * The hand the Slate board is written in.
  *
  * Self-hosted by next/font rather than fetched at runtime, so the board does
@@ -59,7 +81,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${hand.variable} ${fraunces.variable} ${martian.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${jetbrains.variable} ${hand.variable} ${fraunces.variable} ${martian.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
