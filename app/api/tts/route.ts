@@ -169,7 +169,11 @@ async function speakWithFish(input: string, requested?: string) {
     return Response.json({ error: 'FISH_API_KEY is not set.' }, { status: 501 })
   }
 
-  const referenceId = requested ?? process.env.FISH_VOICE_ID ?? DEFAULT_FISH_VOICE
+  // FISH_VOICE_ID wins over the per-voice mapping, rather than standing in for
+  // a missing one. There is no voice picker in the app any more — one teacher,
+  // one voice — so the deployment naming a voice is the whole answer, and the
+  // ids in lib/voices.ts are the fallback for a build that names none.
+  const referenceId = process.env.FISH_VOICE_ID?.trim() || requested || DEFAULT_FISH_VOICE
   if (!referenceId) {
     return Response.json({ error: 'No Fish Audio voice configured.' }, { status: 501 })
   }
