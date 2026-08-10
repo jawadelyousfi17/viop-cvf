@@ -1,6 +1,7 @@
 import { requireIdentity } from '@/lib/owner'
 import { allowance, type Countable } from '@/lib/quota'
 import { dbConfigured } from '@/lib/db'
+import { planFor } from '@/lib/subscription'
 
 export const runtime = 'nodejs'
 
@@ -23,6 +24,19 @@ export interface UsageView {
   /** Per kind: how many have been made, and how many may be. */
   mindmaps: { used: number; limit: number | null; ok: boolean }
   lessons: { used: number; limit: number | null; ok: boolean }
+  /**
+   * Whether this account generates anyway while generation is paused.
+   *
+   * The pause is a switch in the client bundle, which makes it a statement
+   * about the deployment rather than about who is asking — and the people
+   * building the thing still have to be able to use it. So the server, which
+   * is the only side that knows who is signed in, answers that here.
+   *
+   * Keyed on the plan rather than on a second list of names: the accounts that
+   * are exempt are exactly the ones not on the free plan, and there is already
+   * one place that decides that.
+   */
+  unpaused: boolean
 }
 
 export async function GET() {
@@ -49,12 +63,19 @@ export async function GET() {
     })
   )
 
-  return Response.json(Object.fromEntries(entries) as unknown as UsageView, {
-    headers: { 'cache-control': 'no-store' },
-  })
+  return Response.json(
+    {
+      ...(Object.fromEntries(entries) as unknown as UsageView),
+      unpaused: (await planFor(identity.userId)) !== 'free',
+    } satisfies UsageView,
+    { headers: { 'cache-control': 'no-store' } }
+  )
 }
 
+// No database is not an exemption: the credits are out for everyone, and a
+// deployment without a database has no way to say who anybody is.
 const open = (): UsageView => ({
   mindmaps: { used: 0, limit: null, ok: true },
   lessons: { used: 0, limit: null, ok: true },
+  unpaused: false,
 })

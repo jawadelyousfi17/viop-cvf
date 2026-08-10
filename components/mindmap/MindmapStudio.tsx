@@ -99,6 +99,16 @@ export default function MindmapStudio() {
   /** The out-of-credits dialog, opened by the badge or by pressing Enter. */
   const [outOfCredits, setOutOfCredits] = useState(false)
 
+  /**
+   * Whether generation is paused FOR THIS PERSON.
+   *
+   * The switch says the deployment has no credits; the server says whether
+   * this account generates anyway. Until the answer arrives `usage` is null and
+   * the pause holds — the wrong way round would be a moment on every load where
+   * anyone can spend credits there are none of.
+   */
+  const paused = GENERATION_PAUSED && !usage?.unpaused
+
   const refreshUsage = useCallback(() => {
     void fetch('/api/usage')
       .then((response) => (response.ok ? (response.json() as Promise<UsageView>) : null))
@@ -713,7 +723,7 @@ export default function MindmapStudio() {
     // asking a question of a lesson included, since that spends as surely as
     // starting one. Said rather than silently swallowed: a box that eats what
     // you typed reads as broken, and this is not broken.
-    if (GENERATION_PAUSED) {
+    if (paused) {
       setOutOfCredits(true)
       return
     }
@@ -737,7 +747,7 @@ export default function MindmapStudio() {
       return
     }
     void draw(topic, '')
-  }, [mode, topic, draw, transport, jobs, work])
+  }, [mode, topic, draw, transport, jobs, work, paused])
 
   const fitToScreen = useCallback(() => setView({ type: 'fit' }), [])
   const centreOnRoot = useCallback(() => setView({ type: 'focus', id: ROOT_ID }), [])
@@ -861,7 +871,7 @@ export default function MindmapStudio() {
 
           {/* Worn where the state of the app is already read, so it is known
               before a topic is typed rather than after it is thrown away. */}
-          {GENERATION_PAUSED && <CreditsBadge onClick={() => setOutOfCredits(true)} />}
+          {paused && <CreditsBadge onClick={() => setOutOfCredits(true)} />}
           <button
             type="button"
             onClick={() => setFeedback(true)}
