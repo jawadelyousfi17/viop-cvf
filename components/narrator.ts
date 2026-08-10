@@ -77,7 +77,23 @@ export class Narrator {
     return this.aligned
   }
 
+  /**
+   * Stops everything this narrator started, and forgets it.
+   *
+   * Pausing matters more than revoking. An `<audio>` that is already playing
+   * holds its own reference to the decoded resource, so revoking the object URL
+   * frees nothing and silences nothing — the voice carries on. Switching
+   * lessons disposes the old narrator, which is exactly the moment the previous
+   * lesson has to stop talking.
+   */
   dispose() {
+    for (const pending of this.cache.values()) {
+      void pending
+        .then((narration) => {
+          narration.audio?.pause()
+        })
+        .catch(() => {})
+    }
     for (const url of this.urls) URL.revokeObjectURL(url)
     this.urls.length = 0
     this.cache.clear()

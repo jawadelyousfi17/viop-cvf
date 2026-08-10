@@ -613,6 +613,15 @@ export default function MindmapStudio() {
       const current = map
       if (!current || pending.has(id)) return
 
+      // Opening a node writes its children with a model call, so it is exactly
+      // as expensive as asking for a map — and it was the one way left to spend
+      // credits while the composer said there were none. Growing a map is the
+      // most natural thing to do on this screen, so it was not a corner case.
+      if (paused) {
+        setOutOfCredits(true)
+        return
+      }
+
       setPending((set) => new Set(set).add(id))
       try {
         await jobsRef.current.start('expand', {
@@ -629,7 +638,7 @@ export default function MindmapStudio() {
         })
       }
     },
-    [map, pending]
+    [map, pending, paused]
   )
 
   /**

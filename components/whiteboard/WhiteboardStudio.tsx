@@ -224,6 +224,8 @@ export default function Studio({
   const replayingRef = useRef(false)
   /** Bumped per lesson so a stale stream can't write into a newer one. */
   const runIdRef = useRef(0)
+  /** Bumped on every lesson handed to `start`. See the scene effect's deps. */
+  const [lessonRun, setLessonRun] = useState(0)
 
   // Mirrors `isPlaying` where the animation loop can read it, and keeps the
   // audio element in step with the play/pause button. Declared before the scene
@@ -287,6 +289,8 @@ export default function Studio({
   }, [phase, onBusy])
 
   const start = useCallback((next: Lesson) => {
+    // Whatever is talking, stop it now rather than at the next render.
+    audioRef.current?.pause()
     narratorRef.current?.dispose()
     narratorRef.current = new Narrator(voiceId)
     imagesRef.current = new ImageBank()
@@ -305,6 +309,13 @@ export default function Studio({
 
     setLesson(next)
     setSceneIndex(0)
+    // Bumped so the scene effect re-runs even when the new lesson's first
+    // scene is indistinguishable from the old one's. Scene ids are positional
+    // — every lesson's opener is `scene-1` — so switching lessons left
+    // [phase, sceneIndex, sceneId] completely unchanged, the effect never
+    // tore down, and the lesson you opened first kept playing under the board
+    // of the one you opened second.
+    setLessonRun((run) => run + 1)
     setFinished(false)
     setAtEdge(false)
     setIsPlaying(true)
@@ -733,7 +744,7 @@ export default function Studio({
       audio?.pause()
       if (audioRef.current === audio) audioRef.current = null
     }
-  }, [phase, sceneIndex, sceneId, painterReady])
+  }, [phase, sceneIndex, sceneId, painterReady, lessonRun])
 
   const goToScene = useCallback(
     (index: number) => {
