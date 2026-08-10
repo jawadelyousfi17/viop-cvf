@@ -183,6 +183,29 @@ export async function GET() {
   )
 }
 
+/**
+ * The id out of an environment variable somebody pasted into a dashboard.
+ *
+ * A note copied in with the value — "abc123  <- the new one" — survives trim()
+ * and is sent to Fish as part of the voice name, which comes back as a 400
+ * that says nothing about pasting. Ids have no spaces in them, so the first
+ * word is the id and anything after it is a comment somebody meant for a
+ * human. Taking it is not guesswork; ignoring it in silence would be.
+ */
+function voiceIdFrom(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+
+  const [id] = trimmed.split(/\s+/)
+  if (id !== trimmed) {
+    console.warn(
+      `[tts] FISH_VOICE_ID has more than an id in it — using "${id}" and ignoring the rest. ` +
+        'Set it to the id alone.'
+    )
+  }
+  return id
+}
+
 /** The first line of a provider's error, capped. Enough to name the cause. */
 function firstLine(detail: string) {
   return detail.replace(/\s+/g, ' ').trim().slice(0, 300)
@@ -234,7 +257,7 @@ async function speakWithFish(input: string, requested?: string) {
   // a missing one. There is no voice picker in the app any more — one teacher,
   // one voice — so the deployment naming a voice is the whole answer, and the
   // ids in lib/voices.ts are the fallback for a build that names none.
-  const referenceId = process.env.FISH_VOICE_ID?.trim() || requested || DEFAULT_FISH_VOICE
+  const referenceId = voiceIdFrom(process.env.FISH_VOICE_ID) || requested || DEFAULT_FISH_VOICE
   if (!referenceId) {
     return Response.json({ error: 'No Fish Audio voice configured.' }, { status: 501 })
   }
