@@ -1,6 +1,6 @@
 'use client'
 
-import { mailto } from '@/lib/contact'
+import Link from 'next/link'
 import { Dialog } from '../ui/Dialog'
 
 /**
@@ -33,12 +33,12 @@ export function Raising() {
         someone who does — we&rsquo;d like to hear from you.
       </p>
 
-      <a
-        href={mailto('investment')}
+      <Link
+        href="/fundraising"
         className="mt-2.5 flex h-8 items-center justify-center rounded-lg bg-white text-[11.5px] font-semibold text-[#2363df] transition hover:bg-white/90"
       >
         Talk to us about investing
-      </a>
+      </Link>
     </div>
   )
 }
@@ -46,8 +46,8 @@ export function Raising() {
 /** In the header, where Upgrade used to be. Says the word, not just the mood. */
 export function RaisingChip({ className = '' }: { className?: string }) {
   return (
-    <a
-      href={mailto('investment')}
+    <Link
+      href="/fundraising"
       title="nipsol is raising — talk to us about investing"
       className={
         className ||
@@ -60,7 +60,7 @@ export function RaisingChip({ className = '' }: { className?: string }) {
         <span className="relative inline-flex size-1.5 rounded-full bg-white" />
       </span>
       We&rsquo;re raising — invest
-    </a>
+    </Link>
   )
 }
 
@@ -119,13 +119,13 @@ export function RaisingDialog({
         </p>
 
         <div className="mt-6 flex flex-col gap-2">
-          <a
-            href={mailto('investment')}
+          <Link
+            href="/fundraising"
             onClick={onClose}
             className="flex h-12 items-center justify-center rounded-[14px] bg-gradient-to-b from-[#2f70ee] to-[#2363df] text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,.15)] transition hover:brightness-[1.06]"
           >
             Talk to us about investing
-          </a>
+          </Link>
           <button
             type="button"
             onClick={onClose}

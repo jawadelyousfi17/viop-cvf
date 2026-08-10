@@ -19,7 +19,16 @@ import { createServerClient } from '@supabase/ssr'
  */
 
 /** Pages anyone may see: the pitch, the price, and the way in. */
-const PUBLIC = ['/', '/login', '/pricing', '/terms', '/privacy', '/contact', '/auth']
+const PUBLIC = [
+  '/',
+  '/login',
+  '/pricing',
+  '/fundraising',
+  '/terms',
+  '/privacy',
+  '/contact',
+  '/auth',
+]
 
 /**
  * Routes the public pages themselves depend on.
