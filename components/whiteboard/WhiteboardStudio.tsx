@@ -130,6 +130,15 @@ export interface LessonTransport {
   progress: string | null
   asking: boolean
   toggle: () => void
+  /**
+   * Stop talking, now.
+   *
+   * Not `toggle` from outside: the caller would have to read `playing` to know
+   * which way it goes, and that value is a render behind whatever is actually
+   * coming out of the speakers. Leaving a lesson is not a request to flip a
+   * switch, it is a request for silence.
+   */
+  pause: () => void
   prev: () => void
   next: () => void
   ask: (question: string) => void
@@ -894,6 +903,10 @@ export default function Studio({
         if (now.finished) now.restart()
         else if (now.atEdge) void now.carryOn()
         else setIsPlaying((value) => !value)
+      },
+      pause: () => {
+        audioRef.current?.pause()
+        setIsPlaying(false)
       },
       prev: () => actions.current.goToScene(actions.current.sceneIndex - 1),
       next: () => actions.current.goToScene(actions.current.sceneIndex + 1),

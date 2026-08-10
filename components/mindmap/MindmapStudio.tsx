@@ -102,10 +102,6 @@ export default function MindmapStudio({
    * means you want the maps, and landing on whichever map happened to be open
    * last would be answering a question nobody asked.
    */
-  const changeMode = useCallback((next: Mode) => {
-    setMode(next)
-    showRoute(sectionFor(next))
-  }, [])
   /**
    * Why the raise is being mentioned, or null for not.
    *
@@ -235,6 +231,20 @@ export default function MindmapStudio({
 
   /** The tutor reads its working aloud, a step at a time. */
   const tutor = useTutorVoice(solution, followVoice)
+
+  const changeMode = useCallback(
+    (next: Mode) => {
+      // Both players are kept mounted while you are on another side —
+      // unmounting a performance to glance at a map would cut it off
+      // mid-word — but kept mounted is not kept playing. Leaving a lesson
+      // left it talking over whatever you switched to.
+      if (next !== 'lesson') transport?.pause()
+      if (next !== 'math') tutor.pause()
+      setMode(next)
+      showRoute(sectionFor(next))
+    },
+    [transport, tutor]
+  )
 
   /**
    * Only as far as the tutor has spoken.
@@ -1142,6 +1152,7 @@ export default function MindmapStudio({
                       hasNext: tutor.hasNext,
                       progress: `step ${tutor.step} of ${tutor.steps}`,
                       toggle: tutor.finished ? tutor.replay : tutor.toggle,
+                      pause: tutor.pause,
                       prev: tutor.prev,
                       next: tutor.next,
                       // The tutor takes a new problem, not a question about

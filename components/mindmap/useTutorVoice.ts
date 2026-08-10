@@ -180,6 +180,17 @@ export function useTutorVoice(
     })
   }, [stop])
 
+  /**
+   * Silence, whatever it was doing.
+   *
+   * `toggle` would start it talking if it happened to be stopped, which is the
+   * opposite of what leaving the tutor means.
+   */
+  const pause = useCallback(() => {
+    stop()
+    setPlaying(false)
+  }, [stop])
+
   /** Jumping shows everything up to where you jumped — you cannot un-hear it. */
   const jump = useCallback(
     (next: number) => {
@@ -202,6 +213,7 @@ export function useTutorVoice(
     hasPrev: line > 0,
     hasNext: line < lines.length - 1,
     toggle,
+    pause,
     prev: () => jump(line - 1),
     next: () => jump(line + 1),
     replay: () => jump(0),
