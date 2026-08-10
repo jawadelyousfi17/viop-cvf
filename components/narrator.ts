@@ -104,6 +104,7 @@ export class Narrator {
       // that would let somebody fix it. `x-tts-identity` is which engine, which
       // model and which voice actually answered.
       const engine = response.headers.get('x-tts-identity') ?? 'unknown'
+      const asked = response.headers.get('x-tts-voice')
 
       if (response.status === 501) {
         // Not configured. Asking again for every remaining scene would be a
@@ -120,6 +121,7 @@ export class Narrator {
       if (!response.ok) {
         console.warn(
           `[voice] ${engine} returned ${response.status} — this scene plays silently. ` +
+            (asked ? `Voice asked for: ${asked}. ` : '') +
             (await reason(response))
         )
         return silent

@@ -124,7 +124,14 @@ export async function POST(request: Request) {
   const headers = new Headers(response.headers)
   headers.set('x-tts-cache', 'miss')
   // Which engine actually spoke — so "are we on flash?" is a curl, not a hunch.
+  // The reference actually sent, not the name it goes by in our own table:
+  // when a provider rejects a voice, which voice it rejected is the question.
+  const sent =
+    provider === 'fish'
+      ? (process.env.FISH_VOICE_ID?.trim() || fishVoiceFor(voiceId) || DEFAULT_FISH_VOICE || 'none')
+      : voice
   headers.set('x-tts-identity', `${provider}/${model}/${voice}`)
+  headers.set('x-tts-voice', String(sent))
   return new Response(response.body, { status: response.status, headers })
 }
 
@@ -174,6 +181,11 @@ export async function GET() {
     },
     { headers: { 'cache-control': 'no-store' } }
   )
+}
+
+/** The first line of a provider's error, capped. Enough to name the cause. */
+function firstLine(detail: string) {
+  return detail.replace(/\s+/g, ' ').trim().slice(0, 300)
 }
 
 async function speakWithOpenAI(input: string, voice?: string) {
@@ -255,7 +267,14 @@ async function speakWithFish(input: string, requested?: string) {
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
       console.error('[tts] fish error', response.status, detail)
-      return Response.json({ error: `Fish Audio returned ${response.status}.` }, { status: 502 })
+      // Fish's own words, forwarded. "Returned 400" is a fact nobody can act
+      // on; "reference_id not found" names the fix. Nothing secret travels in
+      // a provider's validation message, and only the first line of it is
+      // taken so a stack trace cannot ride along.
+      return Response.json(
+        { error: `Fish Audio returned ${response.status}. ${firstLine(detail)}`.trim() },
+        { status: 502 }
+      )
     }
 
     speech = await readFishStream(response)
