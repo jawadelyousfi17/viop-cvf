@@ -27,6 +27,8 @@ import { Sidebar, type Mode, type SavedLesson } from './Sidebar'
 import { IconClose, IconFit, IconFold, IconHint, IconShare, IconTarget } from './icons'
 import { RaisingChip, RaisingDialog } from '../marketing/Raising'
 import { FeedbackDialog } from './FeedbackDialog'
+import { CreditsBadge, CreditsDialog } from './CreditsDialog'
+import { GENERATION_PAUSED } from '@/lib/credits'
 import type { UsageView } from '@/app/api/usage/route'
 
 import type { SavedMap } from './Sidebar'
@@ -94,6 +96,8 @@ export default function MindmapStudio() {
    */
   const [usage, setUsage] = useState<UsageView | null>(null)
   const [feedback, setFeedback] = useState(false)
+  /** The out-of-credits dialog, opened by the badge or by pressing Enter. */
+  const [outOfCredits, setOutOfCredits] = useState(false)
 
   const refreshUsage = useCallback(() => {
     void fetch('/api/usage')
@@ -705,6 +709,14 @@ export default function MindmapStudio() {
 
   /** The composer's one action, aimed at whichever side is showing. */
   const submit = useCallback(() => {
+    // Nothing that costs a model call goes out while the credits are gone —
+    // asking a question of a lesson included, since that spends as surely as
+    // starting one. Said rather than silently swallowed: a box that eats what
+    // you typed reads as broken, and this is not broken.
+    if (GENERATION_PAUSED) {
+      setOutOfCredits(true)
+      return
+    }
     if (mode === 'math') {
       if (!topic.trim() || jobs.busy('math')) return
       void work(topic.trim())
@@ -847,6 +859,9 @@ export default function MindmapStudio() {
             </>
           )}
 
+          {/* Worn where the state of the app is already read, so it is known
+              before a topic is typed rather than after it is thrown away. */}
+          {GENERATION_PAUSED && <CreditsBadge onClick={() => setOutOfCredits(true)} />}
           <button
             type="button"
             onClick={() => setFeedback(true)}
@@ -997,6 +1012,7 @@ export default function MindmapStudio() {
 
       <RaisingDialog open={raising} onClose={() => setRaising(null)} />
       <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} from={mode} />
+      <CreditsDialog open={outOfCredits} onClose={() => setOutOfCredits(false)} />
     </div>
   )
 }
