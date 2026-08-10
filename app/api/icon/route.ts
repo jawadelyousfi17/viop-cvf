@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ImageResult } from '../image/route'
 import { requireIdentity } from '@/lib/owner'
@@ -30,7 +31,24 @@ const PUBLIC = new Set(['magnet', 'staircase', 'hourglass', 'stopwatch', 'ladder
  * symbol is cached on disk — a term is drawn once, ever.
  */
 
-const CACHE_DIR = join(process.cwd(), '.cache', 'icons')
+/**
+ * Where drawn symbols are kept.
+ *
+ * Not in the project directory when there is no project directory to write to.
+ * A serverless filesystem is read-only apart from /tmp, so `mkdir` under
+ * `process.cwd()` throws EROFS on every symbol — and that write used to sit
+ * inside a `catch` block with nothing around it, so the throw escaped the
+ * handler, the route answered 500, and after six of those the client switched
+ * symbols off for the rest of the session. Every board came out as boxes and
+ * lettering, having paid the model to draw the pictures first.
+ *
+ * /tmp survives for the life of the instance and no longer, which is the right
+ * lifetime anyway: the disk cache is a way of not redrawing the same term
+ * twice, not a store.
+ */
+const CACHE_DIR = process.env.VERCEL
+  ? join(tmpdir(), 'nipsol-icons')
+  : join(process.cwd(), '.cache', 'icons')
 const memo = new Map<string, string | null>()
 
 const SYSTEM = `You draw minimal line icons as SVG strokes.
@@ -116,9 +134,15 @@ export async function GET(request: Request) {
         console.error('[icon] generation failed', error)
         return Response.json({ error: 'Could not draw the symbol.' }, { status: 502 })
       }
+      // Best effort, always. A symbol that cannot be filed is still a symbol,
+      // and failing to cache it must never cost the caller the drawing.
       if (svg) {
-        await mkdir(CACHE_DIR, { recursive: true })
-        await writeFile(join(CACHE_DIR, `${key}.svg`), svg)
+        try {
+          await mkdir(CACHE_DIR, { recursive: true })
+          await writeFile(join(CACHE_DIR, `${key}.svg`), svg)
+        } catch (error) {
+          console.warn('[icon] could not cache to disk', error)
+        }
       }
     }
     memo.set(key, svg ?? null)

@@ -2098,6 +2098,13 @@ const GESTURES = new Set<ShapeKind>(['curve', 'line', 'highlight'])
  *
  * @param before every shape's centre before the layout rewrote it.
  */
+/**
+ * How near a stroke's end has to be to a shape for it to count as drawn
+ * against it. Roughly a box's width: past that they are two things that happen
+ * to be on the same board.
+ */
+const CARRY_REACH = 320
+
 function carryGestures(
   shapes: BoardShape[],
   before: Map<string, { x: number; y: number; w: number; h: number }>
@@ -2121,11 +2128,8 @@ function carryGestures(
     })
   if (!moved.length) return shapes
 
-  for (const gesture of gestures) {
-    const box = before.get(gesture.id)
-    if (!box) continue
-    const at = { x: box.x + box.w / 2, y: box.y + box.h / 2 }
-
+  /** The shape that was closest to a point before anything moved. */
+  const nearestTo = (at: { x: number; y: number }) => {
     let nearest = moved[0]
     let best = Infinity
     for (const candidate of moved) {
@@ -2135,7 +2139,54 @@ function carryGestures(
         nearest = candidate
       }
     }
+    return { nearest, distance: best }
+  }
 
+  const stranded: BoardShape[] = []
+
+  for (const gesture of gestures) {
+    const box = before.get(gesture.id)
+    if (!box) continue
+
+    // A straight line between exactly two points is a connector — the branch
+    // of a mind map, a rule from a remark to the thing it criticises. Its two
+    // ends were drawn against two DIFFERENT shapes, and the row layout has
+    // since moved those by different amounts. Carrying the whole line by one
+    // of the two deltas is what leaves a pair of long diagonals crossing an
+    // empty middle, joined to nothing at either end. So each end follows the
+    // shape it was drawn against.
+    if (gesture.kind === 'line' && gesture.points.length === 2) {
+      const ends = gesture.points.map((point) => nearestTo(point))
+
+      // Neither end was near anything to begin with, so there is nothing for
+      // it to follow and nothing it can be said to connect. A line across the
+      // board joining two empty patches is worse than no line.
+      if (ends.every((end) => end.distance > CARRY_REACH)) {
+        stranded.push(gesture)
+        continue
+      }
+
+      for (const [i, point] of gesture.points.entries()) {
+        // An end with nothing of its own near it follows the other one, so the
+        // line keeps its length and direction rather than being stretched
+        // across the board.
+        const follow = ends[i].distance <= CARRY_REACH ? ends[i].nearest : ends[1 - i].nearest
+        point.x += follow.dx
+        point.y += follow.dy
+      }
+
+      const xs = gesture.points.map((point) => point.x)
+      const ys = gesture.points.map((point) => point.y)
+      gesture.x = Math.min(...xs)
+      gesture.y = Math.min(...ys)
+      gesture.w = Math.max(1, Math.max(...xs) - gesture.x)
+      gesture.h = Math.max(1, Math.max(...ys) - gesture.y)
+      continue
+    }
+
+    // Everything else is a stroke made near one thing — an underline, a swipe,
+    // a squiggle — and travels with it whole.
+    const { nearest } = nearestTo({ x: box.x + box.w / 2, y: box.y + box.h / 2 })
     gesture.x += nearest.dx
     gesture.y += nearest.dy
     for (const point of gesture.points) {
@@ -2144,7 +2195,7 @@ function carryGestures(
     }
   }
 
-  return shapes
+  return stranded.length ? shapes.filter((shape) => !stranded.includes(shape)) : shapes
 }
 
 /** Widest an arrow's label block may grow before it wraps to another line. */
