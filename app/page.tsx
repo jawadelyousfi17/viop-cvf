@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Logo } from '@/components/ui/Logo'
 import type { Metadata } from 'next'
 import { Beta } from '@/components/marketing/Beta'
+import { Founder } from '@/components/marketing/Founder'
 import { BetaBadge } from '@/components/ui/BetaBadge'
 import { BoardDemo } from '@/components/marketing/BoardDemo'
 import { Plans, PlansBackdrop } from '@/components/marketing/Plans'
@@ -224,6 +225,8 @@ export default function Landing() {
       </PlansBackdrop>
 
       <Beta />
+
+      <Founder heading="Who makes it" />
 
       <footer className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-10 text-sm text-zinc-400">
         <Logo height={22} href={null} className="opacity-60" />

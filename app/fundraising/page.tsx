@@ -4,6 +4,7 @@ import { Logo } from '@/components/ui/Logo'
 import { BetaBadge } from '@/components/ui/BetaBadge'
 import { RaiseCard } from '@/components/marketing/RaiseCard'
 import { BoardDemo } from '@/components/marketing/BoardDemo'
+import { Founder } from '@/components/marketing/Founder'
 import { mailto } from '@/lib/contact'
 
 export const metadata: Metadata = {
@@ -119,6 +120,8 @@ export default function FundraisingPage() {
           </div>
         </div>
       </section>
+
+      <Founder heading="Who you would be backing" />
 
       {/* The pitch on the left, the card on the right, exactly as an investor
           expects to read it: reasons first, terms always in view. */}
