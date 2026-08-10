@@ -42,6 +42,12 @@ export function CheckoutButton({
       <button
         type="button"
         disabled={pending}
+        // The card decides how its button looks, and both branches have to
+        // wear it. Only the disabled one did, so switching checkout on turned
+        // a filled blue button into an unstyled 70px one — invisible against a
+        // white card, and invisible in review too, because the branch that
+        // looked right was the one nobody was going to click.
+        className={`${className} disabled:cursor-wait disabled:opacity-70`}
         onClick={() =>
           begin(async () => {
             setError(null)
