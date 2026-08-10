@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Editor } from 'tldraw'
 import {
   estimateNarrationSeconds,
   finishEachBox,
@@ -15,7 +14,7 @@ import {
 import type { LessonEvent } from '@/lib/lesson-stream'
 import type { Engine } from '@/lib/engines'
 import { DEFAULT_VOICE_ID, type VoiceId } from '@/lib/voices'
-import type { BoardPainter } from './paint'
+import type { LessonPainter } from '../engine/LessonBoard'
 import { ImageBank } from '../images'
 import { CHART_KINDS, chartKey } from '@/lib/chart'
 import { renderChart } from '../charts'
@@ -23,9 +22,15 @@ import { Narrator } from '../narrator'
 import { parseScript } from '@/lib/script-import'
 import { Logo } from '../ui/Logo'
 
-// tldraw is browser-only and heavy — keep it out of the server bundle and off
-// the critical path for the topic screen.
-const Board = dynamic(() => import('./board'), { ssr: false })
+// The board draws in the browser and is heavy — keep it out of the server
+// bundle and off the critical path for the topic screen.
+//
+// It used to be tldraw. tldraw needs a licence to run in production, so the
+// same five methods are now served by our own SVG engine; ./board and ./paint
+// are still here, unused, if that ever reverses.
+const Board = dynamic(() => import('../engine/LessonBoard').then((m) => m.LessonBoard), {
+  ssr: false,
+})
 
 const SUGGESTIONS = [
   'How does HTTPS actually keep my traffic private?',
@@ -178,8 +183,7 @@ export default function Studio({
    */
   const [history, setHistory] = useState<{ title: string; summary: string }[]>([])
 
-  const editorRef = useRef<Editor | null>(null)
-  const painterRef = useRef<BoardPainter | null>(null)
+  const painterRef = useRef<LessonPainter | null>(null)
   const narratorRef = useRef<Narrator | null>(null)
   const imagesRef = useRef<ImageBank | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -232,15 +236,10 @@ export default function Studio({
     else audio.pause()
   }, [isPlaying, sceneIndex])
 
-  // Must stay synchronous: tldraw treats whatever `onMount` returns as an
-  // unmount cleanup function, so returning a promise crashes the editor.
-  const onEditor = useCallback((editor: Editor) => {
-    editorRef.current = editor
-    void import('./paint').then(({ BoardPainter }) => {
-      const painter = new BoardPainter(editor)
-      painterRef.current = painter
-      setPainterReady(true)
-    })
+  // The board fills the ref as it commits, so the first render after it mounts
+  // is the earliest anything can be painted.
+  useEffect(() => {
+    if (painterRef.current) setPainterReady(true)
   }, [])
 
   useEffect(() => {
@@ -909,7 +908,7 @@ export default function Studio({
 
   return (
     <div className={embedded ? 'absolute inset-0 bg-white' : 'fixed inset-0 bg-white'}>
-      <Board onEditor={onEditor} />
+      <Board ref={painterRef} />
 
       {/* Nothing floats over the board any more. The controls live on the
           composer, where every other instruction to this app is given. */}

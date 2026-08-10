@@ -1,7 +1,9 @@
 import katex from 'katex'
 import type { BoardShape } from '@/lib/lesson'
 import type { PlotDrawing } from '@/lib/plot'
-import { edgePoint, inkArrowhead, inkEllipse, inkLine, inkRect, tilt } from './ink'
+import { edgePoint, inkArrowhead, inkEllipse, inkLine, inkPolygon, inkRect, tilt } from './ink'
+import { polygonFor } from './figures'
+import { highlight } from '@/lib/slate-code'
 import { STROKE, TYPE, dashArray, inkOf } from './palette'
 
 /**
@@ -16,6 +18,16 @@ import { STROKE, TYPE, dashArray, inkOf } from './palette'
 
 /** How far behind and below a filled shape its saturated twin sits. */
 const SHADOW = 7
+
+/** Kinds whose content is a fetched picture rather than anything drawn. */
+const PICTURE = new Set<BoardShape['kind']>([
+  'symbol',
+  'icon',
+  'image',
+  'barchart',
+  'linechart',
+  'piechart',
+])
 
 export function Shape({
   shape,
@@ -93,10 +105,36 @@ export function Shape({
     )
   }
 
+  // Point-based kinds carry their geometry in `points` rather than in a box:
+  // a curve someone drew, a rule under a word, a highlighter sweep. Drawn
+  // before the box kinds because none of the box machinery applies to them.
+  if (shape.kind === 'curve' || shape.kind === 'line' || shape.kind === 'highlight') {
+    if (shape.points.length < 2) return null
+    const d = inkPolygon(shape.points, shape.id, 'stroke', shape.kind === 'line' ? 1 : 2, false)
+
+    return (
+      <g data-shape-id={shape.id} style={{ cursor: 'pointer' }}>
+        <path
+          d={d}
+          {...common}
+          // A highlighter is a wide, translucent nib that goes under
+          // everything else — the words it covers still have to be readable.
+          strokeWidth={shape.kind === 'highlight' ? Math.max(18, shape.h || 18) : weight}
+          strokeOpacity={shape.kind === 'highlight' ? 0.3 : 1}
+          strokeDasharray={shape.kind === 'highlight' ? undefined : common.strokeDasharray}
+        />
+      </g>
+    )
+  }
+
   const body = (() => {
+    const polygon = polygonFor(shape.kind, shape)
+    if (polygon) return { d: inkPolygon(polygon, shape.id), label: 'centre' as const }
+
     switch (shape.kind) {
       case 'ellipse':
       case 'oval':
+      case 'ring':
         return {
           d: inkEllipse(
             shape.x + shape.w / 2,
@@ -123,7 +161,20 @@ export function Shape({
           rule: true,
         }
       case 'symbol':
+      case 'icon':
         return { d: '', label: 'none' as const }
+      case 'image':
+      case 'barchart':
+      case 'linechart':
+      case 'piechart':
+        // A picture and a chart are the same thing by the time they get here:
+        // a rectangle of pixels fetched by name. Charts are drawn server-side
+        // into one flat image (lib/chart.ts), so neither needs geometry — but
+        // both need the frame, which is what says something is coming while
+        // the fetch is still out.
+        return { d: '', label: 'none' as const, framed: true }
+      case 'code':
+        return { d: inkRect(shape.x, shape.y, shape.w, shape.h, shape.id), label: 'none' as const }
       case 'plot':
         return { d: '', label: 'none' as const }
       case 'math':
@@ -222,7 +273,7 @@ export function Shape({
         </foreignObject>
       )}
 
-      {shape.kind === 'symbol' && symbol && (
+      {symbol && PICTURE.has(shape.kind) && (
         <image
           href={symbol}
           x={shape.x}
@@ -231,6 +282,17 @@ export function Shape({
           height={shape.h}
           preserveAspectRatio="xMidYMid meet"
         />
+      )}
+
+      {/* The frame a picture arrives into. Drawn only while the fetch is still
+          out: an empty rectangle says "something is coming here", where an
+          empty patch of board says the lesson forgot. */}
+      {body.framed && !symbol && (
+        <path d={inkRect(shape.x, shape.y, shape.w, shape.h, shape.id)} {...common} opacity={0.35} />
+      )}
+
+      {shape.kind === 'code' && shape.text.trim() && (
+        <Code shape={shape} ink={ink} />
       )}
 
       {body.label !== 'none' && shape.text.trim() && (
@@ -268,6 +330,74 @@ export function Shape({
       )}
     </g>
   )
+}
+
+/**
+ * Source, set in a monospace face with one line called out.
+ *
+ * The lettering is the same hand as the rest of the board everywhere except
+ * here: code written in a marker pen is code you cannot read, and the whole
+ * point of putting it on the board is that someone reads it. Highlighting is
+ * lib/slate-code's, which is deliberately approximate — it colours keywords,
+ * strings, numbers and comments and leaves everything else alone.
+ *
+ * `fill: 'semi'` marks the line the narration is talking about; it is the only
+ * fill this kind reads.
+ */
+function Code({ shape, ink }: { shape: BoardShape; ink: string }) {
+  const lines = shape.text.split('\n')
+  const marked = shape.fill === 'semi' ? Math.max(0, Math.round(shape.at * lines.length) - 1) : -1
+
+  return (
+    <foreignObject
+      x={shape.x}
+      y={shape.y}
+      width={Math.max(1, shape.w)}
+      height={Math.max(1, shape.h)}
+    >
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          padding: '14px 16px',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+          fontFamily: 'var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+          fontSize: Math.max(14, TYPE[shape.size] * 0.62),
+          lineHeight: 1.5,
+          color: ink,
+          userSelect: 'none',
+          whiteSpace: 'pre',
+        }}
+      >
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            style={
+              i === marked
+                ? { background: 'rgba(250, 204, 21, 0.28)', borderRadius: 4, margin: '0 -4px', padding: '0 4px' }
+                : undefined
+            }
+          >
+            {highlight(line).map((token, t) => (
+              <span key={t} style={token.kind ? { color: CODE_INK[token.kind] } : undefined}>
+                {token.text}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </foreignObject>
+  )
+}
+
+/** Four colours and no more: a board is not an editor theme. */
+const CODE_INK: Record<string, string> = {
+  key: '#7c3aed',
+  str: '#15803d',
+  num: '#b45309',
+  com: '#94a3b8',
+  cmd: '#0369a1',
 }
 
 /**

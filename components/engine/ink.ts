@@ -73,17 +73,32 @@ export function inkLine(a: Point, b: Point, seed: string, salt = 'l', bow = 1) {
  * marker rounds them, with the end overshooting the start a little because a
  * hand does not stop exactly where it started.
  */
-export function inkPolygon(points: Point[], seed: string, salt = 'p', wobbleAmount = 2.5) {
+export function inkPolygon(
+  points: Point[],
+  seed: string,
+  salt = 'p',
+  wobbleAmount = 2.5,
+  /**
+   * Whether the last point joins back to the first.
+   *
+   * False for a stroke someone drew — a curve, a rule, a highlighter sweep.
+   * Closing one of those turns a gesture into a shape, which is a different
+   * mark entirely and reads as an accident.
+   */
+  close = true
+) {
   if (points.length < 2) return ''
 
   const drawn = points.map((point, i) => drift(point, seed, `${salt}${i}`, wobbleAmount))
-  // Carry on past the start so the stroke crosses itself at the corner.
-  const overshoot = lerp(drawn[0], drawn[1], 0.12)
 
   let path = `M ${round(drawn[0].x)} ${round(drawn[0].y)}`
   for (let i = 1; i < drawn.length; i++) {
     path += ` ${segment(drawn[i - 1], drawn[i], seed, `${salt}s${i}`)}`
   }
+  if (!close) return path
+
+  // Carry on past the start so the stroke crosses itself at the corner.
+  const overshoot = lerp(drawn[0], drawn[1], 0.12)
   path += ` ${segment(drawn[drawn.length - 1], drawn[0], seed, `${salt}sc`)}`
   path += ` ${segment(drawn[0], overshoot, seed, `${salt}so`)}`
   return path
