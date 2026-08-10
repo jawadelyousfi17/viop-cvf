@@ -173,3 +173,29 @@ model Subscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+/// How much of the free plan an account has spent, for good.
+///
+/// The free tier is an allowance to *make* things, not a shelf that holds
+/// five: deleting a map has to leave the count where it was, or the limit is
+/// only a limit on how many you keep at once and anyone can have as many as
+/// they like by tidying up between. So this counts creations and never counts
+/// down — the row outlives every map and lesson it counted.
+///
+/// Keyed by whatever identity made them: the account id once there is one, the
+/// browser key before that. See lib/owner.ts. A paid plan never reads this at
+/// all, so it keeps ticking quietly and is still right if someone goes back to
+/// free.
+model Usage {
+  /// `userId` when signed in, `ownerKey` otherwise — not a foreign key,
+  /// because accounts live in Supabase and not in this database.
+  owner String @id
+
+  mindmaps Int @default(0)
+  lessons  Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("usage")
+}

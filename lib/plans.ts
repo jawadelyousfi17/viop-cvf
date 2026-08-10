@@ -19,9 +19,9 @@ export type PlanId = 'free' | 'pro'
  * written from — so the page cannot promise something the server then refuses.
  */
 export interface PlanLimits {
-  /** Mindmaps kept at once. */
+  /** Mindmaps this plan may ever make. Deleting one does not give it back. */
   mindmaps: number
-  /** Lessons kept at once. */
+  /** Lessons this plan may ever make. Deleting one does not give it back. */
   lessons: number
 }
 

@@ -1,6 +1,6 @@
 import { db, dbConfigured } from '@/lib/db'
 import { claim, owned, requireIdentity } from '@/lib/owner'
-import { allowance, atLimit } from '@/lib/quota'
+import { allowance, atLimit, spend } from '@/lib/quota'
 import { sanitizeTree, treeStats, type MindNode } from '@/lib/mindmap'
 
 export const runtime = 'nodejs'
@@ -94,6 +94,10 @@ export async function POST(request: Request) {
       },
       select: LIST_FIELDS,
     })
+
+    // After the write, not before: a save that fails must not cost anyone
+    // part of an allowance they never got to use.
+    await spend(identity, 'mindmaps')
 
     return Response.json({ map: saved })
   } catch (error) {

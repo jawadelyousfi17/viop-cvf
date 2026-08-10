@@ -1,6 +1,6 @@
 import { db, dbConfigured } from '@/lib/db'
 import { claim, owned, requireIdentity } from '@/lib/owner'
-import { allowance, atLimit } from '@/lib/quota'
+import { allowance, atLimit, spend } from '@/lib/quota'
 import { isRenderableScene, normalizeScene, type Lesson } from '@/lib/lesson'
 
 export const runtime = 'nodejs'
@@ -88,6 +88,10 @@ export async function POST(request: Request) {
       },
       select: LIST_FIELDS,
     })
+
+    // After the write, not before: a save that fails must not cost anyone
+    // part of an allowance they never got to use.
+    await spend(identity, 'lessons')
 
     return Response.json({ lesson: saved })
   } catch (error) {

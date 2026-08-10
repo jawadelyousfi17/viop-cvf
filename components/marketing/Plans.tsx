@@ -36,7 +36,7 @@ const SAVED = YEARLY_SAVING
  * the truth, and is more persuasive than a shorter list would be.
  */
 const FREE_INCLUDED = [
-  `${FREE_MAPS} maps and ${FREE_LESSONS} lessons kept`,
+  `${FREE_MAPS} maps and ${FREE_LESSONS} lessons to make, in total`,
   'Every branch opens further — as deep as you want',
   'Explanations written for the far edges, not just labels',
   'Hand-drawn boards, narrated as they are drawn',
