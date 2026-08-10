@@ -30,6 +30,7 @@ import { FeedbackDialog } from './FeedbackDialog'
 import { CreditsBadge, CreditsDialog } from './CreditsDialog'
 import { GENERATION_PAUSED } from '@/lib/credits'
 import type { UsageView } from '@/app/api/usage/route'
+import type { SavedSolution } from '@/app/api/solutions/route'
 
 import type { SavedMap } from './Sidebar'
 
@@ -128,6 +129,7 @@ export default function MindmapStudio() {
   const [solution, setSolution] = useState<MathSolution | null>(null)
 
   const [lessons, setLessons] = useState<SavedLesson[]>([])
+  const [solutions, setSolutions] = useState<SavedSolution[]>([])
   /** Which saved lesson is on the board, so the rail can mark it. */
   const [lessonId, setLessonId] = useState<string | null>(null)
 
@@ -288,6 +290,34 @@ export default function MindmapStudio() {
     void loadLessons().then((rows) => rows && setLessons(rows))
   }, [loadLessons])
 
+  const loadSolutions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/solutions')
+      const body = (await response.json()) as { solutions?: SavedSolution[] }
+      return body.solutions ?? []
+    } catch {
+      // History is a convenience; failing to list it is not worth an error.
+      return null
+    }
+  }, [])
+
+  const refreshSolutions = useCallback(() => {
+    void loadSolutions().then((rows) => rows && setSolutions(rows))
+  }, [loadSolutions])
+
+  /** Files a worked solution. Returns nothing: nobody waits on the receipt. */
+  const keepSolution = useCallback(async (worked: MathSolution, question: string) => {
+    try {
+      await fetch('/api/solutions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ solution: worked, topic: question }),
+      })
+    } catch {
+      // Saving is best effort: a solution you can read beats an error you cannot use.
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     void loadLessons().then((rows) => {
@@ -297,6 +327,16 @@ export default function MindmapStudio() {
       cancelled = true
     }
   }, [loadLessons])
+
+  useEffect(() => {
+    let cancelled = false
+    void loadSolutions().then((rows) => {
+      if (!cancelled && rows) setSolutions(rows)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [loadSolutions])
 
   /**
    * Files a lesson the moment it has finished streaming.
@@ -704,11 +744,17 @@ export default function MindmapStudio() {
       }
 
       if (job.kind === 'math' && result.solution) {
-        setSolution(result.solution as MathSolution)
+        const worked = result.solution as MathSolution
+        setSolution(worked)
         setMode('math')
         setView({ type: 'fit' })
+        // Filed the way a lesson or a map is, so it is still there tomorrow.
+        // Best effort: a solution on the board that failed to save is worth
+        // more than an error over one that is already being read.
+        void keepSolution(worked, String((job.input as { question?: string })?.question ?? ''))
+          .then(refreshSolutions)
       }
-    }, [loadSymbols, keepMap])
+    }, [loadSymbols, keepMap, keepSolution, refreshSolutions])
   )
 
   // Written after the render, not during it: the actions above only ever read
@@ -806,7 +852,7 @@ export default function MindmapStudio() {
         currentId={mode === 'lesson' ? lessonId : savedId}
         opening={opening}
         lessons={lessons}
-        solved={jobs.solved}
+        solved={solutions}
         mode={mode}
         onOpen={async (id) => {
           if (mode === 'lesson') return openLesson(id)

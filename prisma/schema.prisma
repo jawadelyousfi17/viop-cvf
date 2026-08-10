@@ -86,6 +86,41 @@ model Lesson {
   @@index([userId, updatedAt])
 }
 
+/// One worked solution, kept so it can be read again.
+///
+/// Its own table rather than a finished `math` job, for the reason the lesson
+/// and the map have theirs: a job row is the receipt for some work, aged out
+/// of the live feed a minute after it lands, and reading history out of it
+/// means asking a queue what it remembers. The thing someone wants back is the
+/// solution, so the solution is what is filed.
+///
+/// Stored as the finished document rather than as the question. Re-solving
+/// would cost another model call and produce different working; what they want
+/// back is the one they read.
+model Solution {
+  id String @id @default(cuid())
+
+  /// The same two identities as a map or a lesson. See lib/owner.ts.
+  ownerKey String
+  userId   String?
+
+  /// The problem, as the tutor understood it and as it was typed.
+  title String
+  topic String @default("")
+
+  /// The MathSolution document as JSON, exactly as lib/math.ts hands it over.
+  content String
+
+  /// For the history list, which should not parse a solution to size it.
+  stepCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerKey, updatedAt])
+  @@index([userId, updatedAt])
+}
+
 /// Work that outlives the request that asked for it.
 ///
 /// Writing a map takes ten seconds, a lesson closer to a minute. Tying that to
@@ -102,12 +137,12 @@ model Job {
   userId   String?
 
   /// "map" | "expand" | "math" | "lesson"
-  kind String
+  kind   String
   /// "running" | "done" | "failed"
   status String @default("running")
 
   /// What was asked for, so a job can be understood without its result.
-  input String
+  input  String
   /// The answer, or as much of it as exists — a lesson writes scenes as they
   /// arrive, so a reload mid-generation picks up what is already drawn.
   result String?
@@ -159,9 +194,9 @@ model Subscription {
   /// after a cancellation; once it is in the past the account reads as free
   /// whatever the status says, so a missed webhook cannot hand out a plan
   /// forever. Null means no end date — a plan granted by hand.
-  currentPeriodEnd DateTime?
+  currentPeriodEnd  DateTime?
   /// Set when someone cancels but has time left on the clock.
-  cancelAtPeriodEnd Boolean @default(false)
+  cancelAtPeriodEnd Boolean   @default(false)
 
   /// Whop's own ids, for matching a webhook back to an account.
   customerId     String? @unique

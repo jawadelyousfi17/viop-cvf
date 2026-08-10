@@ -2,7 +2,7 @@ import { after } from 'next/server'
 import { dbConfigured } from '@/lib/db'
 import { requireIdentity } from '@/lib/owner'
 import { allowance, atLimit } from '@/lib/quota'
-import { openJobs, runJob, solvedJobs, startJob, type JobKind } from '@/lib/jobs'
+import { openJobs, runJob, startJob, type JobKind } from '@/lib/jobs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -57,19 +57,18 @@ export async function POST(request: Request) {
 }
 
 /**
- * What is happening now, and what has been worked out before.
+ * What is happening right now, and nothing else.
  *
- * `jobs` is the live feed the page acts on — a finished one opens itself.
- * `solved` is history, and is acted on by nobody: the worked solutions were
- * being written to the database and then never listed, so the rail said they
- * were not kept when in fact they were kept and lost.
+ * History used to be answered here too, read back out of finished job rows.
+ * It is /api/solutions now: a worked solution is filed in its own table like a
+ * lesson or a map, and a queue asked what it remembers is the wrong place to
+ * keep anything.
  */
 export async function GET() {
-  if (!dbConfigured()) return Response.json({ jobs: [], solved: [] })
+  if (!dbConfigured()) return Response.json({ jobs: [] })
 
   const identity = await requireIdentity()
-  if (!identity) return Response.json({ jobs: [], solved: [] }, { status: 401 })
+  if (!identity) return Response.json({ jobs: [] }, { status: 401 })
 
-  const [jobs, solved] = await Promise.all([openJobs(identity), solvedJobs(identity)])
-  return Response.json({ jobs, solved }, { headers: { 'cache-control': 'no-store' } })
+  return Response.json({ jobs: await openJobs(identity) })
 }
