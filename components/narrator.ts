@@ -98,14 +98,44 @@ export class Narrator {
         body: JSON.stringify({ text, voiceId: this.voiceId }),
       })
 
+      // Whatever happens next, the lesson plays. But it plays *silently*, and
+      // a silent lesson is indistinguishable from a broken one from the
+      // outside — so every way this can go quiet says so here, with the thing
+      // that would let somebody fix it. `x-tts-identity` is which engine, which
+      // model and which voice actually answered.
+      const engine = response.headers.get('x-tts-identity') ?? 'unknown'
+
       if (response.status === 501) {
+        // Not configured. Asking again for every remaining scene would be a
+        // round trip each to be told the same thing.
         this.enabled = false
+        console.warn(
+          `[voice] no speech provider configured (${engine}) — the rest of this lesson ` +
+            `plays silently. ${await reason(response)} ` +
+            'Open /api/tts in this tab to see which key is missing.'
+        )
         return silent
       }
-      if (!response.ok) return silent
+
+      if (!response.ok) {
+        console.warn(
+          `[voice] ${engine} returned ${response.status} — this scene plays silently. ` +
+            (await reason(response))
+        )
+        return silent
+      }
 
       const data = (await response.json()) as SpeechResponse
-      if (!data.audio) return silent
+      if (!data.audio) {
+        console.warn(`[voice] ${engine} answered with no audio — this scene plays silently.`)
+        return silent
+      }
+
+      if (response.headers.get('x-tts-cache') === 'miss') {
+        // Worth knowing when a replay is quietly re-synthesising: it is the
+        // slow path and the one that costs money.
+        console.info(`[voice] ${engine} synthesised a new clip (cache miss).`)
+      }
 
       const url = URL.createObjectURL(base64ToBlob(data.audio))
       this.urls.push(url)
@@ -121,9 +151,20 @@ export class Narrator {
         duration: duration ?? silent.duration,
         timeOf: makeAnchorResolver(data.alignment),
       }
-    } catch {
+    } catch (error) {
+      console.warn('[voice] could not reach /api/tts — this scene plays silently.', error)
       return silent
     }
+  }
+}
+
+/** The server's own sentence about what went wrong, when it sent one. */
+async function reason(response: Response): Promise<string> {
+  try {
+    const body = (await response.clone().json()) as { error?: string }
+    return body.error ? `Server said: ${body.error}` : ''
+  } catch {
+    return ''
   }
 }
 
