@@ -82,6 +82,25 @@ export function focus(bounds: Bounds, size: Size, padding = 110, maxZoom = 1.1):
   }
 }
 
+/**
+ * A page rather than a canvas: the column is set to a width and only scrolls.
+ *
+ * Working is read at one size. A camera that frames each step as it is spoken
+ * has to zoom to do it — a two-line step fills the window, the next one is
+ * three lines and fills it at a different size — so the lettering changes size
+ * every few seconds while someone is trying to read it. Fixing the width and
+ * moving only in y is what a page does, and a worked solution is a page.
+ */
+export function columnZoom(width: number, size: Size, padding = 32) {
+  return clampZoom((size.width - padding * 2) / Math.max(1, width))
+}
+
+/** That camera, scrolled so `top` is the board point at the top of the view. */
+export function scrolled(column: { x: number; w: number }, size: Size, top: number): Camera {
+  const zoom = columnZoom(column.w, size)
+  return { zoom, x: column.x + column.w / 2 - size.width / zoom / 2, y: top }
+}
+
 /** Zooms about a point on screen, so whatever is under the cursor stays put. */
 export function zoomAt(camera: Camera, screen: { x: number; y: number }, factor: number): Camera {
   const zoom = clampZoom(camera.zoom * factor)

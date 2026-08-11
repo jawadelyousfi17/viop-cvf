@@ -40,3 +40,17 @@ body {
   font-variant-emoji: emoji;
   line-height: 1;
 }
+
+/*
+ * A line of mathematics on the board sits in a box the layout has already
+ * sized for it — see lib/math.ts.
+ *
+ * KaTeX's display mode carries `margin: 1em 0`, which is right in a document,
+ * where an equation is a paragraph between paragraphs. Here it is a full line
+ * of blank board above and below every equation, on top of the box's own
+ * padding: the line drifts away from the sentence that introduces it and ends
+ * up floating between two steps, belonging to neither.
+ */
+.board-math .katex-display {
+  margin: 0;
+}

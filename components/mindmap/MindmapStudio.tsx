@@ -19,7 +19,7 @@ import WhiteboardStudio, {
   type LessonRequest,
   type LessonTransport,
 } from '../whiteboard/WhiteboardStudio'
-import { solutionToScene, type MathSolution } from '@/lib/math'
+import { MATH_COLUMN, solutionToScene, type MathSolution } from '@/lib/math'
 import { Composer, SPEED_MODELS, type Speed } from './Composer'
 import { useTutorVoice } from './useTutorVoice'
 import { useJobs, type Job } from './useJob'
@@ -222,11 +222,27 @@ export default function MindmapStudio({
   const mathScene = useMemo(() => (solution ? solutionToScene(solution) : null), [solution])
 
   /**
-   * The camera follows the voice: each step is framed as it is spoken, which is
-   * what makes a column taller than the window readable without scrolling.
+   * How many steps there are, where a stable callback can read it.
+   *
+   * `followVoice` is a dependency of the recital's own effect, so rebuilding it
+   * when the solution changes would cancel and restart the line being spoken.
+   */
+  const stepCountRef = useRef(0)
+  useEffect(() => {
+    stepCountRef.current = solution?.steps.length ?? 0
+  }, [solution])
+
+  /**
+   * The camera follows the voice: the page scrolls to each step as it is
+   * spoken, which is what makes a column taller than the window readable
+   * without anyone reaching for the wheel.
    */
   const followVoice = useCallback((group: number) => {
-    setView(group < 0 ? { type: 'fit' } : { type: 'focus', id: `s${group}` })
+    // Back to the top for the problem itself, and to the answer for the group
+    // after the last step — that one is the answer, its meaning and the check,
+    // none of which is a numbered step.
+    if (group < 0) return setView({ type: 'fit' })
+    setView({ type: 'focus', id: group >= stepCountRef.current ? 'answer' : `s${group}` })
   }, [])
 
   /** The tutor reads its working aloud, a step at a time. */
@@ -256,7 +272,9 @@ export default function MindmapStudio({
   const mathShapes = useMemo(() => {
     if (!mathScene) return []
     return mathScene.shapes.filter((shape) => {
-      const step = /^[sm](\d+)$/.exec(shape.id)
+      // `s3` is the third step's sentence, `s3.m` its line of algebra, `s3.p`
+      // its graph — all of it appears when that step is spoken.
+      const step = /^s(\d+)(?:\.|$)/.exec(shape.id)
       if (step) return Number(step[1]) <= tutor.revealed
       // The problem is up from the start; the answer waits for the last line.
       if (shape.id === 'title' || shape.id === 'given') return true
@@ -1050,7 +1068,14 @@ export default function MindmapStudio({
               flight; unmounting it to glance at a map would stop it mid-word,
               so the inactive side is hidden rather than thrown away. */}
           {mode === 'math' && mathScene && (
-            <BoardCanvas shapes={mathShapes} view={view} paper="ruled" className="absolute inset-0" />
+            <BoardCanvas
+              shapes={mathShapes}
+              view={view}
+              // A page, not a canvas: one width, and the voice scrolls it.
+              column={MATH_COLUMN}
+              paper="ruled"
+              className="absolute inset-0"
+            />
           )}
 
           <div className={mode === 'lesson' ? 'absolute inset-0' : 'hidden'}>

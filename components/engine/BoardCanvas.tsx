@@ -5,10 +5,12 @@ import type { BoardShape } from '@/lib/lesson'
 import { Shape } from './Shape'
 import {
   boundsOf,
+  columnZoom,
   fit,
   type Bounds,
   focus,
   sameCamera,
+  scrolled,
   tween,
   viewBox,
   zoomAt,
@@ -48,11 +50,23 @@ const MARGIN_RULE = 470
 /** Past this much movement, a press and its release were a pan, not a click. */
 const CLICK_SLOP = 6
 
+/** Board units of air above the first shape when a page is scrolled to its top. */
+const PAGE_TOP = 40
+
+/**
+ * Where a step lands when it has to be scrolled to, as a fraction of the view.
+ *
+ * Not the top: the line above it is what it follows from, and a step that
+ * arrives against the top edge arrives with its reason off-screen.
+ */
+const READING_LINE = 0.28
+
 export function BoardCanvas({
   shapes,
   symbols,
   view,
   frame,
+  column,
   paper = 'grid',
   onShapeClick,
   className,
@@ -78,6 +92,14 @@ export function BoardCanvas({
    * where the finished board ends up, so it can say.
    */
   frame?: Bounds
+  /**
+   * Read this board as a page of the given width, in board units.
+   *
+   * The width is then settled: the camera never zooms, `view` only scrolls,
+   * and a resize changes the scale rather than how much fits across. Pass a
+   * stable object — it is a dependency of the camera, not a render-time value.
+   */
+  column?: { x: number; w: number }
   onShapeClick?: (id: string) => void
   className?: string
 }) {
@@ -142,6 +164,17 @@ export function BoardCanvas({
   /** The last camera move actually made, so a re-layout doesn't repeat it. */
   const doneRef = useRef<{ view: View | null; size: typeof size } | null>(null)
 
+  // A page holds its width across a resize. The scroll is kept where it was —
+  // the window changing shape is not a reason to lose someone's place — and
+  // only the scale follows the new size.
+  useEffect(() => {
+    if (!column || !size.width || !size.height) return
+    const zoom = columnZoom(column.w, size)
+    const current = cameraRef.current
+    const next = { zoom, x: column.x + column.w / 2 - size.width / zoom / 2, y: current.y }
+    if (!sameCamera(current, next)) applyCamera(next)
+  }, [column, size, applyCamera])
+
   // Move the camera when asked to, and when the viewport is first measured —
   // never merely because the board changed. The board re-lays out on every fold
   // and every expansion, and a camera that followed all of that never settles.
@@ -154,25 +187,51 @@ export function BoardCanvas({
     }
     doneRef.current = { view, size }
 
+    // The node that was opened, its symbol and its explanation, and whatever
+    // just appeared under it — that is what someone wants to see after
+    // clicking, at a size they can read.
+    const partOf = (id: string) =>
+      shapes.filter(
+        (shape) =>
+          shape.id === id ||
+          shape.id === `${id}s` ||
+          shape.id === `${id}d` ||
+          shape.id.startsWith(`${id}.`)
+      )
+
+    if (column) {
+      const page = frame ?? boundsOf(shapes)
+      if (!page) return
+      const top = page.y - PAGE_TOP
+
+      if (view.type === 'fit') {
+        glideTo(scrolled(column, size, top))
+        return
+      }
+
+      const box = boundsOf(partOf(view.id))
+      if (!box) return
+
+      // Only when it is not already there. Most steps follow the one above
+      // them onto the same screen, and scrolling to something already in front
+      // of someone moves the words they are reading for no reason.
+      const camera = cameraRef.current
+      const visible = size.height / camera.zoom
+      if (box.y >= camera.y && box.y + box.h <= camera.y + visible) return
+
+      glideTo(scrolled(column, size, Math.max(top, box.y - visible * READING_LINE)))
+      return
+    }
+
     if (view.type === 'fit') {
       const box = frame ?? boundsOf(shapes)
       if (box) glideTo(fit(box, size))
       return
     }
 
-    // The node that was opened, its symbol and its explanation, and whatever
-    // just appeared under it — that is what someone wants to see after
-    // clicking, at a size they can read.
-    const part = shapes.filter(
-      (shape) =>
-        shape.id === view.id ||
-        shape.id === `${view.id}s` ||
-        shape.id === `${view.id}d` ||
-        shape.id.startsWith(`${view.id}.`)
-    )
-    const box = boundsOf(part) ?? boundsOf(shapes)
+    const box = boundsOf(partOf(view.id)) ?? boundsOf(shapes)
     if (box) glideTo(focus(box, size))
-  }, [view, size, shapes, frame, glideTo])
+  }, [view, size, shapes, frame, column, glideTo])
 
   useEffect(() => () => cancelAnimationFrame(animationRef.current), [])
 
@@ -190,6 +249,14 @@ export function BoardCanvas({
       const rect = host.getBoundingClientRect()
       const current = cameraRef.current
 
+      // A page scrolls and does nothing else. Pinching it to a different width
+      // is the one thing "fixed width" rules out, and there is nothing either
+      // side of the column to pan sideways to.
+      if (column) {
+        applyCamera({ ...current, y: current.y + event.deltaY / current.zoom })
+        return
+      }
+
       if (event.ctrlKey || event.metaKey) {
         const factor = Math.exp(-event.deltaY * 0.01)
         const at = { x: event.clientX - rect.left, y: event.clientY - rect.top }
@@ -206,7 +273,7 @@ export function BoardCanvas({
 
     host.addEventListener('wheel', onWheel, { passive: false })
     return () => host.removeEventListener('wheel', onWheel)
-  }, [applyCamera])
+  }, [applyCamera, column])
 
   const onPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
@@ -237,10 +304,11 @@ export function BoardCanvas({
     draggingRef.current = true
     applyCamera({
       zoom: press.camera.zoom,
-      x: press.camera.x - dx / press.camera.zoom,
+      // A page is dragged up and down. Sideways there is only margin.
+      x: column ? press.camera.x : press.camera.x - dx / press.camera.zoom,
       y: press.camera.y - dy / press.camera.zoom,
     })
-  }, [applyCamera])
+  }, [applyCamera, column])
 
   const onPointerUp = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -270,7 +338,12 @@ export function BoardCanvas({
       onPointerCancel={() => {
         pressRef.current = null
       }}
-      onDoubleClick={() => bounds && size.width && glideTo(fit(bounds, size))}
+      onDoubleClick={() => {
+        if (!bounds || !size.width) return
+        // Back to the top of the page, or back to the whole board — whichever
+        // "show me all of it" means here.
+        glideTo(column ? scrolled(column, size, bounds.y - PAGE_TOP) : fit(bounds, size))
+      }}
     >
       <svg
         width="100%"

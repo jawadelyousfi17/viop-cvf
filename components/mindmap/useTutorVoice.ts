@@ -29,11 +29,9 @@ export interface Spoken {
 /**
  * The lines, in order, in a form a voice can actually read.
  *
- * Headings are not spoken — they are labels for the eye, and hearing "Apply
- * the quotient rule" before the sentence explaining it is the same thing said
- * twice. What is read is the explanation and then the line of algebra, in the
- * model's own spoken form: it knows "\\frac{dy}{dx}" is "dee y by dee x", and no
- * table of rules ever will.
+ * What is read is the explanation and then the line of algebra, in the model's
+ * own spoken form: it knows "\\frac{dy}{dx}" is "dee y by dee x", and no table
+ * of rules ever will.
  *
  * Everything goes through `speakable` regardless. The model is told not to put
  * notation in these fields and mostly does not, but one stray "x^2" reaching
@@ -55,10 +53,8 @@ export function linesOf(solution: MathSolution): Spoken[] {
     if (text) lines.push({ group, text })
   }
 
-  // Neither the title nor a step's heading is spoken. They are labels for the
-  // eye — "Apply the quotient rule" read aloud before the sentence that
-  // explains it is the same thing said twice, and it is the second one that
-  // does the teaching.
+  // The title is not spoken. It is a label for the eye; the tutor opens on the
+  // problem itself, the way a person at a board does.
   say(-1, solution.givenSpoken)
 
   for (const [i, step] of solution.steps.entries()) {

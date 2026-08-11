@@ -186,9 +186,10 @@ export function Shape({
           label: 'none' as const,
         }
       case 'note':
-        // No frame. A box around a sentence is a box that has to be read as
-        // well as the sentence, and a column of them turns an argument into a
-        // form. The equations keep theirs — those are what the eye returns to.
+        // Prose, top-aligned, with no frame and no heading line. A box around
+        // a sentence is a box that has to be read as well as the sentence, and
+        // a column of headed boxes turns an argument into a form. The
+        // equations keep their frame — those are what the eye returns to.
         return { d: '', label: 'start' as const, note: true }
       default:
         return { d: inkRect(shape.x, shape.y, shape.w, shape.h, shape.id), label: 'centre' as const }
@@ -248,6 +249,8 @@ export function Shape({
           height={Math.max(1, shape.h)}
         >
           <div
+            // Strips KaTeX's display margin — see app/globals.css.
+            className="board-math"
             style={{
               width: '100%',
               height: '100%',
@@ -324,7 +327,7 @@ export function Shape({
               userSelect: 'none',
             }}
           >
-            {body.note ? <Note text={shape.text} /> : shape.text}
+            {shape.text}
           </div>
         </foreignObject>
       )}
@@ -398,29 +401,6 @@ const CODE_INK: Record<string, string> = {
   num: '#b45309',
   com: '#94a3b8',
   cmd: '#0369a1',
-}
-
-/**
- * A card whose first line is its heading.
- *
- * One shape rather than two, because a heading and the sentence under it are
- * one thought — and on a board you can pan away from, two shapes are two
- * things that can end up on different screens.
- */
-function Note({ text }: { text: string }) {
-  const [heading, ...rest] = text.split('\n')
-  const body = rest.join('\n').trim()
-
-  return (
-    <span style={{ display: 'block', width: '100%' }}>
-      <span style={{ display: 'block', fontSize: '1.15em', letterSpacing: '-0.01em' }}>
-        {heading}
-      </span>
-      {body && (
-        <span style={{ display: 'block', marginTop: 6, opacity: 0.75 }}>{body}</span>
-      )}
-    </span>
-  )
 }
 
 /**

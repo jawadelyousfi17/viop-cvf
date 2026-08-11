@@ -15,9 +15,16 @@ import { drawing, type PlotSpec } from './plot'
  */
 
 export interface MathStep {
-  /** What this step does, in a few words: "Complete the square". */
-  heading: string
-  /** Why, in a sentence or two, in the voice of someone at a board. */
+  /**
+   * Why, in a sentence or two, in the voice of someone at a board.
+   *
+   * There is no heading beside it. A worked solution is one argument read top
+   * to bottom, and a label over every few lines of it — "Factor the
+   * denominator", "Apply the chain rule" — cuts that argument into sections
+   * and says each one twice: once as a title and once as the sentence under
+   * it. What the step does is what the sentence and the line of algebra
+   * already show.
+   */
   say: string
   /** The line of mathematics it produces, as LaTeX. Empty when there is none. */
   math: string
@@ -68,12 +75,30 @@ export interface MathSolution {
 const MARGIN = 70
 const COL_X = 500
 const COL_W = 900
-const TITLE_H = 64
-const GIVEN_H = 110
-/** Room for a step's heading and its prose. */
-const SAY_W = COL_W - 48
-const STEP_GAP = 26
-const MATH_H = 78
+const TITLE_H = 48
+const GIVEN_H = 64
+
+/**
+ * The writing column, in board units.
+ *
+ * Exported because the camera reads it: this side of the app is a page and not
+ * a canvas, so the width is settled here and the view only ever scrolls down
+ * it. See BoardCanvas's `column`.
+ */
+export const MATH_COLUMN = { x: COL_X, w: COL_W }
+
+/** Between one step and the next. Prose and its own line of algebra sit closer. */
+const STEP_GAP = 24
+/** Between a sentence and the line of mathematics it produces. */
+const SAY_GAP = 4
+/**
+ * A plain line of mathematics, set at 21px by KaTeX.
+ *
+ * Close to what one actually stands, because the line is centred in this box:
+ * every unit of slack here becomes half a unit of white space above the
+ * equation, opening a gap between it and the sentence that introduces it.
+ */
+const MATH_H = 50
 
 /**
  * How tall a line of mathematics actually stands.
@@ -101,27 +126,99 @@ function mathHeight(latex: string) {
 /** A graph is a square-ish window, big enough to read a turning point off. */
 const PLOT_W = 560
 const PLOT_H = 360
-const ANSWER_H = 128
+const ANSWER_H = 72
 
 /** Type sizes, kept in step with components/engine/palette.ts. */
 const TYPE = { s: 19, m: 25, l: 34 } as const
-/**
- * Wider than the board's own estimate, on purpose.
- *
- * A prose box on this side is a fixed frame with text clipped to it, so an
- * estimate that runs short loses the end of a sentence — and the sentence it
- * loses is the last one, which is where the point usually is. Erring long
- * costs a little white space and nothing else.
- */
-const CHAR = 0.6
+/** The line height Shape.tsx sets on a prose box. */
+const LEADING = 1.15
+/** The horizontal padding it sets, which the text does not get to use. */
+const TEXT_PAD = 4
 
+/**
+ * How tall a paragraph stands.
+ *
+ * Measured, when there is a browser to ask: the box is a fixed frame with the
+ * text clipped to it, so a count that runs long leaves white space under every
+ * paragraph on the page — and the thing under a paragraph here is the line of
+ * algebra it produces, which then reads as belonging to nothing. A count that
+ * runs short is worse: it loses the end of the sentence, which is where the
+ * point usually is. Neither is a thing to guess at when the browser doing the
+ * wrapping is right there.
+ */
 function textHeight(text: string, width: number, size: keyof typeof TYPE) {
   const point = TYPE[size]
+  const lines = wrappedLines(text, width - TEXT_PAD, point) ?? estimatedLines(text, width, point)
+  // A little over the rendered height, so a wrap that lands a hair differently
+  // is not a clipped descender.
+  return lines * point * LEADING + 2
+}
+
+/**
+ * How many lines this is, as the browser will actually break it.
+ *
+ * Null when there is nothing to ask — the server, or a page whose hand font has
+ * not arrived yet. Measuring against a fallback face and then re-rendering in
+ * the real one is how a paragraph ends up half a line too tall for its box.
+ */
+function wrappedLines(text: string, width: number, point: number): number | null {
+  if (typeof document === 'undefined') return null
+
+  // The same stack Shape.tsx sets, and the same face it will actually use —
+  // next/font's variable is the real family followed by a metric-matched local
+  // fallback, and it is the first of those the words are set in.
+  const stack = getComputedStyle(document.documentElement).getPropertyValue('--font-hand').trim()
+  const hand = stack.split(',')[0]?.trim()
+  if (!hand) return null
+
+  const context = (ruler ??= document.createElement('canvas')).getContext('2d')
+  if (!context) return null
+
+  try {
+    if (!document.fonts?.check(`${point}px ${hand}`)) return null
+    context.font = `${point}px ${stack}, ui-rounded, "Comic Sans MS", cursive`
+  } catch {
+    // A font stack this cannot parse. `check` throws on one; the canvas keeps
+    // its last font and would measure in something else entirely.
+    return null
+  }
+  // Assigning a font the canvas will not parse is silently ignored, and the
+  // 10px sans-serif left behind measures every paragraph as one short line.
+  if (!context.font.includes(`${point}px`)) return null
+
+  let lines = 0
+  for (const paragraph of text.split('\n')) {
+    lines += 1
+    let run = ''
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const next = run ? `${run} ${word}` : word
+      if (run && context.measureText(next).width > width) {
+        lines += 1
+        run = word
+      } else {
+        run = next
+      }
+    }
+  }
+  return lines
+}
+
+/** Where the ruler is kept, so a page of steps is not a page of canvases. */
+let ruler: HTMLCanvasElement | null = null
+
+/**
+ * The fallback, deliberately generous.
+ *
+ * `CHAR` is wider than the hand font really is, because a box that runs short
+ * loses the end of a sentence and one that runs long costs white space.
+ */
+const CHAR = 0.55
+
+function estimatedLines(text: string, width: number, point: number) {
   const perLine = Math.max(6, Math.floor((width - 40) / (point * CHAR)))
-  const lines = text
+  return text
     .split('\n')
     .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / perLine)), 0)
-  return lines * point * 1.45
 }
 
 /**
@@ -130,15 +227,19 @@ function textHeight(text: string, width: number, size: keyof typeof TYPE) {
  * A column and not a two-sided tree: mathematics is read in order, each line
  * following from the one above it, and the moment two steps sit side by side
  * the reader has to work out which came first.
+ *
+ * Nothing in the column is titled. It is one continuous piece of working —
+ * sentence, line, sentence, line — the way it would be written on paper.
  */
 export function solutionToScene(solution: MathSolution, id = 'math'): Scene | null {
-  const steps = solution.steps.filter((step) => step.heading.trim() || step.say.trim() || step.math.trim())
+  const steps = solution.steps.filter((step) => step.say.trim() || step.math.trim())
   if (!solution.title.trim() && !steps.length) return null
 
   const shapes: BoardShape[] = []
   const x = COL_X
   let y = MARGIN
 
+  const titleH = Math.max(TITLE_H, textHeight(solution.title, COL_W, 'l'))
   shapes.push({
     ...base(),
     id: 'title',
@@ -147,10 +248,10 @@ export function solutionToScene(solution: MathSolution, id = 'math'): Scene | nu
     x,
     y,
     w: COL_W,
-    h: TITLE_H,
+    h: titleH,
     size: 'l',
   })
-  y += TITLE_H + 18
+  y += titleH + 16
 
   if (solution.given.trim()) {
     shapes.push({
@@ -168,21 +269,18 @@ export function solutionToScene(solution: MathSolution, id = 'math'): Scene | nu
     y += Math.max(GIVEN_H, mathHeight(solution.given) + 24) + STEP_GAP
   }
 
+  // Every shape of a step is named after the step — `s2`, `s2.m`, `s2.p` — so
+  // the camera can be pointed at "step two" and get the sentence, the line of
+  // algebra and the graph together.
   for (const [i, step] of steps.entries()) {
-    const sayH = step.say.trim() ? textHeight(step.say, SAY_W, 's') + 22 : 0
-    // The heading is set larger than the body, so it costs more than a line.
-    const headH = step.heading.trim() ? 46 : 0
-    const bodyH = headH + sayH
+    const bodyH = step.say.trim() ? textHeight(step.say, COL_W, 's') : 0
 
     if (bodyH) {
       shapes.push({
         ...base(),
         id: `s${i}`,
         kind: 'note',
-        // The heading is the first line of the card, set larger by the
-        // renderer; keeping them in one shape keeps them one block on a board
-        // that can be panned away from mid-sentence.
-        text: step.heading.trim() ? `${step.heading}\n${step.say}` : step.say,
+        text: step.say,
         x,
         y,
         w: COL_W,
@@ -190,14 +288,14 @@ export function solutionToScene(solution: MathSolution, id = 'math'): Scene | nu
         color: 'black',
         size: 's',
       })
-      y += bodyH + 10
+      y += bodyH + SAY_GAP
     }
 
     if (step.math.trim()) {
       const h = mathHeight(step.math)
       shapes.push({
         ...base(),
-        id: `m${i}`,
+        id: `s${i}.m`,
         kind: 'math',
         text: step.math,
         x,
@@ -215,7 +313,7 @@ export function solutionToScene(solution: MathSolution, id = 'math'): Scene | nu
     if (drawn) {
       shapes.push({
         ...base(),
-        id: `p${i}`,
+        id: `s${i}.p`,
         kind: 'plot',
         // Serialised, the way a math shape carries its LaTeX: the layout has
         // done the sampling, and the renderer only has to draw.
@@ -241,11 +339,11 @@ export function solutionToScene(solution: MathSolution, id = 'math'): Scene | nu
       x,
       y,
       w: COL_W,
-      h: Math.max(ANSWER_H, mathHeight(solution.answer) + 40),
+      h: Math.max(ANSWER_H, mathHeight(solution.answer) + 24),
       color: 'green',
       fill: 'semi',
     })
-    y += Math.max(ANSWER_H, mathHeight(solution.answer) + 40) + 12
+    y += Math.max(ANSWER_H, mathHeight(solution.answer) + 24) + 12
 
     if (solution.answerNote.trim()) {
       const h = textHeight(solution.answerNote, COL_W, 's') + 12
@@ -266,13 +364,15 @@ export function solutionToScene(solution: MathSolution, id = 'math'): Scene | nu
   }
 
   if (solution.check.trim()) {
-    // Heading plus body, and the body is usually two sentences of arithmetic.
-    const h = textHeight(solution.check, COL_W, 's') + 66
+    // Unlabelled, like every other paragraph here. "Check" over two sentences
+    // of arithmetic announces what the sentences say themselves — and a
+    // labelled block at the foot of the page turns the working into a form.
+    const h = textHeight(solution.check, COL_W, 's') + 8
     shapes.push({
       ...base(),
       id: 'check',
       kind: 'note',
-      text: `Check\n${solution.check}`,
+      text: solution.check,
       x,
       y,
       w: COL_W,
@@ -334,9 +434,8 @@ export const MATH_JSON_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['heading', 'say', 'math', 'spoken', 'plot'],
+        required: ['say', 'math', 'spoken', 'plot'],
         properties: {
-          heading: { type: 'string' },
           say: { type: 'string' },
           math: { type: 'string' },
           spoken: { type: 'string' },
@@ -385,14 +484,13 @@ export function solutionFromModel(raw: unknown): MathSolution | null {
     .map((step) => {
       const entry = step as Partial<Record<keyof MathStep, unknown>>
       return {
-        heading: text(entry.heading, 80),
         say: text(entry.say, 400),
         math: text(entry.math, 400),
         spoken: text(entry.spoken, 400),
         plot: plotOf(entry.plot),
       }
     })
-    .filter((step) => step.heading || step.say || step.math)
+    .filter((step) => step.say || step.math)
 
   const title = text(value.title, 120)
   if (!title && !steps.length) return null
